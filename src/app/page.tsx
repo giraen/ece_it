@@ -25,6 +25,9 @@ export default function Home() {
         <Link href="/bank" className="btn btn-primary">
           Open the question bank
         </Link>
+        <Link href="/quiz" className="btn">
+          Take a quiz
+        </Link>
         <Link href="/editor" className="btn">
           Write a new question
         </Link>
@@ -33,7 +36,6 @@ export default function Home() {
       <section>
         <h2 className="mb-2 font-medium">Not built yet</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
-          <li>Quizzes with sureness ratings and a timer</li>
           <li>Mastery tracking for topics, subjects, and categories</li>
           <li>Backup and restore</li>
           <li>Computation questions and AI-reworded variants</li>

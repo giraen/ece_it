@@ -3,11 +3,38 @@ import { now } from "./ids";
 
 const MAX_WIDTH = 1200;
 
-async function sha256Hex(blob: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
+/** Small non-cryptographic hash, used only when crypto.subtle is unavailable (insecure origins). */
+function fallbackHash(bytes: Uint8Array): string {
+  let h1 = 1779033703;
+  let h2 = 3144134277;
+  let h3 = 1013904242;
+  let h4 = 2773480762;
+  for (let i = 0; i < bytes.length; i++) {
+    const k = bytes[i];
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [h1 ^ h2 ^ h3 ^ h4, h2 ^ h1, h3 ^ h1, h4 ^ h1]
+    .map((x) => (x >>> 0).toString(16).padStart(8, "0"))
     .join("");
+}
+
+/** Content hash used as the image id. SHA-256 on secure origins, a fallback hash otherwise. */
+async function contentHash(blob: Blob): Promise<string> {
+  const bytes = await blob.arrayBuffer();
+  if (typeof crypto.subtle?.digest === "function") {
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  return fallbackHash(new Uint8Array(bytes));
 }
 
 /**
@@ -40,7 +67,7 @@ export async function storeImage(file: Blob): Promise<string> {
     });
   }
 
-  const id = (await sha256Hex(blob)).slice(0, 24);
+  const id = (await contentHash(blob)).slice(0, 24);
   const existing = await db.images.get(id);
   if (!existing) {
     await db.images.add({ id, blob, mime: blob.type, width, height, createdAt: now() });

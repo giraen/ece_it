@@ -31,14 +31,20 @@ function StoredImage({ src, alt }: { src: string; alt: string }) {
       <img
         src={url}
         alt={alt}
-        onClick={() => setZoomed(true)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setZoomed(true);
+        }}
         className="inline-block max-h-72 max-w-full cursor-zoom-in rounded border border-line bg-white align-middle"
       />
       {zoomed && (
         <span
           role="dialog"
           aria-label="Enlarged image"
-          onClick={() => setZoomed(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setZoomed(false);
+          }}
           className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/70 p-8"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs cannot go through next/image */}

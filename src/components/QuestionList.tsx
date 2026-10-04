@@ -94,6 +94,11 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {selected && (
+          <Link href={`/quiz/new?node=${selected.id}`} className="btn">
+            Start quiz
+          </Link>
+        )}
         <Link href={newHref} className="btn btn-primary">
           New question
         </Link>

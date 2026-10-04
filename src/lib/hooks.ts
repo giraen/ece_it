@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Question, type TreeNode } from "./db";
+import { db, type QuizAttempt, type Question, type TreeNode } from "./db";
 import { imageUrl } from "./images";
 
 /** Live, non-deleted tree nodes. `undefined` while the first read is in flight. */
@@ -34,4 +34,14 @@ export function useTopicTags(topicId: string | null): string[] {
 export function useImageUrl(id: string | null): string | null {
   const url = useLiveQuery(() => (id ? imageUrl(id) : Promise.resolve(null)), [id]);
   return url ?? null;
+}
+
+/** One quiz attempt. `undefined` while loading, `null` if it does not exist. */
+export function useAttempt(id: string | null): QuizAttempt | null | undefined {
+  return useLiveQuery(async () => (id ? ((await db.attempts.get(id)) ?? null) : null), [id]);
+}
+
+/** All quiz attempts that have not been deleted. */
+export function useAttempts(): QuizAttempt[] | undefined {
+  return useLiveQuery(() => db.attempts.filter((a) => !a.deletedAt).toArray(), []);
 }

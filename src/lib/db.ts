@@ -12,6 +12,10 @@ export interface TreeNode {
   parentId: string | null;
   name: string;
   order: number;
+  /** For a subject: every category it belongs to. `parentId` is the first of them. Missing means just `parentId`. */
+  parentIds?: string[];
+  /** One of the four fixed categories (GEAS, ESAT, ELEX, MATH). They cannot be added, renamed, or deleted. */
+  fixed?: boolean;
   createdAt: number;
   updatedAt: number;
   /** Soft delete. Kept so the backup merge can tell "deleted" from "never existed". */

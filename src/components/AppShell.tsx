@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { ensureCategories } from "@/lib/categories";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import ProfileMenu from "./ProfileMenu";
@@ -16,9 +17,11 @@ const NAV = [
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
 
-  // Ask the browser not to delete your saved questions when it runs low on space.
   useEffect(() => {
+    // Ask the browser not to delete your saved questions when it runs low on space.
     void navigator.storage?.persist?.();
+    // Make sure GEAS, ESAT, ELEX, and MATH exist.
+    void ensureCategories();
   }, []);
 
   return (

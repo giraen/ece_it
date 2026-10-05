@@ -1,6 +1,6 @@
 import { db, type NodeKind, type TreeNode } from "./db";
 import { newId, now } from "./ids";
-import { CHILD_KIND, childrenOf, subtreeOf } from "./tree";
+import { CHILD_KIND, categoriesOf, childrenOf, subtreeOf } from "./tree";
 
 export async function createNode(
   kind: NodeKind,
@@ -17,6 +17,8 @@ export async function createNode(
     id,
     kind,
     parentId,
+    // A new subject starts in one category. It can be shared with others afterwards.
+    parentIds: kind === "subject" && parentId ? [parentId] : undefined,
     name: clean,
     order: siblings.length,
     createdAt: t,
@@ -31,12 +33,10 @@ export async function renameNode(id: string, name: string): Promise<void> {
   await db.nodes.update(id, { name: clean, updatedAt: now() });
 }
 
-/** Swap order with the previous (-1) or next (+1) sibling. */
-export async function moveNode(id: string, dir: -1 | 1): Promise<void> {
+/** Swap order with the previous (-1) or next (+1) sibling in the list it is shown in (`parentId`). */
+export async function moveNode(id: string, dir: -1 | 1, parentId: string | null): Promise<void> {
   const all = await db.nodes.filter((n) => !n.deletedAt).toArray();
-  const node = all.find((n) => n.id === id);
-  if (!node) return;
-  const sibs = childrenOf(all, node.parentId);
+  const sibs = childrenOf(all, parentId);
   const i = sibs.findIndex((n) => n.id === id);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= sibs.length) return;
@@ -50,6 +50,20 @@ export async function moveNode(id: string, dir: -1 | 1): Promise<void> {
       }
     }
   });
+}
+
+/** Chooses which categories a subject belongs to. At least one is needed. */
+export async function setSubjectCategories(subjectId: string, categoryIds: string[]): Promise<void> {
+  const ids = Array.from(new Set(categoryIds));
+  if (ids.length === 0) throw new Error("A subject must belong to at least one category.");
+  await db.nodes.update(subjectId, { parentIds: ids, parentId: ids[0], updatedAt: now() });
+}
+
+/** Takes a shared subject out of one category. It stays in the others. */
+export async function unlinkSubject(subjectId: string, categoryId: string): Promise<void> {
+  const node = await db.nodes.get(subjectId);
+  if (!node) return;
+  await setSubjectCategories(subjectId, categoriesOf(node).filter((c) => c !== categoryId));
 }
 
 /** How many questions deleting this node would remove. */

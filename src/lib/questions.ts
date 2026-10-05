@@ -1,3 +1,39 @@
+import { db, type Question } from "./db";
+import { now } from "./ids";
+
+/** What a reworded variant depends on. If any of this changes, the variants no longer match the question. */
+function answerKey(q: Question): string {
+  return JSON.stringify([q.type, q.stem, q.choices, q.correctChoiceId, q.template]);
+}
+
+/** Saves a new or edited question. */
+export async function saveQuestion(q: Question): Promise<void> {
+  await db.transaction("rw", db.questions, db.variants, async () => {
+    const before = await db.questions.get(q.id);
+    const t = now();
+    await db.questions.put({ ...q, updatedAt: t });
+    if (before && answerKey(before) !== answerKey(q)) {
+      // The question itself changed, so any AI rewordings written for the old version can no longer be trusted.
+      const stale = await db.variants
+        .where("questionId")
+        .equals(q.id)
+        .filter((v) => !v.deletedAt && v.status !== "discarded")
+        .toArray();
+      for (const v of stale) {
+        await db.variants.update(v.id, { status: "discarded", note: "The question was edited after this was made.", updatedAt: t });
+      }
+    }
+  });
+}
+
+/** Deletes questions. They are hidden, not erased, so a backup merge can tell "deleted" from "never existed". */
+export async function deleteQuestions(ids: string[]): Promise<void> {
+  const t = now();
+  await db.transaction("rw", db.questions, async () => {
+    for (const id of ids) await db.questions.update(id, { deletedAt: t, updatedAt: t });
+  });
+}
+
 function sameTag(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }

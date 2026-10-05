@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { Choice, TreeNode } from "@/lib/db";
+import { useRouter } from "next/navigation";
+import type { Choice, Question, TreeNode } from "@/lib/db";
 import { useTagSuggestions } from "@/lib/hooks";
-import { newId } from "@/lib/ids";
+import { newId, now } from "@/lib/ids";
+import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
@@ -21,6 +23,8 @@ function blankChoices(): Choice[] {
 }
 
 interface Props {
+  /** The question being edited, or null for a new one. */
+  initial: Question | null;
   defaultTopicId: string | null;
   nodes: TreeNode[];
 }
@@ -37,12 +41,16 @@ function describe(nodes: TreeNode[], topicId: string): string {
   return `${cats} › ${subject.name} › ${topic.name}`;
 }
 
-export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
-  const [topicId, setTopicId] = useState<string | null>(defaultTopicId);
-  const [stem, setStem] = useState("");
-  const [choices, setChoices] = useState<Choice[]>(blankChoices);
-  const [correctId, setCorrectId] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
+export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props) {
+  const router = useRouter();
+  const [topicId, setTopicId] = useState<string | null>(initial?.topicId ?? defaultTopicId);
+  const [stem, setStem] = useState(initial?.stem ?? "");
+  const [choices, setChoices] = useState<Choice[]>(() => initial?.choices ?? blankChoices());
+  const [correctId, setCorrectId] = useState<string | null>(initial?.correctChoiceId ?? null);
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const suggestions = useTagSuggestions(topicId);
 
   function setChoiceText(id: string, text: string) {
@@ -55,10 +63,58 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
     setCorrectId((cur) => (cur === id ? null : cur));
   }
 
+  async function save(andAnother: boolean) {
+    // Empty choice boxes are simply dropped. What is left must still make a question.
+    const filled = choices.filter((c) => c.text.trim());
+    const problems: string[] = [];
+    if (!topicId) problems.push("Pick a category, subject, and topic.");
+    if (!stem.trim()) problems.push("Write the question.");
+    if (filled.length < 2) problems.push("Add at least two choices.");
+    if (!correctId || !filled.some((c) => c.id === correctId)) problems.push("Mark one filled-in choice as correct.");
+    setErrors(problems);
+    setNotice(null);
+    if (problems.length || !topicId || !correctId) return;
+
+    setSaving(true);
+    try {
+      const t = now();
+      await saveQuestion({
+        ...initial, // keeps anything not edited here, such as a target time
+        id: initial?.id ?? newId(),
+        topicId,
+        type: "standard",
+        stem: stem.trim(),
+        choices: filled.map((c) => ({ ...c, text: c.text.trim() })),
+        correctChoiceId: correctId,
+        tags: normalizeTags(tags),
+        createdAt: initial?.createdAt ?? t,
+        updatedAt: t,
+      });
+      if (andAnother) {
+        // Keep the topic and tags, since the next question usually shares them.
+        setStem("");
+        setChoices(blankChoices());
+        setCorrectId(null);
+        setNotice("Saved. Ready for the next question.");
+      } else {
+        router.push("/bank");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!initial) return;
+    if (!window.confirm("Delete this question?")) return;
+    await deleteQuestions([initial.id]);
+    router.push("/bank");
+  }
+
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="space-y-5">
-        <h1 className="text-xl font-semibold">New question</h1>
+        <h1 className="text-xl font-semibold">{initial ? "Edit question" : "New question"}</h1>
 
         <TopicPicker nodes={nodes} value={topicId} onChange={setTopicId} />
 
@@ -135,9 +191,33 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
           </p>
         </div>
 
-        <Link href="/bank" className="btn">
-          Back to the bank
-        </Link>
+        {errors.length > 0 && (
+          <ul className="list-disc rounded-md border border-danger/40 bg-danger/5 py-2 pr-3 pl-7 text-sm text-danger">
+            {errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        )}
+        {notice && <p className="text-sm text-good">{notice}</p>}
+
+        <div className="flex flex-wrap gap-2">
+          <button className="btn btn-primary" disabled={saving} onClick={() => void save(false)}>
+            {initial ? "Save changes" : "Save question"}
+          </button>
+          {!initial && (
+            <button className="btn" disabled={saving} onClick={() => void save(true)}>
+              Save and add another
+            </button>
+          )}
+          <Link href="/bank" className="btn">
+            Cancel
+          </Link>
+          {initial && (
+            <button className="btn btn-danger ml-auto" onClick={() => void remove()}>
+              Delete question
+            </button>
+          )}
+        </div>
       </div>
 
       <aside aria-label="Preview">

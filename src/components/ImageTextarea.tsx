@@ -75,7 +75,8 @@ export default function ImageTextarea({ value, onChange, rows = 4, placeholder, 
             void insert(files);
           }
         }}
-        className="input font-mono"
+        style={{ minHeight: `${rows * 1.25 + 1}rem` }}
+        className="input resize-y font-mono"
       />
       <div className="mt-1 flex items-center gap-3 text-xs text-muted">
         <button

@@ -57,6 +57,10 @@ body {
   .input {
     @apply w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm;
   }
+  /* Any multi-line text box: resize up and down only, and never smaller than about three lines. */
+  textarea.input {
+    @apply min-h-16 resize-y;
+  }
 }
 
 /* Question text (Markdown with maths) */

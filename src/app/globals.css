@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* ---------- Colours. Every component uses these names, so the dark theme only has to change the values. ---------- */
 @theme {
   --color-paper: #f4f6f8;
   --color-surface: #ffffff;
@@ -11,6 +12,20 @@
   --color-danger: #b3261e;
   --color-good: #1b7f4b;
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+
+/* Dark theme: same names, different values. It switches on when <html> has data-theme="dark". */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #0e1318;
+  --color-surface: #161c23;
+  --color-ink: #e7ecf2;
+  --color-muted: #9aa7b6;
+  --color-line: #2a3440;
+  --color-accent: #4c82e0;
+  --color-accent-soft: #1a2a45;
+  --color-danger: #f0877f;
+  --color-good: #52c48f;
 }
 
 html {
@@ -28,6 +43,7 @@ body {
   outline-offset: 2px;
 }
 
+/* ---------- Shared building blocks ---------- */
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-1 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50;
@@ -43,6 +59,7 @@ body {
   }
 }
 
+/* Question text (Markdown with maths) */
 .rich p {
   margin: 0 0 0.6em;
 }

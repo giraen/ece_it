@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
+import ProfileMenu from "./ProfileMenu";
 import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
@@ -50,6 +51,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
+            <ProfileMenu />
           </div>
         </div>
       </header>

@@ -19,3 +19,20 @@ export function useImageUrl(id: string | null): string | null {
   const url = useLiveQuery(() => (id ? imageUrl(id) : Promise.resolve(null)), [id]);
   return url ?? null;
 }
+
+/** Tags already used in a topic, for autocomplete. */
+export function useTopicTags(topicId: string | null): string[] {
+  const tags = useLiveQuery(async () => {
+    if (!topicId) return [] as string[];
+    const qs = await db.questions
+      .where("topicId")
+      .equals(topicId)
+      .filter((q) => !q.deletedAt)
+      .toArray();
+    // "Series" and "series" are the same tag, so suggest it once, with the first spelling found.
+    const seen = new Map<string, string>();
+    for (const q of qs) for (const t of q.tags) if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+  }, [topicId]);
+  return tags ?? [];
+}

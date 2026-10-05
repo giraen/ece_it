@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Choice, TreeNode } from "@/lib/db";
+import { useTopicTags } from "@/lib/hooks";
 import { newId } from "@/lib/ids";
 import { categoriesOf } from "@/lib/tree";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
+import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
 
 const MIN_CHOICES = 2;
@@ -40,6 +42,8 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
   const [stem, setStem] = useState("");
   const [choices, setChoices] = useState<Choice[]>(blankChoices);
   const [correctId, setCorrectId] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const topicTags = useTopicTags(topicId);
 
   function setChoiceText(id: string, text: string) {
     setChoices((cs) => cs.map((c) => (c.id === id ? { ...c, text } : c)));
@@ -122,6 +126,15 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
           </button>
         </fieldset>
 
+        <div>
+          <label className="mb-1 block text-sm font-medium">Tags</label>
+          <TagInput value={tags} onChange={setTags} suggestions={topicTags} />
+          <p className="mt-1 text-xs text-muted">
+            Optional. Tags group questions inside a topic, such as &ldquo;theorems&rdquo; or &ldquo;series circuits&rdquo;, and show up
+            in your results. Press Enter or a comma to add one.
+          </p>
+        </div>
+
         <Link href="/bank" className="btn">
           Back to the bank
         </Link>
@@ -156,6 +169,15 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
                 </li>
               ))}
             </ol>
+            {tags.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-1" aria-label="Tags">
+                {tags.map((t) => (
+                  <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </aside>

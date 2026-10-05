@@ -6,7 +6,7 @@ import { normalizeTags } from "@/lib/questions";
 interface Props {
   value: string[];
   onChange: (tags: string[]) => void;
-  /** Tags already used in this topic. */
+  /** Tags to offer while typing. */
   suggestions: string[];
 }
 

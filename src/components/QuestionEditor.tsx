@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Choice, TreeNode } from "@/lib/db";
-import { useTopicTags } from "@/lib/hooks";
+import { useTagSuggestions } from "@/lib/hooks";
 import { newId } from "@/lib/ids";
 import { categoriesOf } from "@/lib/tree";
 import ImageTextarea from "./ImageTextarea";
@@ -43,7 +43,7 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
   const [choices, setChoices] = useState<Choice[]>(blankChoices);
   const [correctId, setCorrectId] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
-  const topicTags = useTopicTags(topicId);
+  const suggestions = useTagSuggestions(topicId);
 
   function setChoiceText(id: string, text: string) {
     setChoices((cs) => cs.map((c) => (c.id === id ? { ...c, text } : c)));
@@ -128,7 +128,7 @@ export default function QuestionEditor({ defaultTopicId, nodes }: Props) {
 
         <div>
           <label className="mb-1 block text-sm font-medium">Tags</label>
-          <TagInput value={tags} onChange={setTags} suggestions={topicTags} />
+          <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
           <p className="mt-1 text-xs text-muted">
             Optional. Tags group questions inside a topic, such as &ldquo;theorems&rdquo; or &ldquo;series circuits&rdquo;, and show up
             in your results. Press Enter or a comma to add one.

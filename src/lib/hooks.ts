@@ -2,6 +2,7 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Question, type TreeNode } from "./db";
+import { imageUrl } from "./images";
 
 /** The categories, subjects, and topics, kept up to date. `undefined` for a moment while the first read happens. */
 export function useNodes(): TreeNode[] | undefined {
@@ -11,4 +12,10 @@ export function useNodes(): TreeNode[] | undefined {
 /** Every saved question, kept up to date. */
 export function useQuestions(): Question[] | undefined {
   return useLiveQuery(() => db.questions.filter((q) => !q.deletedAt).toArray(), []);
+}
+
+/** The address of a stored picture, ready to show in an <img>. `null` while loading or if it is missing. */
+export function useImageUrl(id: string | null): string | null {
+  const url = useLiveQuery(() => (id ? imageUrl(id) : Promise.resolve(null)), [id]);
+  return url ?? null;
 }

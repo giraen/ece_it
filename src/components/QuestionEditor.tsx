@@ -97,7 +97,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         setCorrectId(null);
         setNotice("Saved. Ready for the next question.");
       } else {
-        router.push("/bank");
+        router.push(`/bank?node=${topicId}`);
       }
     } finally {
       setSaving(false);
@@ -108,7 +108,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
     if (!initial) return;
     if (!window.confirm("Delete this question?")) return;
     await deleteQuestions([initial.id]);
-    router.push("/bank");
+    router.push(`/bank?node=${initial.topicId}`);
   }
 
   return (
@@ -209,7 +209,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               Save and add another
             </button>
           )}
-          <Link href="/bank" className="btn">
+          <Link href={topicId ? `/bank?node=${topicId}` : "/bank"} className="btn">
             Cancel
           </Link>
           {initial && (

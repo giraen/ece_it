@@ -7,9 +7,9 @@ import { UserIcon } from "./icons";
 
 // `match` lists the pages that belong to each item, so the profile button lights up while you are inside any of them.
 const ITEMS = [
-  { href: "/progress", label: "Mastery & analytics", hint: "What you know and how it is going", match: ["/progress", "/blueprint"] },
-  { href: "/bank", label: "Question & concept bank", hint: "Everything you have written", match: ["/bank", "/editor", "/concept"] },
-  { href: "/settings", label: "Settings", hint: "AI helper, backup, and sharing", match: ["/settings"] },
+  { href: "/progress", label: "Analytics", match: ["/progress", "/blueprint"] },
+  { href: "/bank", label: "Bank", match: ["/bank", "/editor", "/concept"] },
+  { href: "/settings", label: "Settings", match: ["/settings"] },
 ];
 
 /** The profile button and the floating menu that opens under it. */
@@ -83,7 +83,7 @@ export default function ProfileMenu() {
           role="menu"
           aria-label="Account"
           onKeyDown={onMenuKey}
-          className="absolute right-0 z-40 mt-2 w-72 rounded-md border border-line bg-surface p-1 shadow-lg"
+          className="absolute right-0 z-40 mt-2 w-48 rounded-md border border-line bg-surface p-1 shadow-lg"
         >
           {ITEMS.map((it) => {
             const active = it.match.some((m) => path.startsWith(m));
@@ -93,10 +93,11 @@ export default function ProfileMenu() {
                 href={it.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className={`block rounded px-3 py-2 hover:bg-paper focus:bg-paper focus:outline-none ${active ? "bg-accent-soft" : ""}`}
+                className={`block rounded px-3 py-2 text-sm hover:bg-paper focus:bg-paper focus:outline-none ${
+                  active ? "bg-accent-soft font-medium text-accent" : ""
+                }`}
               >
-                <span className={`block text-sm font-medium ${active ? "text-accent" : ""}`}>{it.label}</span>
-                <span className="block text-xs text-muted">{it.hint}</span>
+                {it.label}
               </Link>
             );
           })}

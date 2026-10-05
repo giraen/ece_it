@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import ImageTextarea from "@/components/ImageTextarea";
 import RichText from "@/components/RichText";
 import TreePanel from "@/components/TreePanel";
@@ -21,9 +22,14 @@ export default function BankPage() {
     <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
       <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
       <section className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold">{selected ? pathOf(nodes, selected.id) : "Bank"}</h1>
-          <p className="mt-1 text-sm text-muted">Questions will appear here in a later step.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold">{selected ? pathOf(nodes, selected.id) : "Bank"}</h1>
+            <p className="mt-1 text-sm text-muted">Questions will appear here in a later step.</p>
+          </div>
+          <Link href={selected?.kind === "topic" ? `/editor?topic=${selected.id}` : "/editor"} className="btn btn-primary">
+            New question
+          </Link>
         </div>
 
         {/* Temporary playground for this step. The question editor replaces it next. */}

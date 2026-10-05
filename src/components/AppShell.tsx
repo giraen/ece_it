@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -47,6 +48,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6">{children}</main>

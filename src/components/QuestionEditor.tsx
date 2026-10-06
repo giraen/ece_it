@@ -21,6 +21,7 @@ import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
+import VariantReview from "./VariantReview";
 
 const MIN_CHOICES = 2;
 const MAX_CHOICES = 8;
@@ -318,6 +319,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             </button>
           )}
         </div>
+
+        {initial && <VariantReview question={initial} />}
       </div>
 
       <aside aria-label="Preview">

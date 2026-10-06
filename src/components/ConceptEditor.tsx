@@ -7,6 +7,7 @@ import type { Concept, TreeNode } from "@/lib/db";
 import { deleteConcept, saveConcept } from "@/lib/concepts";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
+import DraftReview from "./DraftReview";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
@@ -143,6 +144,12 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
             </button>
           )}
         </div>
+
+        {initial ? (
+          <DraftReview concept={initial} />
+        ) : (
+          <p className="text-sm text-muted">Save the concept first. Then you can draft questions from it.</p>
+        )}
       </div>
 
       <aside aria-label="Preview">

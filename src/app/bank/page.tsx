@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ConceptList from "@/components/ConceptList";
 import QuestionList from "@/components/QuestionList";
 import TreePanel from "@/components/TreePanel";
+import { useDrafts } from "@/lib/concepts";
 import { useConcepts, useNodes, useQuestions } from "@/lib/hooks";
 
 type Tab = "questions" | "concepts";
@@ -15,11 +16,12 @@ function BankView() {
   const nodes = useNodes();
   const questions = useQuestions();
   const concepts = useConcepts();
+  const drafts = useDrafts();
   // The address can name a node to open and a tab, such as /bank?node=<topic id>&tab=concepts.
   const [selectedId, setSelectedId] = useState<string | null>(params.get("node"));
   const tab: Tab = params.get("tab") === "concepts" ? "concepts" : "questions";
 
-  if (!nodes || !questions || !concepts) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !questions || !concepts || !drafts) return <p className="text-sm text-muted">Loading…</p>;
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
   const go = (t: Tab) => {
@@ -56,7 +58,13 @@ function BankView() {
         {tab === "questions" ? (
           <QuestionList key={selected?.id ?? "all"} nodes={nodes} questions={questions} selected={selected} />
         ) : (
-          <ConceptList key={selected?.id ?? "all"} nodes={nodes} concepts={concepts} selected={selected} />
+          <ConceptList
+            key={selected?.id ?? "all"}
+            nodes={nodes}
+            concepts={concepts}
+            drafts={drafts}
+            selected={selected}
+          />
         )}
       </div>
     </div>

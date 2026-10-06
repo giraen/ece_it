@@ -434,10 +434,6 @@ function SimpleAi({ providers }: { providers: ProviderConfig[] }) {
 
       <div className="rounded-md bg-paper p-4 text-sm">
         <p className="font-medium">Get a free key from Groq</p>
-        <p className="mt-1 text-muted">
-          Groq (not the same as X&apos;s Grok) is a company that runs open AI models quickly and offers a free tier.
-          Check their site for current limits.
-        </p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted">
           <li>Open console.groq.com and sign in.</li>
           <li>Choose API Keys, then create a key and copy it.</li>
@@ -454,9 +450,7 @@ function SimpleAi({ providers }: { providers: ProviderConfig[] }) {
 
       <div className="rounded-md border border-line p-3 text-sm text-muted">
         <p>
-          <strong className="text-ink">Your key stays in this browser.</strong> It goes straight from here to the
-          provider. If a provider refuses requests from a browser, the app&apos;s server passes that one request along
-          without storing or logging it. The key is never in the code, in Vercel, or in a backup or pack.
+          <strong className="text-ink">Your key stays in this browser.</strong>
         </p>
         <label className="mt-2 flex items-start gap-2">
           <input type="checkbox" className="mt-1" checked={remember} onChange={(e) => setRemember(e.target.checked)} />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { Concept, TreeNode } from "@/lib/db";
+import type { Concept, DraftQuestion, TreeNode } from "@/lib/db";
 import { pathOf, subtreeOf } from "@/lib/tree";
 import RichText from "./RichText";
 
@@ -17,12 +17,13 @@ const excerpt = (body: string) =>
 interface Props {
   nodes: TreeNode[];
   concepts: Concept[];
+  drafts: DraftQuestion[];
   /** The category, subject, or topic chosen in the tree, or null for everything. */
   selected: TreeNode | null;
 }
 
 /** The concept notes under the chosen part of the tree, searchable and readable in place. */
-export default function ConceptList({ nodes, concepts, selected }: Props) {
+export default function ConceptList({ nodes, concepts, drafts, selected }: Props) {
   const [search, setSearch] = useState("");
   const [reading, setReading] = useState<Set<string>>(new Set());
 
@@ -40,6 +41,7 @@ export default function ConceptList({ nodes, concepts, selected }: Props) {
         c.tags.some((t) => t.toLowerCase().includes(needle)),
     )
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const waitingFor = (id: string) => drafts.filter((d) => d.conceptId === id && d.status === "pending").length;
   const newHref = selected?.kind === "topic" ? `/concept?topic=${selected.id}` : "/concept";
 
   const toggle = (id: string) =>
@@ -90,13 +92,18 @@ export default function ConceptList({ nodes, concepts, selected }: Props) {
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted">{pathOf(nodes, c.topicId)}</p>
                     {!open && <p className="mt-1 line-clamp-2 text-sm text-muted">{excerpt(c.body)}</p>}
-                    {c.tags.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
+                    {(c.tags.length > 0 || waitingFor(c.id) > 0) && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         {c.tags.map((t) => (
                           <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
                             {t}
                           </span>
                         ))}
+                        {waitingFor(c.id) > 0 && (
+                          <span className="text-xs font-medium text-accent">
+                            {waitingFor(c.id)} draft{waitingFor(c.id) === 1 ? "" : "s"} to review
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

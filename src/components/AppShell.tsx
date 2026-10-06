@@ -32,7 +32,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-paper p-8 text-center lg:hidden"
       >
         <Logo />
-        <h1 className="text-xl font-semibold">ECE Review is made for a laptop</h1>
+        <h1 className="text-xl font-semibold">ECE Review is made for a large view</h1>
         <p className="max-w-sm text-muted">
           This screen is too small to use it properly. Please open this site on a laptop or desktop computer.
         </p>

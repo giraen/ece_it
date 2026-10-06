@@ -1,8 +1,12 @@
-export default function SettingsPage() {
+"use client";
+
+import { Suspense } from "react";
+import SettingsPage from "@/components/SettingsPage";
+
+export default function Page() {
   return (
-    <div className="space-y-2">
-      <h1 className="text-xl font-semibold">Settings</h1>
-      <p className="text-muted">The AI helper and backup will appear here.</p>
-    </div>
+    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+      <SettingsPage />
+    </Suspense>
   );
 }

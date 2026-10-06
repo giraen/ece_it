@@ -7,7 +7,14 @@ import { pathOf, subtreeOf } from "./tree";
 import { formatCountdown } from "./format";
 import { masteryFor } from "./mastery";
 
-function buildItem(q: Question, nodes: TreeNode[], targetSec: number): AttemptItem {
+/** What the quiz shows for a question. For a computation question this is one roll of fresh numbers. */
+interface Shown {
+  stem: string;
+  choices: Question["choices"];
+  correctChoiceId: string;
+}
+
+function buildItem(q: Question, nodes: TreeNode[], targetSec: number, shown: Shown): AttemptItem {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const topic = byId.get(q.topicId);
   const subject = topic?.parentId ? byId.get(topic.parentId) : undefined;
@@ -15,9 +22,9 @@ function buildItem(q: Question, nodes: TreeNode[], targetSec: number): AttemptIt
   return {
     questionId: q.id,
     type: q.type,
-    stem: q.stem,
-    choices: q.choices,
-    correctChoiceId: q.correctChoiceId,
+    stem: shown.stem,
+    choices: shown.choices,
+    correctChoiceId: shown.correctChoiceId,
     tags: q.tags,
     topicId: q.topicId,
     topicName: topic?.name ?? "(deleted topic)",
@@ -25,7 +32,7 @@ function buildItem(q: Question, nodes: TreeNode[], targetSec: number): AttemptIt
     subjectName: subject?.name ?? "(deleted subject)",
     categoryId: category?.id ?? "",
     categoryName: category?.name ?? "(deleted category)",
-    choiceOrder: shuffle(q.choices.map((c) => c.id)),
+    choiceOrder: shuffle(shown.choices.map((c) => c.id)),
     targetSec,
     confirmed: false,
     activeMs: 0,
@@ -52,9 +59,11 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
       .filter((n) => n.kind === "topic")
       .map((n) => n.id),
   );
-  const pool = (await db.questions.filter((q) => !q.deletedAt && q.type === "standard").toArray()).filter((q) =>
-    topicIds.has(q.topicId),
-  );
+  const inScope = (await db.questions.filter((q) => !q.deletedAt).toArray()).filter((q) => topicIds.has(q.topicId));
+  // The formula engine is only loaded when there is a computation question to roll.
+  const comp = inScope.some((q) => q.type === "computation") ? await import("./computation") : null;
+  // A computation recipe that cannot produce a question is left out rather than breaking the quiz.
+  const pool = comp ? inScope.filter((q) => q.type !== "computation" || comp.isUsable(q)) : inScope;
 
   const plan = planFor(scope.kind, pool.length);
   const problem = itemsProblem(plan, items);
@@ -90,7 +99,15 @@ const history = historyFrom(everyAttempt);
     status: "in_progress",
     startedAt: t,
     currentIndex: 0,
-    items: picked.map((q) => buildItem(q, nodes, targetSec)),
+    items: picked.map((q) => {
+      if (q.type === "computation") {
+        if (!comp) throw new Error("Computation questions could not be loaded.");
+        const r = comp.rollQuestion(q);
+        if (!r.ok) throw new Error(`A computation question could not be generated. ${r.reason}`);
+        return buildItem(q, nodes, targetSec, r.rolled);
+      }
+      return buildItem(q, nodes, targetSec, q);
+    }),
     createdAt: t,
     updatedAt: t,
   };

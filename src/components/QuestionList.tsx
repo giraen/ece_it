@@ -92,6 +92,9 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <Link href={selected ? `/settings?scope=${selected.id}#backup` : "/settings#backup"} className="btn">
+          Share pack
+        </Link>
         <Link href={newHref} className="btn btn-primary">
           New question
         </Link>

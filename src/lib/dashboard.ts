@@ -48,12 +48,10 @@ export function computeDashboard(input: {
   const questionCount = new Map<string, number>();
   for (const q of questions) questionCount.set(q.topicId, (questionCount.get(q.topicId) ?? 0) + 1);
   // Computation questions cannot be quizzed yet, so only standard ones decide whether something can be quizzed.
-  const usable = new Map<string, number>();
-  for (const q of questions) if (q.type === "standard") usable.set(q.topicId, (usable.get(q.topicId) ?? 0) + 1);
   const countUnder = (id: string) =>
     subtreeOf(live, id)
       .filter((n) => n.kind === "topic")
-      .reduce((s, n) => s + (usable.get(n.id) ?? 0), 0);
+      .reduce((s, n) => s + (questionCount.get(n.id) ?? 0), 0);
 
   const info = new Map(live.map((n) => [n.id, masteryFor(submitted, n, nowMs)]));
   const topicsWithQuestions = live.filter((n) => n.kind === "topic" && (questionCount.get(n.id) ?? 0) > 0);

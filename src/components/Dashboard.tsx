@@ -5,6 +5,7 @@ import { computeDashboard, EXPIRING_DAYS } from "@/lib/dashboard";
 import { formatCountdown, formatDate, formatPercent } from "@/lib/format";
 import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { pathOf } from "@/lib/tree";
+import BackupStatus from "./BackupStatus";
 
 const DAY = 86_400_000;
 
@@ -176,6 +177,8 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      <BackupStatus link />
     </div>
   );
 }

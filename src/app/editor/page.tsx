@@ -28,21 +28,6 @@ function EditorLoader() {
     );
   }
 
-  // Computation questions have their own editor, coming in a later step. Opening one here could lose its formulas.
-  if (question && question.type === "computation") {
-    return (
-      <div className="max-w-xl space-y-3">
-        <h1 className="text-xl font-semibold">Edit question</h1>
-        <p className="rounded-md border border-line bg-surface p-4 text-sm">
-          This is a computation question, which is edited in a later step. It is left untouched for now so nothing is lost.
-        </p>
-        <Link href="/bank" className="btn">
-          Back to the bank
-        </Link>
-      </div>
-    );
-  }
-
   return <QuestionEditor key={question?.id ?? "new"} initial={question ?? null} defaultTopicId={topic} nodes={nodes} />;
 }
 

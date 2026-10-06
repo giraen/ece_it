@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Question, type QuizAttempt, type TreeNode } from "./db";
+   import { db, type Blueprint, type Concept, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
 import { imageUrl } from "./images";
 import { suggestTags } from "./questions";
 import { now } from "./ids";
@@ -50,4 +50,19 @@ export function useNow(intervalMs = 30_000): number {
     return () => window.clearInterval(id);
   }, [intervalMs]);
   return t;
+}
+
+ /** Mock blueprints, kept up to date. They are only used for backups and packs for now. */
+export function useBlueprints(): Blueprint[] | undefined {
+  return useLiveQuery(() => db.blueprints.filter((b) => !b.deletedAt).toArray(), []);
+}
+
+/** AI-written variants of questions, kept up to date. */
+export function useVariants(): Variant[] | undefined {
+  return useLiveQuery(() => db.variants.filter((v) => !v.deletedAt).toArray(), []);
+}
+
+/** Concept notes, kept up to date. */
+export function useConcepts(): Concept[] | undefined {
+  return useLiveQuery(() => db.concepts.filter((c) => !c.deletedAt).toArray(), []);
 }

@@ -4,10 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Choice, Question, TreeNode } from "@/lib/db";
+import {
+  draftFromQuestion,
+  draftToQuestion,
+  rollQuestion,
+  validateTemplate,
+  type CompDraft,
+  type RollResult,
+} from "@/lib/computation";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
 import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
+import ComputationEditor, { blankDraft, RollPreview } from "./ComputationEditor";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
@@ -44,9 +53,21 @@ function describe(nodes: TreeNode[], topicId: string): string {
 export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props) {
   const router = useRouter();
   const [topicId, setTopicId] = useState<string | null>(initial?.topicId ?? defaultTopicId);
-  const [stem, setStem] = useState(initial?.stem ?? "");
-  const [choices, setChoices] = useState<Choice[]>(() => initial?.choices ?? blankChoices());
-  const [correctId, setCorrectId] = useState<string | null>(initial?.correctChoiceId ?? null);
+  const [type, setType] = useState<Question["type"]>(initial?.type ?? "standard");
+  const [stem, setStem] = useState(initial?.type === "computation" ? "" : (initial?.stem ?? ""));
+  const [choices, setChoices] = useState<Choice[]>(() =>
+    initial && initial.type !== "computation" ? initial.choices : blankChoices(),
+  );
+  const [correctId, setCorrectId] = useState<string | null>(
+    initial?.type === "computation" ? null : (initial?.correctChoiceId ?? null),
+  );
+  // A computation question is a recipe: givens, formulas, wordings, and formula choices.
+  const [draft, setDraft] = useState<CompDraft>(() => (initial ? draftFromQuestion(initial) : null) ?? blankDraft());
+  const [compCorrect, setCompCorrect] = useState<string | null>(
+    initial?.type === "computation" ? initial.correctChoiceId : null,
+  );
+  const [rolled, setRolled] = useState<RollResult | null>(null);
+  const [checked, setChecked] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -63,38 +84,74 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
     setCorrectId((cur) => (cur === id ? null : cur));
   }
 
+  const compQuestion = draftToQuestion(draft, compCorrect);
+  const compProblems = type === "computation" ? validateTemplate(compQuestion) : [];
+
+  function roll() {
+    setChecked(true);
+    setErrors([]);
+    setRolled(rollQuestion(compQuestion));
+  }
+
   async function save(andAnother: boolean) {
+    const isComp = type === "computation";
     // Empty choice boxes are simply dropped. What is left must still make a question.
     const filled = choices.filter((c) => c.text.trim());
     const problems: string[] = [];
     if (!topicId) problems.push("Pick a category, subject, and topic.");
-    if (!stem.trim()) problems.push("Write the question.");
-    if (filled.length < 2) problems.push("Add at least two choices.");
-    if (!correctId || !filled.some((c) => c.id === correctId)) problems.push("Mark one filled-in choice as correct.");
+    if (isComp) {
+      setChecked(true);
+      // The detailed list is shown inside the recipe editor, so only one summary line is added here.
+      if (compProblems.length > 0)
+        problems.push("The recipe has problems. They are listed above the “Roll a preview” button.");
+      if (compProblems.length === 0) {
+        // A recipe that cannot produce a question would break a quiz, so it cannot be saved.
+        const check = rollQuestion(compQuestion);
+        if (!check.ok) problems.push(check.reason);
+      }
+    } else {
+      if (!stem.trim()) problems.push("Write the question.");
+      if (filled.length < 2) problems.push("Add at least two choices.");
+      if (!correctId || !filled.some((c) => c.id === correctId)) problems.push("Mark one filled-in choice as correct.");
+    }
     setErrors(problems);
     setNotice(null);
-    if (problems.length || !topicId || !correctId) return;
+    if (problems.length || !topicId || (!isComp && !correctId)) return;
 
     setSaving(true);
     try {
       const t = now();
+      const stems = draft.stems.map((x) => x.trim());
+      const comp = isComp
+        ? {
+            stem: stems[0],
+            choices: compQuestion.choices.map((c) => ({ ...c, text: c.text.trim() })),
+            correctChoiceId: compQuestion.correctChoiceId,
+            template: { ...(compQuestion.template as NonNullable<typeof compQuestion.template>), stems },
+          }
+        : null;
       await saveQuestion({
-        ...initial, // keeps anything not edited here, such as a target time
+        ...initial, // keeps anything not edited here
         id: initial?.id ?? newId(),
         topicId,
-        type: "standard",
-        stem: stem.trim(),
-        choices: filled.map((c) => ({ ...c, text: c.text.trim() })),
-        correctChoiceId: correctId,
+        type,
+        stem: comp ? comp.stem : stem.trim(),
+        choices: comp ? comp.choices : filled.map((c) => ({ ...c, text: c.text.trim() })),
+        correctChoiceId: comp ? comp.correctChoiceId : (correctId as string),
+        template: comp?.template,
         tags: normalizeTags(tags),
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
       if (andAnother) {
-        // Keep the topic and tags, since the next question usually shares them.
+        // Keep the topic, the type, and the tags, since the next question usually shares them.
         setStem("");
         setChoices(blankChoices());
         setCorrectId(null);
+        setDraft(blankDraft());
+        setCompCorrect(null);
+        setRolled(null);
+        setChecked(false);
         setNotice("Saved. Ready for the next question.");
       } else {
         router.push(`/bank?node=${topicId}`);
@@ -128,66 +185,109 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
           )}
         </p>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Question</label>
-          <ImageTextarea
-            label="Question"
-            value={stem}
-            onChange={setStem}
-            rows={6}
-            placeholder="Write the question. Use $...$ for maths, and paste or drop a picture."
-          />
-          <p className="mt-1 text-xs text-muted">
-            Maths goes between dollar signs, like $x^2$. For a centered formula, put $$ on its own line above and below it.
-          </p>
-        </div>
-
-        <fieldset>
-          <legend className="mb-1 text-sm font-medium">Choices</legend>
-          <p className="mb-2 text-xs text-muted">Select the round button next to the correct choice.</p>
-          <div className="space-y-3">
-            {choices.map((c, i) => (
-              <div key={c.id} className="flex items-start gap-2">
+        {!initial ? (
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium">Type of question</legend>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="radio" name="qtype" checked={type === "standard"} onChange={() => setType("standard")} />
+                Standard (fixed question and choices)
+              </label>
+              <label className="flex items-center gap-2">
                 <input
                   type="radio"
-                  name="correct"
-                  className="mt-2.5"
-                  checked={correctId === c.id}
-                  onChange={() => setCorrectId(c.id)}
-                  aria-label={`Choice ${letter(i)} is correct`}
+                  name="qtype"
+                  checked={type === "computation"}
+                  onChange={() => setType("computation")}
                 />
-                <span className="mt-1.5 w-5 text-sm font-medium text-muted">{letter(i)}</span>
-                <div className="flex-1">
-                  <ImageTextarea label={`Choice ${letter(i)}`} value={c.text} onChange={(v) => setChoiceText(c.id, v)} rows={2} />
-                </div>
-                <button
-                  type="button"
-                  className="btn mt-0.5"
-                  onClick={() => removeChoice(c.id)}
-                  disabled={choices.length <= MIN_CHOICES}
-                  aria-label={`Remove choice ${letter(i)}`}
-                >
-                  Remove
-                </button>
+                Computation (new numbers every time)
+              </label>
+            </div>
+          </fieldset>
+        ) : (
+          <p className="text-sm text-muted">{type === "computation" ? "Computation question" : "Standard question"}</p>
+        )}
+
+        {type === "standard" ? (
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Question</label>
+              <ImageTextarea
+                label="Question"
+                value={stem}
+                onChange={setStem}
+                rows={6}
+                placeholder="Write the question. Use $...$ for maths, and paste or drop a picture."
+              />
+              <p className="mt-1 text-xs text-muted">
+                Maths goes between dollar signs, like $x^2$. For a centered formula, put $$ on its own line above and
+                below it.
+              </p>
+            </div>
+
+            <fieldset>
+              <legend className="mb-1 text-sm font-medium">Choices</legend>
+              <p className="mb-2 text-xs text-muted">Select the round button next to the correct choice.</p>
+              <div className="space-y-3">
+                {choices.map((c, i) => (
+                  <div key={c.id} className="flex items-start gap-2">
+                    <input
+                      type="radio"
+                      name="correct"
+                      className="mt-2.5"
+                      checked={correctId === c.id}
+                      onChange={() => setCorrectId(c.id)}
+                      aria-label={`Choice ${letter(i)} is correct`}
+                    />
+                    <span className="mt-1.5 w-5 text-sm font-medium text-muted">{letter(i)}</span>
+                    <div className="flex-1">
+                      <ImageTextarea
+                        label={`Choice ${letter(i)}`}
+                        value={c.text}
+                        onChange={(v) => setChoiceText(c.id, v)}
+                        rows={2}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn mt-0.5"
+                      onClick={() => removeChoice(c.id)}
+                      disabled={choices.length <= MIN_CHOICES}
+                      aria-label={`Remove choice ${letter(i)}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="btn mt-3"
-            disabled={choices.length >= MAX_CHOICES}
-            onClick={() => setChoices((cs) => [...cs, { id: newId(), text: "" }])}
-          >
-            Add choice
-          </button>
-        </fieldset>
+              <button
+                type="button"
+                className="btn mt-3"
+                disabled={choices.length >= MAX_CHOICES}
+                onClick={() => setChoices((cs) => [...cs, { id: newId(), text: "" }])}
+              >
+                Add choice
+              </button>
+            </fieldset>
+          </>
+        ) : (
+          <ComputationEditor
+            draft={draft}
+            setDraft={setDraft}
+            correctId={compCorrect}
+            setCorrectId={setCompCorrect}
+            problems={compProblems}
+            showProblems={checked}
+            onRoll={roll}
+          />
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium">Tags</label>
           <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
           <p className="mt-1 text-xs text-muted">
-            Optional. Tags group questions inside a topic, such as &ldquo;theorems&rdquo; or &ldquo;series circuits&rdquo;, and show up
-            in your results. Press Enter or a comma to add one.
+            Optional. Tags group questions inside a topic, such as &ldquo;theorems&rdquo; or &ldquo;series
+            circuits&rdquo;, and show up in your results. Press Enter or a comma to add one.
           </p>
         </div>
 
@@ -223,42 +323,61 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
       <aside aria-label="Preview">
         <div className="sticky top-4">
           <h2 className="mb-2 text-sm font-medium text-muted">Preview</h2>
-          <div className="rounded-md border border-line border-l-4 border-l-accent bg-surface p-5">
-            {stem.trim() ? (
-              <RichText text={stem} className="text-[15px] leading-relaxed" />
-            ) : (
-              <p className="text-sm text-muted">The question appears here as you type.</p>
-            )}
-            <ol className="mt-4 space-y-2">
-              {choices.map((c, i) => (
-                <li
-                  key={c.id}
-                  className={`flex gap-3 rounded-md border px-3 py-2 ${
-                    correctId === c.id ? "border-good bg-good/5" : "border-line"
-                  }`}
-                >
-                  <span className="w-5 shrink-0 font-medium text-muted">{letter(i)}</span>
-                  <div className="min-w-0 flex-1">
-                    {c.text.trim() ? (
-                      <RichText text={c.text} className="text-[15px]" />
-                    ) : (
-                      <span className="text-sm text-muted">Empty</span>
-                    )}
-                  </div>
-                  {correctId === c.id && <span className="text-xs font-medium text-good">Correct</span>}
-                </li>
-              ))}
-            </ol>
-            {tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-1" aria-label="Tags">
-                {tags.map((t) => (
-                  <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
-                    {t}
-                  </span>
+          {type === "computation" ? (
+            <div className="space-y-3">
+              <RollPreview
+                result={rolled}
+                formulas={draft.choices.map((c) => c.formula)}
+                mistakes={draft.choices.map((c) => c.mistake)}
+              />
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1" aria-label="Tags">
+                  {tags.map((t) => (
+                    <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-md border border-line border-l-4 border-l-accent bg-surface p-5">
+              {stem.trim() ? (
+                <RichText text={stem} className="text-[15px] leading-relaxed" />
+              ) : (
+                <p className="text-sm text-muted">The question appears here as you type.</p>
+              )}
+              <ol className="mt-4 space-y-2">
+                {choices.map((c, i) => (
+                  <li
+                    key={c.id}
+                    className={`flex gap-3 rounded-md border px-3 py-2 ${
+                      correctId === c.id ? "border-good bg-good/5" : "border-line"
+                    }`}
+                  >
+                    <span className="w-5 shrink-0 font-medium text-muted">{letter(i)}</span>
+                    <div className="min-w-0 flex-1">
+                      {c.text.trim() ? (
+                        <RichText text={c.text} className="text-[15px]" />
+                      ) : (
+                        <span className="text-sm text-muted">Empty</span>
+                      )}
+                    </div>
+                    {correctId === c.id && <span className="text-xs font-medium text-good">Correct</span>}
+                  </li>
                 ))}
-              </div>
-            )}
-          </div>
+              </ol>
+              {tags.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-1" aria-label="Tags">
+                  {tags.map((t) => (
+                    <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </aside>
     </div>

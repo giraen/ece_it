@@ -37,10 +37,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
       .filter((n) => n.kind === "topic")
       .map((n) => n.id),
   );
-  const inScope = questions.filter((q) => topicIds.has(q.topicId));
-  // Computation questions cannot be rolled into real numbers yet, so a quiz leaves them out.
-  const pool = inScope.filter((q) => q.type === "standard");
-  const leftOut = inScope.length - pool.length;
+  const pool = questions.filter((q) => topicIds.has(q.topicId));
   const plan = planFor(kind, pool.length);
   const info = masteryFor(attempts, node, nowMs);
   const locked = info.lockedUntil !== undefined;
@@ -106,7 +103,6 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
         <p className="mt-1 font-medium">{pathOf(nodes, node.id)}</p>
         <p className="text-sm text-muted">
           {pool.length} question{pool.length === 1 ? "" : "s"} available
-          {leftOut > 0 && `. ${leftOut} computation question${leftOut === 1 ? " is" : "s are"} left out for now.`}
         </p>
       </div>
 

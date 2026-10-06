@@ -13,7 +13,7 @@ const NAV = [
   { href: "/quiz", label: "Quiz" },
 ];
 
-/** The header and the page frame around every page. */
+/** The header and the page frame around every page. On a small screen it is replaced by a full-screen notice. */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
 
@@ -26,10 +26,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <div className="bg-accent-soft px-4 py-2 text-center text-sm text-accent lg:hidden">
-        This site is best experienced on a laptop.
-      </div>
-      <header className="border-b border-line bg-surface">
+      {/* Small screens only. It covers everything, and the real app below is hidden, so nothing can be tapped. */}
+      <section
+        aria-label="Screen too small"
+        className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-paper p-8 text-center lg:hidden"
+      >
+        <Logo />
+        <h1 className="text-xl font-semibold">ECE Review is made for a laptop</h1>
+        <p className="max-w-sm text-muted">
+          This screen is too small to use it properly. Please open this site on a laptop or desktop computer.
+        </p>
+        <p className="max-w-sm text-sm text-muted">On a computer already? Make the browser window wider.</p>
+      </section>
+
+      <header className="border-b border-line bg-surface max-lg:hidden">
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-6 py-2.5">
           <Link href="/" className="mr-4 flex items-center gap-2 font-semibold" aria-label="ECE Review, home">
             <Logo />
@@ -58,7 +68,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6 max-lg:hidden">{children}</main>
     </>
   );
 }

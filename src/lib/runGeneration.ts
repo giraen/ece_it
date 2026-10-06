@@ -129,6 +129,32 @@ export async function generateForQuestion(
   return r;
 }
 
+/** Drafts new questions from a concept, for the "Draft questions" button. They wait for review. */
+export async function draftFromConcept(
+  concept: Concept,
+  providers: ProviderConfig[],
+  onEvent: (e: RunEvent) => void,
+): Promise<void> {
+  const deps: GenDeps = { ask: makeAsk(providers) };
+  const existing = await db.drafts
+    .where("conceptId")
+    .equals(concept.id)
+    .filter((d) => !d.deletedAt)
+    .toArray();
+  const r = await generateDrafts(concept, existing, deps);
+  await saveDrafts(r.drafts);
+  const kept = r.drafts.filter((d) => d.status === "pending").length;
+  const dropped = r.drafts.filter((d) => d.status === "discarded").length;
+  onEvent({
+    kind: kept ? "ok" : "warn",
+    text: kept
+      ? `${kept} question${kept === 1 ? "" : "s"} ready to review${dropped ? `, ${dropped} discarded` : ""}.`
+      : "No new questions were kept.",
+  });
+  for (const n of r.notes.slice(0, 4)) onEvent({ kind: "warn", text: n });
+  if (r.stopped) onEvent({ kind: "stop", text: r.stopped });
+}
+
 function mergeInto(list: Variant[], changed: Variant[]): Variant[] {
   const byId = new Map(list.map((v) => [v.id, v]));
   for (const v of changed) byId.set(v.id, v);

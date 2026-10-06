@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CONFIG } from "@/lib/config";
@@ -34,11 +34,30 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
   );
 }
 
-function GroupRow({ g }: { g: GroupStats }) {
+function GroupRow({
+  g,
+  depth = 0,
+  toggle,
+}: {
+  g: GroupStats;
+  depth?: number;
+  toggle?: { open: boolean; onClick: () => void };
+}) {
   const low = g.credit + 1e-9 < CONFIG.passBar;
   return (
     <tr className="border-t border-line">
-      <td className="py-2 pr-2">{g.label}</td>
+      <td className="py-2 pr-2" style={{ paddingLeft: depth * 20 }}>
+        {toggle && (
+          <button
+            className="mr-1 w-4 text-xs text-muted"
+            aria-label={toggle.open ? `Collapse ${g.label}` : `Expand ${g.label}`}
+            onClick={toggle.onClick}
+          >
+            {toggle.open ? "▾" : "▸"}
+          </button>
+        )}
+        {g.label}
+      </td>
       <td className={`px-2 text-right tabular-nums ${low ? "font-medium text-danger" : "text-good"}`}>
         {Math.round(g.credit * 100)}%
       </td>
@@ -111,6 +130,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
   const allAttempts = useAttempts();
   const nowMs = useNow();
   const [filter, setFilter] = useState<Filter>("all");
+  const [open, setOpen] = useState<Set<string>>(new Set());
 
   if (attempt === undefined) return <p className="text-sm text-muted">Loading…</p>;
   if (attempt === null) return <p className="text-sm">That quiz no longer exists.</p>;
@@ -135,9 +155,22 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
   const groups = groupStats(items, (it) => groupKeysFor(kind, it));
   const sortedGroups = [...groups].sort((a, b) => a.credit - b.credit);
   const weak = needsWork(groups);
-  const groupLabel = kind === "subject" ? "Topic" : "Tag";
-  // In a subject quiz the groups are topics, so the weakest one can be practised on its own.
-  const weakestTopic = kind === "subject" ? weak[0] : undefined;
+  const groupLabel = kind === "category" ? "Entry" : kind === "subject" ? "Topic" : "Tag";
+  // The weakest topic, if any fell below the bar, can be practised on its own.
+  const topicGroups =
+    kind === "topic"
+      ? []
+      : kind === "subject"
+        ? groups
+        : groupStats(items, (it) => [{ key: it.topicId, label: it.topicName }]);
+  const weakestTopic = needsWork(topicGroups, 1)[0];
+  const toggleOpen = (key: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const scopeInfo = allAttempts ? masteryFor(allAttempts, { id: attempt.scopeNodeId, kind }, nowMs) : undefined;
   const locked = scopeInfo?.lockedUntil !== undefined;
@@ -247,7 +280,22 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             </thead>
             <tbody>
               {sortedGroups.map((g) => (
-                <GroupRow key={g.key} g={g} />
+                <Fragment key={g.key}>
+                  <GroupRow
+                    g={g}
+                    toggle={
+                      kind === "category" ? { open: open.has(g.key), onClick: () => toggleOpen(g.key) } : undefined
+                    }
+                  />
+                  {kind === "category" &&
+                    open.has(g.key) &&
+                    groupStats(
+                      items.filter((it) => (it.entryId ?? it.subjectId) === g.key),
+                      (it) => [{ key: it.topicId, label: it.topicName }],
+                    )
+                      .sort((a, b) => a.credit - b.credit)
+                      .map((t) => <GroupRow key={t.key} g={t} depth={1} />)}
+                </Fragment>
               ))}
             </tbody>
           </table>

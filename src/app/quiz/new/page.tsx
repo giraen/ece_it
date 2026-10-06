@@ -3,8 +3,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import NewMockForm from "@/components/NewMockForm";
 import NewQuizForm from "@/components/NewQuizForm";
-import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
+import { useAttempts, useBlueprint, useNodes, useNow, useQuestions } from "@/lib/hooks";
 
 function Loader() {
   const id = useSearchParams().get("node");
@@ -12,8 +13,10 @@ function Loader() {
   const questions = useQuestions();
   const attempts = useAttempts();
   const nowMs = useNow();
+  const blueprint = useBlueprint(id);
 
-  if (!nodes || !questions || !attempts) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !questions || !attempts || blueprint === undefined)
+    return <p className="text-sm text-muted">Loading…</p>;
   const node = id ? nodes.find((n) => n.id === id) : undefined;
 
   if (!node) {
@@ -28,12 +31,15 @@ function Loader() {
   }
   if (node.kind === "category") {
     return (
-      <p className="text-sm">
-        A whole category is quizzed as a mock board, which comes in a later step. Choose a subject or a topic for now.{" "}
-        <Link href="/quiz" className="underline">
-          Back
-        </Link>
-      </p>
+      <NewMockForm
+        key={node.id}
+        node={node}
+        nodes={nodes}
+        questions={questions}
+        blueprint={blueprint}
+        attempts={attempts}
+        nowMs={nowMs}
+      />
     );
   }
   return (

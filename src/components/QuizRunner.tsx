@@ -32,6 +32,7 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
   const total = items.length;
   const index = Math.max(0, Math.min(attempt.currentIndex, total - 1));
   const item = items[index];
+  const mock = attempt.mode === "mock";
   const isLast = index === total - 1;
   const answered = items.filter(isComplete).length;
   // Time spent, counting the live clock on the question being shown. The target is the sum of every item's target.
@@ -74,6 +75,7 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{attempt.scopeName}</p>
             <p className="text-xs text-muted">
+              {mock ? "Mock board: no pause, no going back · " : ""}
               {answered} of {total} answered
             </p>
           </div>
@@ -81,12 +83,16 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
             <p className="text-xs text-muted">Quiz time · target {formatDuration(targetMs)}</p>
             <p className="text-lg font-semibold tabular-nums">{formatDuration(totalMs)}</p>
           </div>
-          <button className="btn" onClick={() => setPaused((p) => !p)}>
-            {paused ? "Resume" : "Pause"}
-          </button>
-          <button className="btn" onClick={() => void finish()} disabled={submitting}>
-            Submit quiz
-          </button>
+          {!mock && (
+            <button className="btn" onClick={() => setPaused((p) => !p)}>
+              {paused ? "Resume" : "Pause"}
+            </button>
+          )}
+          {!mock && (
+            <button className="btn" onClick={() => void finish()} disabled={submitting}>
+              Submit quiz
+            </button>
+          )}
           <button className="btn btn-danger" onClick={() => void discard()}>
             Discard
           </button>
@@ -96,31 +102,33 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
           <div className="h-full bg-accent" style={{ width: `${(answered / total) * 100}%` }} />
         </div>
 
-        <nav aria-label="Questions" className="mt-3 flex flex-wrap gap-1">
-          {items.map((it, i) => {
-            const done = isComplete(it);
-            const partial = !done && Boolean(it.selectedChoiceId);
-            return (
-              <button
-                key={it.questionId + i}
-                aria-label={`Question ${i + 1}${done ? ", answered" : partial ? ", needs a sureness rating" : ""}`}
-                aria-current={i === index ? "step" : undefined}
-                onClick={() => void setCurrentIndex(attemptId, i)}
-                className={`h-8 min-w-8 rounded border px-2 text-sm tabular-nums ${
-                  i === index
-                    ? "border-accent bg-accent text-white"
-                    : done
-                      ? "border-accent/40 bg-accent-soft text-accent"
-                      : partial
-                        ? "border-line bg-surface text-ink underline decoration-dotted"
-                        : "border-line bg-surface text-muted"
-                }`}
-              >
-                {i + 1}
-              </button>
-            );
-          })}
-        </nav>
+        {!mock && (
+          <nav aria-label="Questions" className="mt-3 flex flex-wrap gap-1">
+            {items.map((it, i) => {
+              const done = isComplete(it);
+              const partial = !done && Boolean(it.selectedChoiceId);
+              return (
+                <button
+                  key={it.questionId + i}
+                  aria-label={`Question ${i + 1}${done ? ", answered" : partial ? ", needs a sureness rating" : ""}`}
+                  aria-current={i === index ? "step" : undefined}
+                  onClick={() => void setCurrentIndex(attemptId, i)}
+                  className={`h-8 min-w-8 rounded border px-2 text-sm tabular-nums ${
+                    i === index
+                      ? "border-accent bg-accent text-white"
+                      : done
+                        ? "border-accent/40 bg-accent-soft text-accent"
+                        : partial
+                          ? "border-line bg-surface text-ink underline decoration-dotted"
+                          : "border-line bg-surface text-muted"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
 
       <QuestionPane
@@ -133,7 +141,7 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
         isLast={isLast}
         onTick={(i, ms) => setLive({ index: i, ms })}
         onAdvance={advance}
-        onPrev={index > 0 ? () => void setCurrentIndex(attemptId, index - 1) : undefined}
+        onPrev={!mock && index > 0 ? () => void setCurrentIndex(attemptId, index - 1) : undefined}
       />
     </div>
   );

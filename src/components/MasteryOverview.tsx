@@ -5,7 +5,7 @@ import Link from "next/link";
 import { countAvailable } from "@/lib/compose";
 import type { TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate } from "@/lib/format";
-import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
+import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { treeMastery, type TreeMastery } from "@/lib/mastery";
 import { childrenOf, KIND_LABEL } from "@/lib/tree";
 
@@ -15,6 +15,7 @@ interface Ctx {
   nodes: TreeNode[];
   mastery: Map<string, TreeMastery>;
   counts: Map<string, number>;
+  blueprintFor: Set<string>;
   expanded: Set<string>;
   toggle: (at: string) => void;
   nowMs: number;
@@ -80,13 +81,31 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
             {childText ? ` · ${childText}` : ""}
           </span>
         </span>
-        {node.kind !== "category" && <Status m={m} nowMs={ctx.nowMs} />}
+        <Status m={m} nowMs={ctx.nowMs} />
         {locked && m.info.lockedUntil !== undefined && (
           <span className="text-xs text-danger">Retake in {formatCountdown(m.info.lockedUntil - ctx.nowMs)}</span>
         )}
         <span className="flex gap-1.5">
           {node.kind === "category" ? (
-            <span className="text-xs text-muted">Mock coming later</span>
+            <>
+              <Link href={`/blueprint?category=${node.id}`} className="btn py-1">
+                {ctx.blueprintFor.has(node.id) ? "Blueprint" : "Set up blueprint"}
+              </Link>
+              {ctx.blueprintFor.has(node.id) &&
+                (locked ? (
+                  <span className="btn pointer-events-none py-1 opacity-40" aria-disabled="true">
+                    Mock
+                  </span>
+                ) : (
+                  <Link
+                    href={`/quiz/new?node=${node.id}`}
+                    className="btn btn-primary py-1"
+                    aria-label={`Mock board for ${node.name}`}
+                  >
+                    Mock
+                  </Link>
+                ))}
+            </>
           ) : locked || count === 0 ? (
             <span
               className="btn pointer-events-none py-1 opacity-40"
@@ -122,16 +141,18 @@ export default function MasteryOverview() {
   const nodes = useNodes();
   const attempts = useAttempts();
   const questions = useQuestions();
+  const blueprints = useBlueprints();
   const nowMs = useNow();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  if (!nodes || !attempts || !questions) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !attempts || !questions || !blueprints) return <p className="text-sm text-muted">Loading…</p>;
 
   const roots = childrenOf(nodes, null);
   const ctx: Ctx = {
     nodes,
     mastery: treeMastery(nodes, attempts, nowMs),
     counts: new Map(nodes.map((n) => [n.id, countAvailable(nodes, questions, n.id)])),
+    blueprintFor: new Set(blueprints.map((b) => b.categoryId)),
     expanded,
     nowMs,
     toggle: (at) =>
@@ -148,8 +169,8 @@ export default function MasteryOverview() {
       <div>
         <h2 className="text-lg font-semibold">Mastery</h2>
         <p className="mt-1 text-sm text-muted">
-          Pass a quiz at a level to earn mastery for that level. It lasts 14 days for a topic and 42 for a subject. A
-          failed quiz locks that same item for 24 hours.
+          Pass a quiz at a level to earn mastery for that level. It lasts 14 days for a topic, 42 for a subject, and 84
+          for a category, which you earn with a mock board. A failed quiz locks that same item for 24 hours.
         </p>
       </div>
       {roots.length === 0 ? (

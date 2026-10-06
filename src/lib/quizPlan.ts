@@ -107,8 +107,12 @@ export function masteryEligibility(
   return c.ok ? { eligible: true } : { eligible: false, reason: c.reason };
 }
 
-/** Which results group an item belongs to: tags in a topic quiz, topics in a subject quiz. */
+/** Which results group an item belongs to: tags in a topic quiz, topics in a subject quiz, blueprint entries in a mock. */
 export function groupKeysFor(kind: NodeKind, item: AttemptItem): { key: string; label: string }[] {
+  if (kind === "category") {
+    if (item.entryId) return [{ key: item.entryId, label: item.entryName ?? item.subjectName }];
+    return [{ key: item.subjectId, label: item.subjectName }];
+  }
   if (kind === "subject") return [{ key: item.topicId, label: item.topicName }];
   if (item.tags.length === 0) return [{ key: "", label: "Untagged" }];
   return item.tags.map((t) => ({ key: t.toLowerCase(), label: t }));

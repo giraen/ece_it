@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
-import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
+import type { Blueprint, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate } from "@/lib/format";
 import { masteryFor } from "@/lib/mastery";
 import { childrenOf, subtreeOf } from "@/lib/tree";
@@ -12,6 +12,7 @@ interface Props {
   nodes: TreeNode[];
   questions: Question[];
   attempts: QuizAttempt[];
+  blueprints: Blueprint[];
   /** The current time, so expiry dates and countdowns stay up to date. */
   nowMs: number;
 }
@@ -30,6 +31,7 @@ function Row({
   nodes,
   perTopic,
   attempts,
+  blueprints,
   nowMs,
   open,
   toggle,
@@ -40,6 +42,7 @@ function Row({
   nodes: TreeNode[];
   perTopic: Map<string, number>;
   attempts: QuizAttempt[];
+  blueprints: Blueprint[];
   nowMs: number;
   open: Set<string>;
   toggle: (at: string) => void;
@@ -49,7 +52,8 @@ function Row({
   const count = countUnder(nodes, perTopic, node.id);
   const minItems = node.kind === "category" ? undefined : CONFIG.quiz[node.kind].minItems;
   const practiceOnly = minItems !== undefined && count > 0 && count < minItems;
-  const info = node.kind === "category" ? undefined : masteryFor(attempts, node, nowMs);
+  const info = masteryFor(attempts, node, nowMs);
+  const hasBlueprint = blueprints.some((b) => b.categoryId === node.id);
   const locked = info?.lockedUntil !== undefined;
 
   return (
@@ -102,7 +106,25 @@ function Row({
           </span>
         )}
         {node.kind === "category" ? (
-          <span className="w-28 text-right text-xs text-muted">Mock coming later</span>
+          <span className="flex gap-1.5">
+            <Link href={`/blueprint?category=${node.id}`} className="btn" aria-label={`Blueprint for ${node.name}`}>
+              {hasBlueprint ? "Blueprint" : "Set up blueprint"}
+            </Link>
+            {hasBlueprint &&
+              (locked ? (
+                <span className="btn cursor-not-allowed opacity-50" aria-disabled="true">
+                  Mock
+                </span>
+              ) : (
+                <Link
+                  href={`/quiz/new?node=${node.id}`}
+                  className="btn btn-primary"
+                  aria-label={`Mock board for ${node.name}`}
+                >
+                  Mock
+                </Link>
+              ))}
+          </span>
         ) : count === 0 || locked ? (
           <span className="btn w-20 cursor-not-allowed opacity-50" aria-disabled="true">
             Quiz
@@ -124,6 +146,7 @@ function Row({
               nodes={nodes}
               perTopic={perTopic}
               attempts={attempts}
+              blueprints={blueprints}
               nowMs={nowMs}
               open={open}
               toggle={toggle}
@@ -136,7 +159,7 @@ function Row({
 }
 
 /** The categories, subjects, and topics, each with a Quiz button. Collapsed to categories at first. */
-export default function QuizPicker({ nodes, questions, attempts, nowMs }: Props) {
+export default function QuizPicker({ nodes, questions, attempts, blueprints, nowMs }: Props) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const perTopic = new Map<string, number>();
   for (const q of questions) perTopic.set(q.topicId, (perTopic.get(q.topicId) ?? 0) + 1);
@@ -163,6 +186,7 @@ export default function QuizPicker({ nodes, questions, attempts, nowMs }: Props)
           nodes={nodes}
           perTopic={perTopic}
           attempts={attempts}
+          blueprints={blueprints}
           nowMs={nowMs}
           open={open}
           toggle={toggle}

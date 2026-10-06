@@ -3,7 +3,7 @@
 import Link from "next/link";
 import QuizPicker from "@/components/QuizPicker";
 import { formatDateTime } from "@/lib/format";
-import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
+import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { abandonAttempt, isComplete } from "@/lib/quiz";
 
 export default function QuizPage() {
@@ -11,6 +11,7 @@ export default function QuizPage() {
   const questions = useQuestions();
   const attempts = useAttempts();
   const nowMs = useNow();
+  const blueprints = useBlueprints();
   const inProgress = (attempts ?? [])
     .filter((a) => a.status === "in_progress")
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -20,8 +21,8 @@ export default function QuizPage() {
       <div>
         <h1 className="text-xl font-semibold">Quiz</h1>
         <p className="mt-1 text-sm text-muted">
-          Choose a topic or a subject to be quizzed on. A quiz needs enough questions to award mastery. With fewer, you
-          can still take it for practice.
+          Choose a topic or a subject to be quizzed on, or run a mock board for a whole category. A quiz needs enough
+          questions to award mastery. With fewer, you can still take it for practice.
         </p>
       </div>
 
@@ -58,8 +59,8 @@ export default function QuizPage() {
 
       <section aria-label="Start a quiz" className="space-y-2">
         <h2 className="font-medium">Start a quiz</h2>
-        {nodes && questions && attempts ? (
-          <QuizPicker nodes={nodes} questions={questions} attempts={attempts} nowMs={nowMs} />
+        {nodes && questions && attempts && blueprints ? (
+          <QuizPicker nodes={nodes} questions={questions} attempts={attempts} blueprints={blueprints} nowMs={nowMs} />
         ) : (
           <p className="text-sm text-muted">Loading…</p>
         )}

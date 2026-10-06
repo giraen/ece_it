@@ -66,3 +66,12 @@ export function useVariants(): Variant[] | undefined {
 export function useConcepts(): Concept[] | undefined {
   return useLiveQuery(() => db.concepts.filter((c) => !c.deletedAt).toArray(), []);
 }
+
+/** The blueprint for one category. `undefined` while loading, `null` if the category has none. */
+export function useBlueprint(categoryId: string | null): Blueprint | null | undefined {
+  return useLiveQuery(async () => {
+    if (!categoryId) return null;
+    const b = await db.blueprints.get(categoryId);
+    return b && !b.deletedAt ? b : null;
+  }, [categoryId]);
+}

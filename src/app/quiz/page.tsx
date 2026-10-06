@@ -3,13 +3,14 @@
 import Link from "next/link";
 import QuizPicker from "@/components/QuizPicker";
 import { formatDateTime } from "@/lib/format";
-import { useAttempts, useNodes, useQuestions } from "@/lib/hooks";
+import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { abandonAttempt, isComplete } from "@/lib/quiz";
 
 export default function QuizPage() {
   const nodes = useNodes();
   const questions = useQuestions();
   const attempts = useAttempts();
+  const nowMs = useNow();
   const inProgress = (attempts ?? [])
     .filter((a) => a.status === "in_progress")
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -57,8 +58,8 @@ export default function QuizPage() {
 
       <section aria-label="Start a quiz" className="space-y-2">
         <h2 className="font-medium">Start a quiz</h2>
-        {nodes && questions ? (
-          <QuizPicker nodes={nodes} questions={questions} />
+        {nodes && questions && attempts ? (
+          <QuizPicker nodes={nodes} questions={questions} attempts={attempts} nowMs={nowMs} />
         ) : (
           <p className="text-sm text-muted">Loading…</p>
         )}

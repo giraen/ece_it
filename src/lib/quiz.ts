@@ -4,6 +4,8 @@ import { newId, now } from "./ids";
 import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor } from "./quizPlan";
 import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
 import { pathOf, subtreeOf } from "./tree";
+import { formatCountdown } from "./format";
+import { masteryFor } from "./mastery";
 
 function buildItem(q: Question, nodes: TreeNode[], targetSec: number): AttemptItem {
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -62,7 +64,15 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
     throw new Error(`The total time must be between 1 and ${MAX_MINUTES} minutes.`);
   }
 
-  const history = historyFrom(await db.attempts.toArray());
+  // A node stays locked for a day after a failed quiz that could have earned mastery.
+  const everyAttempt = await db.attempts.toArray();
+  const { lockedUntil } = masteryFor(everyAttempt, scope, now());
+  if (lockedUntil !== undefined) {
+    throw new Error(
+        `This ${scope.kind} is locked after a failed quiz. You can retake it in ${formatCountdown(lockedUntil - now())}.`,
+    );
+    }
+const history = historyFrom(everyAttempt);
   const picked = composeQuiz({ nodes, questions: pool, scope, length: items, history });
   if (picked.length === 0) throw new Error("There are no questions to quiz on here yet.");
   const targetSec = targetSecPerItem(minutes * 60, picked.length);
@@ -89,70 +99,70 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
 }
 
 async function patchAttempt(id: string, fn: (a: QuizAttempt) => void): Promise<void> {
-  await db.transaction("rw", db.attempts, async () => {
-    const a = await db.attempts.get(id);
+    await db.transaction("rw", db.attempts, async () => {
+        const a = await db.attempts.get(id);
     if (!a || a.status !== "in_progress") return;
-    fn(a);
-    a.updatedAt = now();
-    await db.attempts.put(a);
-  });
+        fn(a);
+        a.updatedAt = now();
+        await db.attempts.put(a);
+    });
 }
 
 /** Time only ever goes up, so a late or repeated save can never lower it. */
 function bumpTime(item: AttemptItem, ms: number) {
-  if (ms > item.activeMs) item.activeMs = ms;
+    if (ms > item.activeMs) item.activeMs = ms;
 }
 
 export function setSelection(id: string, index: number, choiceId: string, activeMs: number): Promise<void> {
-  return patchAttempt(id, (a) => {
-    const it = a.items[index];
-    if (!it) return;
-    bumpTime(it, activeMs);
-    if (it.selectedChoiceId === choiceId) return;
-    if (it.selectedChoiceId) it.changes += 1;
-    else it.firstSelectMs = Math.max(it.activeMs, activeMs);
-    it.selectedChoiceId = choiceId;
-    it.confirmed = false;
-  });
+    return patchAttempt(id, (a) => {
+        const it = a.items[index];
+        if (!it) return;
+        bumpTime(it, activeMs);
+        if (it.selectedChoiceId === choiceId) return;
+        if (it.selectedChoiceId) it.changes += 1;
+        else it.firstSelectMs = Math.max(it.activeMs, activeMs);
+        it.selectedChoiceId = choiceId;
+        it.confirmed = false;
+    });
 }
 
 export function setSureness(id: string, index: number, sureness: Sureness, activeMs: number): Promise<void> {
-  return patchAttempt(id, (a) => {
-    const it = a.items[index];
-    if (!it) return;
-    bumpTime(it, activeMs);
-    if (it.sureness === sureness) return;
-    it.sureness = sureness;
-    it.confirmed = false;
-  });
+    return patchAttempt(id, (a) => {
+        const it = a.items[index];
+        if (!it) return;
+        bumpTime(it, activeMs);
+        if (it.sureness === sureness) return;
+        it.sureness = sureness;
+        it.confirmed = false;
+    });
 }
 
 export function confirmItem(id: string, index: number, activeMs: number): Promise<void> {
-  return patchAttempt(id, (a) => {
-    const it = a.items[index];
-    if (!it) return;
-    bumpTime(it, activeMs);
-    it.confirmed = true;
-  });
+    return patchAttempt(id, (a) => {
+        const it = a.items[index];
+        if (!it) return;
+        bumpTime(it, activeMs);
+        it.confirmed = true;
+    });
 }
 
 /** Records time spent on a question. */
 export function saveTime(id: string, index: number, activeMs: number): Promise<void> {
-  return patchAttempt(id, (a) => {
-    const it = a.items[index];
-    if (it) bumpTime(it, activeMs);
-  });
+    return patchAttempt(id, (a) => {
+        const it = a.items[index];
+        if (it) bumpTime(it, activeMs);
+    });
 }
 
 export function setCurrentIndex(id: string, index: number): Promise<void> {
-  return patchAttempt(id, (a) => {
-    a.currentIndex = Math.max(0, Math.min(index, a.items.length - 1));
-  });
+    return patchAttempt(id, (a) => {
+        a.currentIndex = Math.max(0, Math.min(index, a.items.length - 1));
+    });
 }
 
 /** A question counts as answered once it has a choice and a sureness rating. */
 export function isComplete(item: AttemptItem): boolean {
-  return Boolean(item.selectedChoiceId && item.sureness);
+    return Boolean(item.selectedChoiceId && item.sureness);
 }
 
 /** Scores the quiz and locks it. A question with no choice or no sureness rating scores 0. */

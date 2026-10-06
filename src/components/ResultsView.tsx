@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CONFIG } from "@/lib/config";
 import type { AttemptItem } from "@/lib/db";
-import { formatDateTime, formatDuration, formatPercent } from "@/lib/format";
-import { useAttempt } from "@/lib/hooks";
-import { SURENESS_LABEL, overallStats } from "@/lib/scoring";
+import { formatCountdown, formatDate, formatDateTime, formatDuration, formatPercent, formatRatio } from "@/lib/format";
+import { useAttempt, useAttempts, useNow } from "@/lib/hooks";
+import { expiryFor, masteryFor } from "@/lib/mastery";
+import { groupKeysFor } from "@/lib/quizPlan";
+import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/scoring";
 import RichText from "./RichText";
 
 const LETTERS = "ABCDEFGH";
@@ -28,6 +31,29 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
       <p className="text-sm text-muted">{label}</p>
       {note && <p className="mt-0.5 text-xs text-muted">{note}</p>}
     </div>
+  );
+}
+
+function GroupRow({ g }: { g: GroupStats }) {
+  const low = g.credit + 1e-9 < CONFIG.passBar;
+  return (
+    <tr className="border-t border-line">
+      <td className="py-2 pr-2">{g.label}</td>
+      <td className={`px-2 text-right tabular-nums ${low ? "font-medium text-danger" : "text-good"}`}>
+        {Math.round(g.credit * 100)}%
+      </td>
+      <td className="px-2 text-right tabular-nums">
+        {g.correct}/{g.n}
+      </td>
+      {SURENESS_ORDER.map((s) => (
+        <td key={s} className="px-2 text-right tabular-nums text-muted">
+          {g.sureness[s]}
+        </td>
+      ))}
+      <td className="pl-2 text-right tabular-nums text-muted">
+        {g.medianRatio > 0 ? formatRatio(g.medianRatio) : "–"}
+      </td>
+    </tr>
   );
 }
 
@@ -82,6 +108,8 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
 
 export default function ResultsView({ attemptId }: { attemptId: string }) {
   const attempt = useAttempt(attemptId);
+  const allAttempts = useAttempts();
+  const nowMs = useNow();
   const [filter, setFilter] = useState<Filter>("all");
 
   if (attempt === undefined) return <p className="text-sm text-muted">Loading…</p>;
@@ -99,44 +127,78 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
   }
 
   const s = attempt.summary;
-  const overall = overallStats(attempt.items);
-  const shown = attempt.items
+  const items = attempt.items;
+  const overall = overallStats(items);
+  const submittedAt = attempt.submittedAt ?? 0;
+  const kind = attempt.scopeKind;
+
+  const groups = groupStats(items, (it) => groupKeysFor(kind, it));
+  const sortedGroups = [...groups].sort((a, b) => a.credit - b.credit);
+  const weak = needsWork(groups);
+  const groupLabel = kind === "subject" ? "Topic" : "Tag";
+  // In a subject quiz the groups are topics, so the weakest one can be practised on its own.
+  const weakestTopic = kind === "subject" ? weak[0] : undefined;
+
+  const scopeInfo = allAttempts ? masteryFor(allAttempts, { id: attempt.scopeNodeId, kind }, nowMs) : undefined;
+  const locked = scopeInfo?.lockedUntil !== undefined;
+  const maxMs = Math.max(1, ...items.map((i) => Math.max(i.activeMs, i.targetSec * 1000 * 1.2)));
+
+  const shown = items
     .map((item, i) => ({ item, number: i + 1 }))
     .filter(({ item }) => (filter === "wrong" ? !item.correct : filter === "lost" ? item.credit < 1 : true));
   const counts = {
-    all: attempt.items.length,
-    wrong: attempt.items.filter((i) => !i.correct).length,
-    lost: attempt.items.filter((i) => i.credit < 1).length,
+    all: items.length,
+    wrong: items.filter((i) => !i.correct).length,
+    lost: items.filter((i) => i.credit < 1).length,
   };
 
-  let headline: string;
-  if (s.passed && s.masteryAwarded) headline = "Passed. This quiz counts toward mastery.";
-  else if (s.passed)
-    headline =
-      `Passed the ${formatPercent(s.bar, 0)} bar, but this quiz could not award mastery. ${attempt.ineligibleReason ?? ""}`.trim();
-  else headline = `Not passed. You needed ${formatPercent(s.bar, 0)} and scored ${formatPercent(s.credit)}.`;
-
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-8">
       <div>
         <h1 className="text-xl font-semibold">Results</h1>
         <p className="mt-1 font-medium">{attempt.scopeName}</p>
         {attempt.submittedAt && <p className="text-sm text-muted">{formatDateTime(attempt.submittedAt)}</p>}
       </div>
 
-      <p
-        role="status"
-        className={`rounded-md border p-4 font-medium ${
-          s.passed ? "border-good/40 bg-good/5 text-good" : "border-danger/40 bg-danger/5 text-danger"
-        }`}
-      >
-        {headline}
-        {s.failedGroups.length > 0 && (
-          <span className="mt-1 block text-sm font-normal">
-            These areas averaged under 50%: {s.failedGroups.join(", ")}.
-          </span>
+      <div className="space-y-3">
+        <p
+          role="status"
+          className={`rounded-md border p-4 font-medium ${
+            s.passed ? "border-good/40 bg-good/5 text-good" : "border-danger/40 bg-danger/5 text-danger"
+          }`}
+        >
+          {s.passed
+            ? `Passed. You reached the ${formatPercent(s.bar, 0)} bar.`
+            : `Not passed. You needed ${formatPercent(s.bar, 0)} and scored ${formatPercent(s.credit)}.`}
+          {s.failedGroups.length > 0 && (
+            <span className="mt-1 block text-sm font-normal">
+              These areas averaged under {formatPercent(CONFIG.childFloor, 0)}: {s.failedGroups.join(", ")}.
+            </span>
+          )}
+        </p>
+
+        {s.masteryAwarded ? (
+          <p aria-label="Mastery" className="rounded-md border border-good/40 bg-good/5 p-3 text-sm">
+            <span className="font-medium text-good">Mastery earned.</span> This {kind} stays mastered until{" "}
+            {formatDate(expiryFor(kind, submittedAt))}.
+          </p>
+        ) : s.passed ? (
+          <p aria-label="Mastery" className="rounded-md border border-line bg-surface p-3 text-sm">
+            This quiz could not award mastery{attempt.ineligibleReason ? `: ${attempt.ineligibleReason}` : "."}
+          </p>
+        ) : attempt.eligible !== false ? (
+          <p aria-label="Mastery" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm">
+            <span className="font-medium text-danger">Locked for {CONFIG.cooldownHours} hours.</span> This {kind}{" "}
+            unlocks after {formatDateTime(submittedAt + CONFIG.cooldownHours * 3_600_000)}. Mastery you already hold is
+            not affected.
+          </p>
+        ) : (
+          <p aria-label="Mastery" className="rounded-md border border-line bg-surface p-3 text-sm">
+            This was a practice quiz, so nothing is locked
+            {attempt.ineligibleReason ? `. ${attempt.ineligibleReason}` : "."} You can retake it any time.
+          </p>
         )}
-      </p>
+      </div>
 
       <section aria-label="Totals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="Average credit" value={formatPercent(s.credit)} note={`The bar is ${formatPercent(s.bar, 0)}`} />
@@ -147,6 +209,87 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           note={`Target ${formatDuration(overall.targetMs)}. Time never changes the score.`}
         />
         <Tile label="Accuracy" value={formatPercent(s.accuracy, 0)} />
+      </section>
+
+      <section aria-label="Needs work">
+        <h2 className="mb-2 font-medium">Needs work</h2>
+        {weak.length === 0 ? (
+          <p className="rounded-md border border-good/40 bg-good/5 p-4 text-sm">
+            No weak spots. Every {groupLabel.toLowerCase()} reached the bar.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {weak.map((w) => (
+              <li key={w.key} className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm">
+                <span className="font-medium">{w.label}</span> ({formatPercent(w.credit)}): {w.reason}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-label="Breakdown">
+        <h2 className="mb-2 font-medium">Breakdown by {groupLabel.toLowerCase()}</h2>
+        <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="pb-2 text-left font-medium">{groupLabel}</th>
+                <th className="px-2 pb-2 text-right font-medium">Credit</th>
+                <th className="px-2 pb-2 text-right font-medium">Correct</th>
+                {SURENESS_ORDER.map((id) => (
+                  <th key={id} className="px-2 pb-2 text-right font-medium">
+                    {SURENESS_LABEL[id]}
+                  </th>
+                ))}
+                <th className="pb-2 pl-2 text-right font-medium">Pace vs target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedGroups.map((g) => (
+                <GroupRow key={g.key} g={g} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          The sureness columns count how many answers you gave at each level. Pace is the median time taken divided by
+          the target. Under 1.0× is on target. Pace is a statistic and never changes credit.
+        </p>
+      </section>
+
+      <section aria-label="Time per question">
+        <h2 className="mb-2 font-medium">Time per question</h2>
+        <div className="space-y-1.5 rounded-md border border-line bg-surface p-3">
+          {items.map((it, i) => {
+            const width = (it.activeMs / maxMs) * 100;
+            const target = ((it.targetSec * 1000) / maxMs) * 100;
+            const color = !it.answered ? "bg-line" : it.correct ? "bg-good" : "bg-danger";
+            return (
+              <div key={it.questionId + i} className="flex items-center gap-3 text-sm">
+                <span className="w-7 shrink-0 text-right tabular-nums text-muted">{i + 1}</span>
+                <div
+                  className="relative h-3 flex-1 rounded bg-paper"
+                  role="img"
+                  aria-label={`Question ${i + 1}: ${formatDuration(it.activeMs)} against a target of ${formatDuration(it.targetSec * 1000)}`}
+                >
+                  <div className={`absolute top-0 left-0 h-3 rounded ${color}`} style={{ width: `${width}%` }} />
+                  <div
+                    className="absolute -top-0.5 h-4 w-0.5 bg-ink"
+                    style={{ left: `${target}%` }}
+                    title="Target time"
+                  />
+                </div>
+                <span className="w-24 shrink-0 text-right tabular-nums text-muted">
+                  {formatDuration(it.activeMs)} / {formatDuration(it.targetSec * 1000)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          The dark tick marks each question&apos;s target. Green is correct, red is wrong, grey is unanswered.
+        </p>
       </section>
 
       <section aria-label="Review" className="space-y-3">
@@ -182,12 +325,23 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         )}
       </section>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 pb-8">
+        {locked && scopeInfo?.lockedUntil !== undefined ? (
+          <span className="btn cursor-not-allowed opacity-60" aria-disabled="true">
+            Retake in {formatCountdown(scopeInfo.lockedUntil - nowMs)}
+          </span>
+        ) : (
+          <Link href={`/quiz/new?node=${attempt.scopeNodeId}`} className="btn btn-primary">
+            Quiz this again
+          </Link>
+        )}
+        {weakestTopic && (
+          <Link href={`/quiz/new?node=${weakestTopic.key}`} className="btn">
+            Practice weakest topic: {weakestTopic.label}
+          </Link>
+        )}
         <Link href="/quiz" className="btn">
           Back to the quiz page
-        </Link>
-        <Link href={`/quiz/new?node=${attempt.scopeNodeId}`} className="btn btn-primary">
-          Quiz this again
         </Link>
       </div>
     </div>

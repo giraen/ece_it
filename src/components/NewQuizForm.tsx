@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Question, TreeNode } from "@/lib/db";
-import { formatDuration } from "@/lib/format";
+import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
+import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
+import { masteryFor } from "@/lib/mastery";
 import { startAttempt } from "@/lib/quiz";
 import {
   MAX_MINUTES,
@@ -22,10 +23,12 @@ interface Props {
   node: TreeNode;
   nodes: TreeNode[];
   questions: Question[];
+  attempts: QuizAttempt[];
+  nowMs: number;
 }
 
 /** Choose how many questions and how much time, see what that means, and start. */
-export default function NewQuizForm({ node, nodes, questions }: Props) {
+export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }: Props) {
   const router = useRouter();
   const kind = node.kind === "topic" ? "topic" : "subject";
 
@@ -39,6 +42,8 @@ export default function NewQuizForm({ node, nodes, questions }: Props) {
   const pool = inScope.filter((q) => q.type === "standard");
   const leftOut = inScope.length - pool.length;
   const plan = planFor(kind, pool.length);
+  const info = masteryFor(attempts, node, nowMs);
+  const locked = info.lockedUntil !== undefined;
 
   const [itemsText, setItemsText] = useState(String(plan.defaultItems));
   const [minutesText, setMinutesText] = useState<string | null>(null);
@@ -104,6 +109,23 @@ export default function NewQuizForm({ node, nodes, questions }: Props) {
           {leftOut > 0 && `. ${leftOut} computation question${leftOut === 1 ? " is" : "s are"} left out for now.`}
         </p>
       </div>
+
+      {info.lockedUntil !== undefined && (
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+          Locked after a failed quiz. You can retake this {kind} in {formatCountdown(info.lockedUntil - nowMs)}. Mastery
+          you already hold is not affected.
+        </p>
+      )}
+      {info.status === "mastered" && info.expiresAt !== undefined && (
+        <p className="rounded-md border border-good/40 bg-good/5 p-3 text-sm text-good">
+          Mastered until {formatDate(info.expiresAt)}. Passing again starts a fresh window.
+        </p>
+      )}
+      {info.status === "expired" && info.expiresAt !== undefined && (
+        <p className="rounded-md border border-line bg-surface p-3 text-sm text-muted">
+          Mastery expired on {formatDate(info.expiresAt)}.
+        </p>
+      )}
 
       {pool.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-5 text-sm text-muted">
@@ -181,7 +203,7 @@ export default function NewQuizForm({ node, nodes, questions }: Props) {
       <div className="flex gap-2">
         <button
           className="btn btn-primary"
-          disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
+          disabled={starting || locked || pool.length === 0 || !validItems || minutesError !== null}
           onClick={() => void start()}
         >
           {starting ? "Starting…" : "Start quiz"}

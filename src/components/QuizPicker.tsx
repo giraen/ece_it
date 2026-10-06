@@ -3,12 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
-import type { Question, TreeNode } from "@/lib/db";
+import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
+import { formatCountdown, formatDate } from "@/lib/format";
+import { masteryFor } from "@/lib/mastery";
 import { childrenOf, subtreeOf } from "@/lib/tree";
 
 interface Props {
   nodes: TreeNode[];
   questions: Question[];
+  attempts: QuizAttempt[];
+  /** The current time, so expiry dates and countdowns stay up to date. */
+  nowMs: number;
 }
 
 /** How many questions sit under a node. A subject shared by two categories counts the same in both. */
@@ -24,6 +29,8 @@ function Row({
   at,
   nodes,
   perTopic,
+  attempts,
+  nowMs,
   open,
   toggle,
 }: {
@@ -32,6 +39,8 @@ function Row({
   at: string;
   nodes: TreeNode[];
   perTopic: Map<string, number>;
+  attempts: QuizAttempt[];
+  nowMs: number;
   open: Set<string>;
   toggle: (at: string) => void;
 }) {
@@ -40,6 +49,8 @@ function Row({
   const count = countUnder(nodes, perTopic, node.id);
   const minItems = node.kind === "category" ? undefined : CONFIG.quiz[node.kind].minItems;
   const practiceOnly = minItems !== undefined && count > 0 && count < minItems;
+  const info = node.kind === "category" ? undefined : masteryFor(attempts, node, nowMs);
+  const locked = info?.lockedUntil !== undefined;
 
   return (
     <li>
@@ -64,6 +75,24 @@ function Row({
         <span className="text-xs text-muted tabular-nums">
           {count} question{count === 1 ? "" : "s"}
         </span>
+        {info?.status === "mastered" && info.expiresAt !== undefined && (
+          <span className="rounded bg-good/10 px-1.5 py-0.5 text-xs text-good">
+            Mastered until {formatDate(info.expiresAt)}
+          </span>
+        )}
+        {info?.status === "expired" && info.expiresAt !== undefined && (
+          <span className="rounded bg-paper px-1.5 py-0.5 text-xs text-muted">
+            Expired {formatDate(info.expiresAt)}
+          </span>
+        )}
+        {locked && info?.lockedUntil !== undefined && (
+          <span
+            className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger"
+            title="A failed quiz locks a topic or subject for a day"
+          >
+            Locked {formatCountdown(info.lockedUntil - nowMs)}
+          </span>
+        )}
         {practiceOnly && (
           <span
             className="rounded bg-paper px-1.5 py-0.5 text-xs text-muted"
@@ -74,7 +103,7 @@ function Row({
         )}
         {node.kind === "category" ? (
           <span className="w-28 text-right text-xs text-muted">Mock coming later</span>
-        ) : count === 0 ? (
+        ) : count === 0 || locked ? (
           <span className="btn w-20 cursor-not-allowed opacity-50" aria-disabled="true">
             Quiz
           </span>
@@ -94,6 +123,8 @@ function Row({
               at={`${at}/${k.id}`}
               nodes={nodes}
               perTopic={perTopic}
+              attempts={attempts}
+              nowMs={nowMs}
               open={open}
               toggle={toggle}
             />
@@ -105,7 +136,7 @@ function Row({
 }
 
 /** The categories, subjects, and topics, each with a Quiz button. Collapsed to categories at first. */
-export default function QuizPicker({ nodes, questions }: Props) {
+export default function QuizPicker({ nodes, questions, attempts, nowMs }: Props) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const perTopic = new Map<string, number>();
   for (const q of questions) perTopic.set(q.topicId, (perTopic.get(q.topicId) ?? 0) + 1);
@@ -131,6 +162,8 @@ export default function QuizPicker({ nodes, questions }: Props) {
           at={`/${r.id}`}
           nodes={nodes}
           perTopic={perTopic}
+          attempts={attempts}
+          nowMs={nowMs}
           open={open}
           toggle={toggle}
         />

@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Question, type QuizAttempt, type TreeNode } from "./db";
 import { imageUrl } from "./images";
 import { suggestTags } from "./questions";
+import { now } from "./ids";
 
 /** The categories, subjects, and topics, kept up to date. `undefined` for a moment while the first read happens. */
 export function useNodes(): TreeNode[] | undefined {
@@ -38,4 +40,14 @@ export function useAttempt(id: string | null): QuizAttempt | null | undefined {
 /** Every quiz attempt that has not been deleted. */
 export function useAttempts(): QuizAttempt[] | undefined {
   return useLiveQuery(() => db.attempts.filter((a) => !a.deletedAt).toArray(), []);
+}
+
+/** The current time in ms, refreshed every 30 seconds so countdowns and expiry dates stay current. */
+export function useNow(intervalMs = 30_000): number {
+  const [t, setT] = useState(now);
+  useEffect(() => {
+    const id = window.setInterval(() => setT(now()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+  return t;
 }

@@ -4,14 +4,16 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import NewQuizForm from "@/components/NewQuizForm";
-import { useNodes, useQuestions } from "@/lib/hooks";
+import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
 
 function Loader() {
   const id = useSearchParams().get("node");
   const nodes = useNodes();
   const questions = useQuestions();
+  const attempts = useAttempts();
+  const nowMs = useNow();
 
-  if (!nodes || !questions) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !questions || !attempts) return <p className="text-sm text-muted">Loading…</p>;
   const node = id ? nodes.find((n) => n.id === id) : undefined;
 
   if (!node) {
@@ -34,7 +36,9 @@ function Loader() {
       </p>
     );
   }
-  return <NewQuizForm key={node.id} node={node} nodes={nodes} questions={questions} />;
+  return (
+    <NewQuizForm key={node.id} node={node} nodes={nodes} questions={questions} attempts={attempts} nowMs={nowMs} />
+  );
 }
 
 export default function NewQuizPage() {

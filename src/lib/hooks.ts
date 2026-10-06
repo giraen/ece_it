@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Question, type TreeNode } from "./db";
+import { db, type Question, type QuizAttempt, type TreeNode } from "./db";
 import { imageUrl } from "./images";
 import { suggestTags } from "./questions";
 
@@ -28,4 +28,14 @@ export function useTagSuggestions(topicId: string | null): string[] {
     [topicId],
   );
   return tags ?? [];
+}
+
+/** One quiz attempt. `undefined` while loading, `null` if it does not exist. */
+export function useAttempt(id: string | null): QuizAttempt | null | undefined {
+  return useLiveQuery(async () => (id ? ((await db.attempts.get(id)) ?? null) : null), [id]);
+}
+
+/** Every quiz attempt that has not been deleted. */
+export function useAttempts(): QuizAttempt[] | undefined {
+  return useLiveQuery(() => db.attempts.filter((a) => !a.deletedAt).toArray(), []);
 }

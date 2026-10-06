@@ -3,8 +3,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import NewQuizForm from "@/components/NewQuizForm";
 import { useNodes, useQuestions } from "@/lib/hooks";
-import { pathOf, subtreeOf } from "@/lib/tree";
 
 function Loader() {
   const id = useSearchParams().get("node");
@@ -13,6 +13,7 @@ function Loader() {
 
   if (!nodes || !questions) return <p className="text-sm text-muted">Loading…</p>;
   const node = id ? nodes.find((n) => n.id === id) : undefined;
+
   if (!node) {
     return (
       <p className="text-sm">
@@ -23,25 +24,17 @@ function Loader() {
       </p>
     );
   }
-  const topics = new Set(
-    subtreeOf(nodes, node.id)
-      .filter((n) => n.kind === "topic")
-      .map((n) => n.id),
-  );
-  const count = questions.filter((q) => topics.has(q.topicId)).length;
-
-  return (
-    <div className="max-w-xl space-y-3">
-      <h1 className="text-xl font-semibold">New quiz</h1>
-      <p className="font-medium">{pathOf(nodes, node.id)}</p>
-      <p className="text-sm text-muted">
-        {count} question{count === 1 ? "" : "s"} available. Choosing the size and starting the quiz comes next.
+  if (node.kind === "category") {
+    return (
+      <p className="text-sm">
+        A whole category is quizzed as a mock board, which comes in a later step. Choose a subject or a topic for now.{" "}
+        <Link href="/quiz" className="underline">
+          Back
+        </Link>
       </p>
-      <Link href="/quiz" className="btn">
-        Back
-      </Link>
-    </div>
-  );
+    );
+  }
+  return <NewQuizForm key={node.id} node={node} nodes={nodes} questions={questions} />;
 }
 
 export default function NewQuizPage() {

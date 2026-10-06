@@ -223,7 +223,12 @@ function PackExport({
       </div>
       <p className="text-sm">
         This pack would hold <strong>{sel.questions.length}</strong> question{sel.questions.length === 1 ? "" : "s"},{" "}
-        <strong>{sel.imageIds.length}</strong> image{sel.imageIds.length === 1 ? "" : "s"}, and{" "}
+        {sel.concepts.length > 0 && (
+          <>
+            <strong>{sel.concepts.length}</strong> concept{sel.concepts.length === 1 ? "" : "s"},{" "}
+          </>
+        )}
+        <strong>{sel.imageIds.length}</strong>
         <strong>{sel.nodes.length}</strong> tree item{sel.nodes.length === 1 ? "" : "s"}
         {sel.variants.length > 0 &&
           `, plus ${sel.variants.length} approved AI variant${sel.variants.length === 1 ? "" : "s"}`}

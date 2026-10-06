@@ -1,9 +1,10 @@
 import { composeBlueprintQuiz } from "./blueprint";
 import { composeQuiz, historyFrom, shuffle } from "./compose";
-import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode } from "./db";
+import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
 import { formatCountdown } from "./format";
 import { newId, now } from "./ids";
 import { masteryFor } from "./mastery";
+import { pickVariant, serveCounts, usableFrames } from "./serve";
 import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor } from "./quizPlan";
 import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
 import { pathOf, subtreeOf } from "./tree";
@@ -13,6 +14,8 @@ interface Shown {
   stem: string;
   choices: Question["choices"];
   correctChoiceId: string;
+  /** Set when an approved AI rewording of the question is shown instead of the original. */
+  variantId?: string;
 }
 
 function buildItem(
@@ -40,6 +43,7 @@ function buildItem(
     categoryId: category?.id ?? "",
     categoryName: category?.name ?? "(deleted category)",
     choiceOrder: shuffle(shown.choices.map((c) => c.id)),
+    variantId: shown.variantId,
     entryId: entry?.id,
     entryName: entry?.name,
     targetSec,
@@ -54,11 +58,29 @@ function buildItem(
 
 type Computation = typeof import("./computation");
 
-/** A computation question becomes one roll of fresh numbers. A standard question is shown as written. */
-function shownFor(q: Question, comp: Computation | null): Shown {
-  if (q.type !== "computation") return q;
+/**
+* What a quiz shows for a question. It never waits on an AI: it uses a rewording that was already made and checked,
+* and falls back to the original question when there is none.
+* - A standard question shows whichever version has been shown least: the original or an approved variant.
+* - A computation question rolls fresh numbers, using its own wordings plus any approved AI wordings.
+*/
+function shownFor(
+  q: Question,
+  comp: Computation | null,
+  variants: Variant[],
+  counts: Map<string, number> | undefined,
+): Shown {
+  if (q.type !== "computation") {
+    const v = pickVariant(variants, counts);
+    return v ? { stem: v.stem, choices: v.choices, correctChoiceId: v.correctChoiceId, variantId: v.id } : q;
+  }
   if (!comp) throw new Error("Computation questions could not be loaded.");
-  const r = comp.rollQuestion(q);
+  const frames = usableFrames(q, variants);
+  const withFrames =
+    frames.length && q.template
+      ? { ...q, template: { ...q.template, stems: [...q.template.stems, ...frames.map((f) => f.stem)] } }
+      : q;
+  const r = comp.rollQuestion(withFrames);
   if (!r.ok) throw new Error(`A computation question could not be generated. ${r.reason}`);
   return r.rolled;
 }
@@ -82,6 +104,10 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
     );
   }
   const history = historyFrom(everyAttempt);
+  const counts = serveCounts(everyAttempt);
+  const approved = await db.variants.filter((v) => !v.deletedAt && v.status === "approved").toArray();
+  const variantsOf = new Map<string, Variant[]>();
+  for (const v of approved) variantsOf.set(v.questionId, [...(variantsOf.get(v.questionId) ?? []), v]);
 
   const everyQuestion = await db.questions.filter((q) => !q.deletedAt).toArray();
   // The formula engine is only loaded when there is a computation question to roll.
@@ -136,7 +162,15 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
     status: "in_progress",
     startedAt: t,
     currentIndex: 0,
-    items: picked.map((p) => buildItem(p.question, nodes, targetSec, shownFor(p.question, comp), p.entry)),
+    items: picked.map((p) =>
+      buildItem(
+        p.question,
+        nodes,
+        targetSec,
+        shownFor(p.question, comp, variantsOf.get(p.question.id) ?? [], counts.get(p.question.id)),
+        p.entry,
+      ),
+    ),
     createdAt: t,
     updatedAt: t,
   };

@@ -11,6 +11,7 @@ import {
   renameNode,
   setSubjectCategories,
   unlinkSubject,
+  countConceptsUnder,
 } from "@/lib/nodes";
 import { categoriesOf, childrenOf, KIND_LABEL, subtreeOf } from "@/lib/tree";
 
@@ -366,10 +367,12 @@ export default function TreePanel({ nodes, questions, selectedId, onSelect }: Pr
         return;
       }
       const n = await countQuestionsUnder(node.id);
+      const c = await countConceptsUnder(node.id);
       const what = KIND_LABEL[node.kind].toLowerCase();
       const ok = window.confirm(
         `Delete the ${what} "${node.name}" and everything inside it? ` +
-          `This also deletes ${n} question${n === 1 ? "" : "s"}.`,
+          `This also deletes ${n} question${n === 1 ? "" : "s"}` +
+          `${c > 0 ? ` and ${c} concept${c === 1 ? "" : "s"}` : ""}.`,
       );
       if (!ok) return;
       const hitsSelection =

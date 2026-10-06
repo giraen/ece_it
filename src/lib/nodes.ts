@@ -77,16 +77,29 @@ export async function countQuestionsUnder(id: string): Promise<number> {
   return db.questions.filter((q) => !q.deletedAt && topicIds.has(q.topicId)).count();
 }
 
+/** How many concept notes deleting this node would remove. */
+export async function countConceptsUnder(id: string): Promise<number> {
+  const all = await db.nodes.filter((n) => !n.deletedAt).toArray();
+  const topicIds = new Set(
+    subtreeOf(all, id)
+      .filter((n) => n.kind === "topic")
+      .map((n) => n.id),
+  );
+  return db.concepts.filter((c) => !c.deletedAt && topicIds.has(c.topicId)).count();
+}
+
 /** Soft-deletes the node, everything below it, and the questions in those topics. */
 export async function deleteNode(id: string): Promise<void> {
   const all = await db.nodes.filter((n) => !n.deletedAt).toArray();
   const sub = subtreeOf(all, id);
   const ids = new Set(sub.map((n) => n.id));
   const t = now();
-  await db.transaction("rw", db.nodes, db.questions, async () => {
+  await db.transaction("rw", db.nodes, db.questions, db.concepts, async () => {
     for (const n of sub) await db.nodes.update(n.id, { deletedAt: t, updatedAt: t });
     const qs = await db.questions.filter((q) => !q.deletedAt && ids.has(q.topicId)).toArray();
     for (const q of qs) await db.questions.update(q.id, { deletedAt: t, updatedAt: t });
+    const cs = await db.concepts.filter((c) => !c.deletedAt && ids.has(c.topicId)).toArray();
+    for (const c of cs) await db.concepts.update(c.id, { deletedAt: t, updatedAt: t });
   });
 }
 

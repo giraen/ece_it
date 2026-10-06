@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { CONFIG } from "@/lib/config";
 import type { AttemptItem } from "@/lib/db";
 import { formatCountdown, formatDate, formatDateTime, formatDuration, formatPercent, formatRatio } from "@/lib/format";
-import { useAttempt, useAttempts, useNow } from "@/lib/hooks";
+import { useAttempt, useAttempts, useConcepts, useNow } from "@/lib/hooks";
 import { expiryFor, masteryFor } from "@/lib/mastery";
 import { groupKeysFor } from "@/lib/quizPlan";
 import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/scoring";
@@ -128,6 +128,7 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
 export default function ResultsView({ attemptId }: { attemptId: string }) {
   const attempt = useAttempt(attemptId);
   const allAttempts = useAttempts();
+  const concepts = useConcepts();
   const nowMs = useNow();
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -164,6 +165,15 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         ? groups
         : groupStats(items, (it) => [{ key: it.topicId, label: it.topicName }]);
   const weakestTopic = needsWork(topicGroups, 1)[0];
+  // If there are weak spots and you have written notes on that topic, offer to read them.
+  const reviewTopic =
+    kind === "topic"
+      ? { id: attempt.scopeNodeId, label: items[0]?.topicName ?? "this topic" }
+      : weakestTopic
+        ? { id: weakestTopic.key, label: weakestTopic.label }
+        : undefined;
+  const reviewCount = reviewTopic && concepts ? concepts.filter((c) => c.topicId === reviewTopic.id).length : 0;
+  const showReview = reviewTopic !== undefined && reviewCount > 0 && (!s.passed || weak.length > 0);
   const toggleOpen = (key: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -386,6 +396,11 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         {weakestTopic && (
           <Link href={`/quiz/new?node=${weakestTopic.key}`} className="btn">
             Practice weakest topic: {weakestTopic.label}
+          </Link>
+        )}
+        {showReview && reviewTopic && (
+          <Link href={`/bank?node=${reviewTopic.id}&tab=concepts`} className="btn">
+            Read your notes on {reviewTopic.label} ({reviewCount})
           </Link>
         )}
         <Link href="/quiz" className="btn">

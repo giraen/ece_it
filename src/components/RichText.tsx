@@ -7,9 +7,7 @@ import rehypeKatex from "rehype-katex";
 import { useImageUrl } from "@/lib/hooks";
 
 const remarkPlugins: Options["remarkPlugins"] = [remarkMath];
-const rehypePlugins: Options["rehypePlugins"] = [
-  [rehypeKatex, { throwOnError: false, strict: "ignore" }],
-];
+const rehypePlugins: Options["rehypePlugins"] = [[rehypeKatex, { throwOnError: false, strict: "ignore" }]];
 
 function urlTransform(url: string): string {
   // Images saved in the bank are referenced as img:<id>.
@@ -61,18 +59,36 @@ function MarkdownImage({ src, alt }: { src?: string | Blob; alt?: string }) {
 
 const components: Options["components"] = { img: MarkdownImage };
 
-/** Markdown with LaTeX ($...$ and $$...$$) and bank images (![](img:id)). */
+// A picture saved in the bank is written as ![alt](img:id).
+const IMAGE = /!\[([^\]]*)\]\(img:([0-9a-f]+)\)/g;
+
+/**
+ * Markdown with LaTeX ($...$ and $$...$$) and bank images (![](img:id)).
+ * Pictures are always shown under the text, wherever they were placed in the box.
+ */
 export default function RichText({ text, className = "" }: { text: string; className?: string }) {
+  const pictures = Array.from(text.matchAll(IMAGE), (m) => ({ alt: m[1], id: m[2] }));
+  const body = text.replace(IMAGE, "").trim();
+
   return (
     <div className={`rich ${className}`}>
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        urlTransform={urlTransform}
-        components={components}
-      >
-        {text}
-      </ReactMarkdown>
+      {body && (
+        <ReactMarkdown
+          remarkPlugins={remarkPlugins}
+          rehypePlugins={rehypePlugins}
+          urlTransform={urlTransform}
+          components={components}
+        >
+          {body}
+        </ReactMarkdown>
+      )}
+      {pictures.length > 0 && (
+        <div className={`flex flex-wrap items-start gap-3 ${body ? "mt-3" : ""}`}>
+          {pictures.map((p, i) => (
+            <StoredImage key={`${p.id}-${i}`} src={`img:${p.id}`} alt={p.alt} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

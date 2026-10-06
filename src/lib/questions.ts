@@ -20,7 +20,11 @@ export async function saveQuestion(q: Question): Promise<void> {
         .filter((v) => !v.deletedAt && v.status !== "discarded")
         .toArray();
       for (const v of stale) {
-        await db.variants.update(v.id, { status: "discarded", note: "The question was edited after this was made.", updatedAt: t });
+        await db.variants.update(v.id, {
+          status: "discarded",
+          note: "The question was edited after this was made.",
+          updatedAt: t,
+        });
       }
     }
   });
@@ -46,6 +50,51 @@ export function normalizeTags(tags: string[]): string[] {
     if (t && !out.some((x) => sameTag(x, t))) out.push(t);
   }
   return out;
+}
+
+/** Adds a tag to each of the questions. Questions that already have it are left as they are. */
+export async function addTag(ids: string[], tag: string): Promise<void> {
+  const t = tag.trim();
+  if (!t) return;
+  const stamp = now();
+  await db.transaction("rw", db.questions, async () => {
+    for (const id of ids) {
+      const q = await db.questions.get(id);
+      if (!q || q.deletedAt) continue;
+      await db.questions.update(id, { tags: normalizeTags([...q.tags, t]), updatedAt: stamp });
+    }
+  });
+}
+
+/** Takes a tag off each of the questions, whatever its capital letters. */
+export async function removeTag(ids: string[], tag: string): Promise<void> {
+  const stamp = now();
+  await db.transaction("rw", db.questions, async () => {
+    for (const id of ids) {
+      const q = await db.questions.get(id);
+      if (!q || q.deletedAt) continue;
+      await db.questions.update(id, { tags: q.tags.filter((x) => !sameTag(x, tag)), updatedAt: stamp });
+    }
+  });
+}
+
+/** Renames a tag on every question in the given topics. */
+export async function renameTag(topicIds: string[], from: string, to: string): Promise<void> {
+  const target = to.trim();
+  if (!target) return;
+  const topics = new Set(topicIds);
+  const stamp = now();
+  await db.transaction("rw", db.questions, async () => {
+    const qs = await db.questions
+      .filter((q) => !q.deletedAt && topics.has(q.topicId) && q.tags.some((x) => sameTag(x, from)))
+      .toArray();
+    for (const q of qs) {
+      await db.questions.update(q.id, {
+        tags: normalizeTags(q.tags.map((x) => (sameTag(x, from) ? target : x))),
+        updatedAt: stamp,
+      });
+    }
+  });
 }
 
 /**

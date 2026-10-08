@@ -28,11 +28,9 @@ export default function ThemeToggle() {
       title={`Switch to ${next} theme`}
       onClick={() => {
         const root = document.documentElement;
-        // Fade the colours for a moment, unless the person asked their system for less motion.
-        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-          root.classList.add("theme-fade");
-          window.setTimeout(() => root.classList.remove("theme-fade"), 800);
-        }
+        // Fade the colours for a moment. This is a colour change, not movement, so it always runs.
+        root.classList.add("theme-fade");
+        window.setTimeout(() => root.classList.remove("theme-fade"), 650);
         root.setAttribute("data-theme", next);
         try {
           localStorage.setItem(KEY, next);

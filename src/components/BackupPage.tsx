@@ -22,6 +22,7 @@ import type { MergeCounts, PackOptions } from "@/lib/merge";
 import { selectPackContent } from "@/lib/share";
 import { pathOf } from "@/lib/tree";
 import BackupStatus from "./BackupStatus";
+import PasswordInput from "./PasswordInput";
 
 const MIN_PASSWORD = 8;
 
@@ -55,23 +56,11 @@ function PasswordFields({
     <div className="flex flex-wrap gap-3">
       <div>
         <label className="mb-1 block text-sm font-medium">Password{optional ? " (optional)" : ""}</label>
-        <input
-          type="password"
-          autoComplete="new-password"
-          className="input w-56"
-          value={password}
-          onChange={(e) => onPassword(e.target.value)}
-        />
+        <PasswordInput label="Password" value={password} onChange={onPassword} />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">Confirm password</label>
-        <input
-          type="password"
-          autoComplete="new-password"
-          className="input w-56"
-          value={confirm}
-          onChange={(e) => onConfirm(e.target.value)}
-        />
+        <PasswordInput label="Confirm password" value={confirm} onChange={onConfirm} />
       </div>
     </div>
   );
@@ -390,12 +379,12 @@ function ImportFile() {
           <div className="flex items-end gap-2">
             <div>
               <label className="mb-1 block text-sm font-medium">Password</label>
-              <input
-                type="password"
+              <PasswordInput
+                label="Password"
+                className="w-64"
                 autoComplete="off"
-                className="input w-64"
                 value={pw}
-                onChange={(e) => setPw(e.target.value)}
+                onChange={setPw}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && pw) void open(state.bytes, state.fileName, pw);
                 }}

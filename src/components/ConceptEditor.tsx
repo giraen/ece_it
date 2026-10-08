@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Concept, TreeNode } from "@/lib/db";
-import { deleteConcept, saveConcept } from "@/lib/concepts";
+import { deleteConcept, saveConcept, titleFrom } from "@/lib/concepts";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
 import DraftReview from "./DraftReview";
@@ -24,7 +24,6 @@ interface Props {
 export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props) {
   const router = useRouter();
   const [topicId, setTopicId] = useState<string | null>(initial?.topicId ?? defaultTopicId);
-  const [title, setTitle] = useState(initial?.title ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [errors, setErrors] = useState<string[]>([]);
@@ -37,7 +36,6 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
   async function save() {
     const problems: string[] = [];
     if (!topicId) problems.push("Pick a category, subject, and topic.");
-    if (!title.trim()) problems.push("Give the concept a title.");
     if (!body.trim()) problems.push("Write the explanation.");
     setErrors(problems);
     if (problems.length || !topicId) return;
@@ -48,7 +46,7 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
       await saveConcept({
         id,
         topicId,
-        title: title.trim(),
+        title: titleFrom(body.trim()),
         body: body.trim(),
         tags,
         createdAt: initial?.createdAt ?? t,
@@ -75,26 +73,10 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
         <h1 className="text-xl font-semibold">{initial ? "Edit concept" : "New concept"}</h1>
         <p className="text-sm text-muted">
           A concept is a short note on one idea, such as crosstalk. Write it in your own words, so you can read it
-          before a quiz.
+          before a quiz. The first line becomes its name in the list.
         </p>
 
         <TopicPicker nodes={nodes} value={topicId} onChange={(id) => (setTopicId(id), edited())} />
-
-        <div>
-          <label htmlFor="ctitle" className="mb-1 block text-sm font-medium">
-            Title
-          </label>
-          <input
-            id="ctitle"
-            className="input"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              edited();
-            }}
-            placeholder="Crosstalk"
-          />
-        </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium">Explanation</label>
@@ -159,7 +141,6 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
         <div className="sticky top-4">
           <h2 className="mb-2 text-sm font-medium text-muted">Preview</h2>
           <article className="rounded-md border border-line border-l-4 border-l-accent bg-surface p-5">
-            <h3 className="mb-2 text-lg font-semibold">{title.trim() || "Untitled concept"}</h3>
             {body.trim() ? (
               <RichText text={body} className="text-[15px] leading-relaxed" />
             ) : (

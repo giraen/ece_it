@@ -3,6 +3,36 @@ import { db, type Concept, type DraftQuestion } from "./db";
 import { newId, now } from "./ids";
 import { normalizeTags, saveQuestion } from "./questions";
 
+/** A short name for a concept, taken from the first line of its text. */
+export function titleFrom(body: string): string {
+  const lines = body.split(/\r?\n/).map((l) =>
+    l
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+  let line = lines.find((l) => l.length > 0) ?? "";
+  if (line.length > 80) line = line.slice(0, 79).trimEnd() + "…";
+  // A cut through the middle of a formula would leave a lone dollar sign, so drop the broken part.
+  const dollars = line.match(/\$/g)?.length ?? 0;
+  if (dollars % 2 === 1) line = line.slice(0, line.lastIndexOf("$")).trimEnd();
+  return line || "Untitled concept";
+}
+
+/** What has been drafted from each concept: questions waiting for review and questions already accepted. */
+export function draftCounts(drafts: DraftQuestion[]): Map<string, { pending: number; accepted: number }> {
+  const out = new Map<string, { pending: number; accepted: number }>();
+  for (const d of drafts) {
+    if (d.deletedAt || (d.status !== "pending" && d.status !== "accepted")) continue;
+    const c = out.get(d.conceptId) ?? { pending: 0, accepted: 0 };
+    if (d.status === "pending") c.pending++;
+    else c.accepted++;
+    out.set(d.conceptId, c);
+  }
+  return out;
+}
+
 /** Saves a concept note, cleaning up its tags and stamping the time. */
 export async function saveConcept(c: Concept): Promise<void> {
   await db.concepts.put({ ...c, tags: normalizeTags(c.tags), updatedAt: now() });

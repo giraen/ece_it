@@ -155,6 +155,58 @@ export async function draftFromConcept(
   if (r.stopped) onEvent({ kind: "stop", text: r.stopped });
 }
 
+/**
+ * Drafts questions from several concepts, one after another. Each concept's drafts are saved as soon as it is done,
+ * so stopping part-way loses nothing. Stops early when no AI provider can answer, or when asked to.
+ */
+export async function draftMany(opts: {
+  concepts: Concept[];
+  providers: ProviderConfig[];
+  count: number;
+  control: RunControl;
+  onStart: (concept: Concept, index: number, total: number) => void;
+  onDone: (concept: Concept, kind: RunEvent["kind"], text: string) => void;
+}): Promise<{ finished: number; remaining: number; stopped?: string }> {
+  const deps: GenDeps = { ask: makeAsk(opts.providers) };
+  const total = opts.concepts.length;
+  let finished = 0;
+  for (let i = 0; i < total; i++) {
+    if (opts.control.aborted) return { finished, remaining: total - i };
+    const concept = opts.concepts[i];
+    opts.onStart(concept, i, total);
+    const existing = await db.drafts
+      .where("conceptId")
+      .equals(concept.id)
+      .filter((d) => !d.deletedAt)
+      .toArray();
+    let r;
+    try {
+      r = await generateDrafts(concept, existing, deps, opts.count);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "The request failed.";
+      opts.onDone(concept, "stop", reason);
+      return { finished, remaining: total - i, stopped: reason };
+    }
+    await saveDrafts(r.drafts);
+    const kept = r.drafts.filter((d) => d.status === "pending").length;
+    const dropped = r.drafts.filter((d) => d.status === "discarded").length;
+    if (r.stopped && kept === 0) {
+      opts.onDone(concept, "stop", r.stopped);
+      return { finished, remaining: total - i, stopped: r.stopped };
+    }
+    opts.onDone(
+      concept,
+      kept ? "ok" : "warn",
+      kept
+        ? `${kept} question${kept === 1 ? "" : "s"} ready to review${dropped ? `, ${dropped} discarded` : ""}.`
+        : (r.notes[0] ?? "No new questions were kept."),
+    );
+    finished++;
+    if (r.stopped) return { finished, remaining: total - i - 1, stopped: r.stopped };
+  }
+  return { finished, remaining: 0 };
+}
+
 function mergeInto(list: Variant[], changed: Variant[]): Variant[] {
   const byId = new Map(list.map((v) => [v.id, v]));
   for (const v of changed) byId.set(v.id, v);

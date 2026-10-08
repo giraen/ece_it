@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import AiSettings from "./AiSettings";
 import BackupPage from "./BackupPage";
+import DangerZone from "./DangerZone";
 import StorageStatus from "./StorageStatus";
 import InfoTip from "./InfoTip";
 
@@ -24,6 +25,10 @@ export default function SettingsPage() {
           {" · "}
           <a href="#storage" className="underline">
             Storage
+          </a>
+          {" · "}
+          <a href="#danger" className="underline">
+            Danger zone
           </a>
         </p>
       </div>
@@ -48,6 +53,10 @@ export default function SettingsPage() {
 
       <div id="storage" className="scroll-mt-4">
         <StorageStatus />
+      </div>
+
+      <div id="danger" className="scroll-mt-4">
+        <DangerZone />
       </div>
     </div>
   );

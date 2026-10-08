@@ -12,7 +12,8 @@ function subscribe(cb: () => void) {
   return () => obs.disconnect();
 }
 
-const read = (): "light" | "dark" => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
+const read = (): "light" | "dark" =>
+  document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
 
 /** Switches between the light and dark theme. The choice is remembered on this device. */
 export default function ThemeToggle() {
@@ -26,7 +27,13 @@ export default function ThemeToggle() {
       aria-label={`Switch to ${next} theme`}
       title={`Switch to ${next} theme`}
       onClick={() => {
-        document.documentElement.setAttribute("data-theme", next);
+        const root = document.documentElement;
+        // Fade the colours for a moment, unless the person asked their system for less motion.
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          root.classList.add("theme-fade");
+          window.setTimeout(() => root.classList.remove("theme-fade"), 400);
+        }
+        root.setAttribute("data-theme", next);
         try {
           localStorage.setItem(KEY, next);
         } catch {

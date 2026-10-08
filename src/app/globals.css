@@ -75,3 +75,16 @@ body {
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+/* A short fade while the theme is switched. The class is on <html> only for a moment, so hover effects stay quick. */
+html.theme-fade,
+html.theme-fade *,
+html.theme-fade *::before,
+html.theme-fade *::after {
+  transition:
+    background-color 300ms ease,
+    color 300ms ease,
+    border-color 300ms ease,
+    fill 300ms ease,
+    stroke 300ms ease !important;
+}

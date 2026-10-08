@@ -31,7 +31,7 @@ export default function ThemeToggle() {
         // Fade the colours for a moment, unless the person asked their system for less motion.
         if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           root.classList.add("theme-fade");
-          window.setTimeout(() => root.classList.remove("theme-fade"), 400);
+          window.setTimeout(() => root.classList.remove("theme-fade"), 800);
         }
         root.setAttribute("data-theme", next);
         try {

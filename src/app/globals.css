@@ -82,9 +82,9 @@ html.theme-fade *,
 html.theme-fade *::before,
 html.theme-fade *::after {
   transition:
-    background-color 300ms ease,
-    color 300ms ease,
-    border-color 300ms ease,
-    fill 300ms ease,
-    stroke 300ms ease !important;
+    background-color 700ms ease-in-out,
+    color 700ms ease-in-out,
+    border-color 700ms ease-in-out,
+    fill 700ms ease-in-out,
+    stroke 700ms ease-in-out !important;
 }

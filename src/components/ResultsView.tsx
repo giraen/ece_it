@@ -11,6 +11,7 @@ import { expiryFor, masteryFor } from "@/lib/mastery";
 import { groupKeysFor } from "@/lib/quizPlan";
 import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/scoring";
 import RichText from "./RichText";
+import InfoTip from "./InfoTip";
 
 const LETTERS = "ABCDEFGH";
 
@@ -272,7 +273,13 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
       </section>
 
       <section aria-label="Breakdown">
-        <h2 className="mb-2 font-medium">Breakdown by {groupLabel.toLowerCase()}</h2>
+        <div className="mb-2 flex items-center gap-1">
+          <h2 className="font-medium">Breakdown by {groupLabel.toLowerCase()}</h2>
+          <InfoTip>
+            The sureness columns count how many answers you gave at each level. Pace is the median time taken divided by
+            the target. Under 1.0× is on target. Pace is a statistic and never changes credit.
+          </InfoTip>
+        </div>
         <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
           <table className="w-full text-sm">
             <thead className="text-xs text-muted">
@@ -310,14 +317,15 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             </tbody>
           </table>
         </div>
-        <p className="mt-1 text-xs text-muted">
-          The sureness columns count how many answers you gave at each level. Pace is the median time taken divided by
-          the target. Under 1.0× is on target. Pace is a statistic and never changes credit.
-        </p>
       </section>
 
       <section aria-label="Time per question">
-        <h2 className="mb-2 font-medium">Time per question</h2>
+        <div className="mb-2 flex items-center gap-1">
+          <h2 className="font-medium">Time per question</h2>
+          <InfoTip>
+            The dark tick marks each question&apos;s target. Green is correct, red is wrong, grey is unanswered.
+          </InfoTip>
+        </div>
         <div className="space-y-1.5 rounded-md border border-line bg-surface p-3">
           {items.map((it, i) => {
             const width = (it.activeMs / maxMs) * 100;
@@ -345,9 +353,6 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             );
           })}
         </div>
-        <p className="mt-1 text-xs text-muted">
-          The dark tick marks each question&apos;s target. Green is correct, red is wrong, grey is unanswered.
-        </p>
       </section>
 
       <section aria-label="Review" className="space-y-3">

@@ -22,6 +22,7 @@ import RichText from "./RichText";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
 import VariantReview from "./VariantReview";
+import InfoTip from "./InfoTip";
 
 const MIN_CHOICES = 2;
 const MAX_CHOICES = 8;
@@ -50,6 +51,9 @@ function describe(nodes: TreeNode[], topicId: string): string {
     .join(" / ");
   return `${cats} › ${subject.name} › ${topic.name}`;
 }
+
+const COMPUTATION_TIP =
+  "New numbers every time. You write the recipe once. Each time the question appears, the app draws new numbers, works out every choice from its formula, and shows the result with units. The correct choice is always a formula, so it is right for whatever numbers were drawn.";
 
 export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props) {
   const router = useRouter();
@@ -190,29 +194,44 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
           <fieldset>
             <legend className="mb-1 text-sm font-medium">Type of question</legend>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="radio" name="qtype" checked={type === "standard"} onChange={() => setType("standard")} />
-                Standard (fixed question and choices)
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="qtype"
-                  checked={type === "computation"}
-                  onChange={() => setType("computation")}
-                />
-                Computation (new numbers every time)
-              </label>
+              <div className="flex items-center gap-1">
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="qtype" checked={type === "standard"} onChange={() => setType("standard")} />
+                  Standard
+                </label>
+                <InfoTip>Fixed question and choices.</InfoTip>
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="qtype"
+                    checked={type === "computation"}
+                    onChange={() => setType("computation")}
+                  />
+                  Computation
+                </label>
+                <InfoTip>{COMPUTATION_TIP}</InfoTip>
+              </div>
             </div>
           </fieldset>
         ) : (
-          <p className="text-sm text-muted">{type === "computation" ? "Computation question" : "Standard question"}</p>
+          <div className="flex items-center gap-1 text-sm text-muted">
+            {type === "computation" ? "Computation question" : "Standard question"}
+            <InfoTip>{type === "computation" ? COMPUTATION_TIP : "Fixed question and choices."}</InfoTip>
+          </div>
         )}
 
         {type === "standard" ? (
           <>
             <div>
-              <label className="mb-1 block text-sm font-medium">Question</label>
+              <div className="mb-1 flex items-center gap-1">
+                <label className="text-sm font-medium">Question</label>
+                <InfoTip>
+                  Maths goes between dollar signs, like $x^2$. For a centered formula, put $$ on its own line above and
+                  below it.
+                </InfoTip>
+              </div>
               <ImageTextarea
                 label="Question"
                 value={stem}
@@ -220,15 +239,12 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
                 rows={6}
                 placeholder="Write the question. Use $...$ for maths, and paste or drop a picture."
               />
-              <p className="mt-1 text-xs text-muted">
-                Maths goes between dollar signs, like $x^2$. For a centered formula, put $$ on its own line above and
-                below it.
-              </p>
             </div>
 
             <fieldset>
-              <legend className="mb-1 text-sm font-medium">Choices</legend>
-              <p className="mb-2 text-xs text-muted">Select the round button next to the correct choice.</p>
+              <legend className="mb-2 text-sm font-medium">
+                Choices <InfoTip>Select the round button next to the correct choice.</InfoTip>
+              </legend>
               <div className="space-y-3">
                 {choices.map((c, i) => (
                   <div key={c.id} className="flex items-start gap-2">
@@ -284,12 +300,14 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Tags</label>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium">Tags</label>
+            <InfoTip>
+              Optional. Tags group questions inside a topic, such as &ldquo;theorems&rdquo; or &ldquo;series
+              circuits&rdquo;, and show up in your results. Press Enter or a comma to add one.
+            </InfoTip>
+          </div>
           <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
-          <p className="mt-1 text-xs text-muted">
-            Optional. Tags group questions inside a topic, such as &ldquo;theorems&rdquo; or &ldquo;series
-            circuits&rdquo;, and show up in your results. Press Enter or a comma to add one.
-          </p>
         </div>
 
         {errors.length > 0 && (
@@ -328,11 +346,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
           <h2 className="mb-2 text-sm font-medium text-muted">Preview</h2>
           {type === "computation" ? (
             <div className="space-y-3">
-              <RollPreview
-                result={rolled}
-                formulas={draft.choices.map((c) => c.formula)}
-                mistakes={draft.choices.map((c) => c.mistake)}
-              />
+              <RollPreview result={rolled} />
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1" aria-label="Tags">
                   {tags.map((t) => (

@@ -9,6 +9,7 @@ import { acceptDraft, updateDraft, useDraftsFor } from "@/lib/concepts";
 import { draftFromConcept, type RunEvent } from "@/lib/runGeneration";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
+import InfoTip from "./InfoTip";
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 
@@ -143,7 +144,14 @@ export default function DraftReview({ concept }: { concept: Concept }) {
   return (
     <section aria-label="Questions from this concept" className="space-y-3 rounded-md border border-line bg-paper p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-medium">Questions from this concept</h2>
+        <span className="flex items-center gap-1">
+          <h2 className="font-medium">Questions from this concept</h2>
+          <InfoTip>
+            An AI drafts multiple-choice questions from this note. A second model then answers each one without seeing
+            the note, and any it disagrees with are thrown away. What is left waits here for you. Check each one
+            yourself before adding it.
+          </InfoTip>
+        </span>
         <button
           className="btn py-1"
           disabled={busy || !canRun}
@@ -156,11 +164,6 @@ export default function DraftReview({ concept }: { concept: Concept }) {
           AI settings
         </Link>
       </div>
-      <p className="text-xs text-muted">
-        An AI drafts multiple-choice questions from this note. A second model then answers each one without seeing the
-        note, and any it disagrees with are thrown away. What is left waits here for you. Check each one yourself before
-        adding it.
-      </p>
       {!canRun && (
         <p className="text-xs text-muted">
           No API key has been added, so nothing can be drafted. You can add one in Settings.

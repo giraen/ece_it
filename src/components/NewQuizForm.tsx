@@ -17,6 +17,7 @@ import {
 } from "@/lib/quizPlan";
 import { targetSecPerItem } from "@/lib/scoring";
 import { pathOf, subtreeOf } from "@/lib/tree";
+import InfoTip from "./InfoTip";
 
 interface Props {
   /** A topic or a subject. */
@@ -146,9 +147,24 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
           </div>
 
           <div>
-            <label htmlFor="minutes" className="mb-1 block text-sm font-medium">
-              Total time
-            </label>
+            <div className="mb-1 flex items-center gap-1">
+              <label htmlFor="minutes" className="text-sm font-medium">
+                Total time
+              </label>
+              {(plan.fixedMinutes === null || perItemSec > 0) && (
+                <InfoTip>
+                  {plan.fixedMinutes === null &&
+                    "Suggested from the number of questions. Change it to anything you like. "}
+                  {perItemSec > 0 && (
+                    <>
+                      About <strong>{formatDuration(perItemSec * 1000)}</strong> per question. The time is a target
+                      only: the timer counts up and never stops the quiz, and it never changes your score. It is shown
+                      to you afterward as a statistic.
+                    </>
+                  )}
+                </InfoTip>
+              )}
+            </div>
             {plan.fixedMinutes !== null ? (
               <p className="text-sm">
                 {plan.fixedMinutes === 60 ? "1 hour" : `${plan.fixedMinutes} minutes`}{" "}
@@ -166,20 +182,10 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
                   />
                   <span className="text-sm text-muted">minutes</span>
                 </div>
-                <p className={`mt-1 text-xs ${minutesError ? "text-danger" : "text-muted"}`}>
-                  {minutesError ?? "Suggested from the number of questions. Change it to anything you like."}
-                </p>
+                {minutesError && <p className="mt-1 text-xs text-danger">{minutesError}</p>}
               </>
             )}
           </div>
-
-          {perItemSec > 0 && (
-            <p className="rounded-md border border-line bg-surface p-3 text-sm">
-              About <strong>{formatDuration(perItemSec * 1000)}</strong> per question. The time is a target only: the
-              timer counts up and never stops the quiz, and it never changes your score. It is shown to you afterward as
-              a statistic.
-            </p>
-          )}
 
           {mastery.text && (
             <p

@@ -9,6 +9,7 @@ import { useKeyIds } from "@/lib/aiKeys";
 import { generateForQuestion, type RunEvent } from "@/lib/runGeneration";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
+import InfoTip from "./InfoTip";
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 
@@ -170,7 +171,15 @@ export default function VariantReview({ question }: { question: Question }) {
   return (
     <section aria-label="AI variants" className="space-y-3 rounded-md border border-line bg-paper p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-medium">AI variants of this question</h2>
+        <span className="flex items-center gap-1">
+          <h2 className="font-medium">AI variants of this question</h2>
+          <InfoTip>
+            {question.type === "computation"
+              ? "For a computation question the AI writes new wordings. The numbers and answers always come from your formulas."
+              : "Each reworded version is checked by a second, blind answer before it can be used in a quiz."}{" "}
+            Editing the question itself discards its variants, since they were written for the old version.
+          </InfoTip>
+        </span>
         <button
           className="btn py-1"
           disabled={busy || !canRun}
@@ -183,12 +192,6 @@ export default function VariantReview({ question }: { question: Question }) {
           Settings
         </Link>
       </div>
-      <p className="text-xs text-muted">
-        {question.type === "computation"
-          ? "For a computation question the AI writes new wordings. The numbers and answers always come from your formulas."
-          : "Each reworded version is checked by a second, blind answer before it can be used in a quiz."}{" "}
-        Editing the question itself discards its variants, since they were written for the old version.
-      </p>
       {!canRun && (
         <p className="text-xs text-muted">
           No API key has been added, so this question is shown as written. You can add one in Settings.

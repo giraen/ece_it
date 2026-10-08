@@ -12,6 +12,7 @@ import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
+import InfoTip from "./InfoTip";
 
 interface Props {
   /** The concept being edited, or null for a new one. */
@@ -110,7 +111,10 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Tags</label>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium">Tags</label>
+            <InfoTip>Optional. Tags help you find the note when you search the Bank.</InfoTip>
+          </div>
           <TagInput
             value={tags}
             onChange={(t) => {
@@ -119,7 +123,6 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
             }}
             suggestions={suggestions}
           />
-          <p className="mt-1 text-xs text-muted">Optional. Tags help you find the note when you search the Bank.</p>
         </div>
 
         {errors.length > 0 && (

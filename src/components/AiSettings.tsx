@@ -12,11 +12,15 @@ import { clearCooldowns, localCooldowns, makeAsk, setWebLLMProgress, useCooldown
 import { NoProviderError } from "@/lib/providers";
 import { runGeneration, type RunControl, type RunEvent } from "@/lib/runGeneration";
 import { servedVariantIds } from "@/lib/serve";
+import InfoTip from "./InfoTip";
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, info, children }: { title: string; info?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="space-y-3 rounded-md border border-line bg-surface p-5">
-      <h2 className="font-medium">{title}</h2>
+      <div className="flex items-center gap-1">
+        <h2 className="font-medium">{title}</h2>
+        {info && <InfoTip>{info}</InfoTip>}
+      </div>
       {children}
     </section>
   );
@@ -84,13 +88,18 @@ function KeyField({ provider }: { provider: ProviderConfig }) {
           </button>
         )}
       </div>
-      <p className={`text-xs ${saved ? "text-good" : "text-muted"}`}>
-        {saved
-          ? remember
+      {saved ? (
+        <p className="text-xs text-good">
+          {remember
             ? "A key is saved on this device."
-            : "A key is saved for this tab only. It is forgotten when the tab is closed."
-          : "No key yet, so this provider is skipped."}
-      </p>
+            : "A key is saved for this tab only. It is forgotten when the tab is closed."}
+        </p>
+      ) : (
+        <p className="flex items-center gap-1 text-xs text-muted">
+          No key
+          <InfoTip>No key yet, so this provider is skipped.</InfoTip>
+        </p>
+      )}
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );
@@ -180,13 +189,10 @@ function Providers({ initial }: { initial: ProviderConfig[] }) {
   }
 
   return (
-    <Card title="Providers and models">
-      <p className="text-sm text-muted">
-        Providers are tried in this order. If one is rate limited or failing, the next is used and the first is left
-        alone for a while. Model names change often, so check the provider&apos;s current list if a test says the model
-        is not found.
-      </p>
-
+    <Card
+      title="Providers and models"
+      info="Providers are tried in this order. If one is rate limited or failing, the next is used and the first is left alone for a while. Model names change often, so check the provider's current list if a test says the model is not found."
+    >
       <div className="space-y-3">
         {list.map((p, i) => {
           const until = cd.get(p.id);
@@ -292,10 +298,10 @@ function Providers({ initial }: { initial: ProviderConfig[] }) {
                   </span>
                 )}
                 {p.type === "webllm" && (
-                  <span className="text-muted">
+                  <InfoTip>
                     The first use downloads the model into this browser. It needs a WebGPU browser such as Chrome or
                     Edge.
-                  </span>
+                  </InfoTip>
                 )}
               </div>
             </div>
@@ -371,11 +377,10 @@ function Generator({ providers }: { providers: ProviderConfig[] }) {
   };
 
   return (
-    <Card title="Generate variants">
-      <p className="text-sm text-muted">
-        Variants are reworded versions of your questions, made ahead of time and checked by a second, blind answer
-        before they are used. A quiz never waits on the AI. If no variant is ready, it shows the original question.
-      </p>
+    <Card
+      title="Generate variants"
+      info="Variants are reworded versions of your questions, made ahead of time and checked by a second, blind answer before they are used. A quiz never waits on the AI. If no variant is ready, it shows the original question."
+    >
       <ul className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
         <li>
           <strong>{count("approved")}</strong> approved
@@ -426,12 +431,6 @@ function SimpleAi({ providers }: { providers: ProviderConfig[] }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">
-        Optional. An AI model can reword your questions so you cannot pass by recognising a sentence. It never changes
-        numbers or answers without a check, and nothing it writes is used until it passes one. Without a key, everything
-        works exactly as written.
-      </p>
-
       <div className="rounded-md bg-paper p-4 text-sm">
         <p className="font-medium">Get a free key from Groq</p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted">

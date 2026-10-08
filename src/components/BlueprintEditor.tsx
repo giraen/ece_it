@@ -9,6 +9,7 @@ import type { Blueprint, Question, TreeNode } from "@/lib/db";
 import { deleteBlueprint, saveBlueprint } from "@/lib/blueprints";
 import { newId } from "@/lib/ids";
 import { childrenOf, pathOf } from "@/lib/tree";
+import InfoTip from "./InfoTip";
 
 interface Row {
   id: string;
@@ -186,13 +187,15 @@ export default function BlueprintEditor({ category, nodes, questions, initial }:
             </table>
           </div>
         )}
-        <p className={`mt-2 text-sm ${rows.length === 0 ? "text-muted" : sumOk ? "text-good" : "text-danger"}`}>
-          Percentages add up to {Math.round(sum * 100) / 100}%{sumOk ? "." : ". They must add up to 100%."}
-        </p>
-        <p className="text-xs text-muted">
-          Items are rounded so they add up to the total exactly. If an entry has fewer questions than it asks for, the
-          mock can still run but cannot award mastery.
-        </p>
+        <div className="mt-2 flex items-center gap-1">
+          <p className={`text-sm ${rows.length === 0 ? "text-muted" : sumOk ? "text-good" : "text-danger"}`}>
+            Percentages add up to {Math.round(sum * 100) / 100}%{sumOk ? "." : ". They must add up to 100%."}
+          </p>
+          <InfoTip>
+            Items are rounded so they add up to the total exactly. If an entry has fewer questions than it asks for, the
+            mock can still run but cannot award mastery.
+          </InfoTip>
+        </div>
       </div>
 
       {errors.length > 0 && (

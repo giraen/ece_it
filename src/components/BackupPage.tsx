@@ -23,13 +23,17 @@ import { selectPackContent } from "@/lib/share";
 import { pathOf } from "@/lib/tree";
 import BackupStatus from "./BackupStatus";
 import PasswordInput from "./PasswordInput";
+import InfoTip from "./InfoTip";
 
 const MIN_PASSWORD = 8;
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, info, children }: { title: string; info?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="space-y-3 rounded-md border border-line bg-surface p-5">
-      <h2 className="font-medium">{title}</h2>
+      <div className="flex items-center gap-1">
+        <h2 className="font-medium">{title}</h2>
+        {info && <InfoTip>{info}</InfoTip>}
+      </div>
       {children}
     </section>
   );
@@ -45,17 +49,22 @@ function PasswordFields({
   onPassword,
   onConfirm,
   optional,
+  info,
 }: {
   password: string;
   confirm: string;
   onPassword: (v: string) => void;
   onConfirm: (v: string) => void;
   optional?: boolean;
+  info?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-wrap gap-3">
       <div>
-        <label className="mb-1 block text-sm font-medium">Password{optional ? " (optional)" : ""}</label>
+        <div className="mb-1 flex items-center gap-1">
+          <label className="text-sm font-medium">Password{optional ? " (optional)" : ""}</label>
+          {info && <InfoTip>{info}</InfoTip>}
+        </div>
         <PasswordInput label="Password" value={password} onChange={onPassword} />
       </div>
       <div>
@@ -105,11 +114,11 @@ function FullBackup() {
   }
 
   return (
-    <Card title="Full backup">
-      <p className="text-sm text-muted">
-        Everything in this browser: your bank, images, and quiz history, which mastery is worked out from. The file is
-        encrypted with your password. There is no way to recover a lost password, so keep it somewhere safe.
-      </p>
+    <Card
+      title="Full backup"
+      info="Everything in this browser: your bank, images, and quiz history, which mastery is worked out from. The file is encrypted with your password."
+    >
+      <p className="text-sm">There is no way to recover a lost password, so keep it somewhere safe.</p>
       <BackupStatus />
       <PasswordFields password={pw} confirm={pw2} onPassword={setPw} onConfirm={setPw2} />
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -178,11 +187,10 @@ function PackExport({
   }
 
   return (
-    <Card title="Share a bank pack">
-      <p className="text-sm text-muted">
-        A pack carries only the learning material, so someone else can import the same questions. It never includes your
-        quiz history, mastery, cooldowns, analytics, or settings. Share only material you have the right to share.
-      </p>
+    <Card
+      title="Share a bank pack"
+      info="A pack carries only the learning material, so someone else can import the same questions. It never includes your quiz history, mastery, cooldowns, analytics, or settings. Share only material you have the right to share."
+    >
       <div className="flex flex-wrap gap-3">
         <div className="min-w-64 flex-1">
           <label htmlFor="scope" className="mb-1 block text-sm font-medium">
@@ -237,10 +245,14 @@ function PackExport({
           {sel.blueprintsSkipped === 1 ? " it names" : " they name"} items that are not in this pack.
         </p>
       )}
-      <PasswordFields password={pw} confirm={pw2} onPassword={setPw} onConfirm={setPw2} optional />
-      <p className="text-xs text-muted">
-        With a password, the recipient needs it to open the file. Without one, anyone who has the file can read it.
-      </p>
+      <PasswordFields
+        password={pw}
+        confirm={pw2}
+        onPassword={setPw}
+        onConfirm={setPw2}
+        optional
+        info="With a password, the recipient needs it to open the file. Without one, anyone who has the file can read it."
+      />
       {error && <p className="text-sm text-danger">{error}</p>}
       {done && <p className="text-sm text-good">{done}</p>}
       <button
@@ -350,12 +362,15 @@ function ImportFile() {
   }
 
   return (
-    <Card title="Import a file">
-      <p className="text-sm text-muted">
-        Choose a full backup (<code>.ecebak</code>) or a bank pack (<code>.ecepack</code>). You will see what it would
-        change before anything is saved.
-      </p>
-
+    <Card
+      title="Import a file"
+      info={
+        <>
+          Choose a full backup (<code>.ecebak</code>) or a bank pack (<code>.ecepack</code>). You will see what it would
+          change before anything is saved.
+        </>
+      }
+    >
       {state.step === "idle" && (
         <input
           type="file"
@@ -621,16 +636,16 @@ export default function BackupPage({ initialScope, embedded = false }: { initial
 
   return (
     <div className={embedded ? "space-y-6" : "max-w-3xl space-y-6"}>
-      <div>
+      <div className="flex items-center gap-1">
         {embedded ? (
           <h2 className="text-lg font-semibold">Backup and sharing</h2>
         ) : (
           <h1 className="text-xl font-semibold">Backup and sharing</h1>
         )}
-        <p className="mt-1 text-sm text-muted">
+        <InfoTip>
           Your data lives in this browser only. Export a full backup regularly, and use a bank pack to give someone else
           your questions.
-        </p>
+        </InfoTip>
       </div>
       <FullBackup />
       {nodes && questions && blueprints && variants && concepts ? (

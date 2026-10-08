@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import AiSettings from "./AiSettings";
 import BackupPage from "./BackupPage";
 import StorageStatus from "./StorageStatus";
+import InfoTip from "./InfoTip";
 
 export default function SettingsPage() {
   const scope = useSearchParams().get("scope") ?? "";
@@ -28,9 +29,16 @@ export default function SettingsPage() {
       </div>
 
       <section id="ai" aria-labelledby="ai-title" className="scroll-mt-4 space-y-4">
-        <h2 id="ai-title" className="text-lg font-semibold">
-          AI helper
-        </h2>
+        <div className="flex items-center gap-1">
+          <h2 id="ai-title" className="text-lg font-semibold">
+            AI helper
+          </h2>
+          <InfoTip>
+            Optional. An AI model can reword your questions so you cannot pass by recognising a sentence. It never
+            changes numbers or answers without a check, and nothing it writes is used until it passes one. Without a
+            key, everything works exactly as written.
+          </InfoTip>
+        </div>
         <AiSettings />
       </section>
 

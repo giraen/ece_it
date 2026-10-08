@@ -6,6 +6,7 @@ import { slotsIn, type CompDraft, type RollResult } from "@/lib/computation";
 import { newId } from "@/lib/ids";
 import ImageTextarea from "./ImageTextarea";
 import RichText from "./RichText";
+import InfoTip from "./InfoTip";
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 
@@ -171,9 +172,9 @@ interface Props {
 function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2 rounded-md border border-line bg-surface p-4">
-      <div>
+      <div className="flex items-center gap-1">
         <h3 className="text-sm font-medium">{title}</h3>
-        {hint && <p className="text-xs text-muted">{hint}</p>}
+        {hint && <InfoTip>{hint}</InfoTip>}
       </div>
       {children}
     </section>
@@ -208,12 +209,6 @@ export default function ComputationEditor({
 
   return (
     <div className="space-y-4">
-      <p className="rounded-md bg-accent-soft p-3 text-sm text-accent">
-        You write the recipe once. Each time the question appears, the app draws new numbers, works out every choice
-        from its formula, and shows the result with units. The correct choice is always a formula, so it is right for
-        whatever numbers were drawn.
-      </p>
-
       <Block
         title="Given values"
         hint="Values can use SI suffixes: 4.7k, 2.2u, 10m, 1M. The name is what you use in formulas and as {name} in the wording."
@@ -402,7 +397,7 @@ export default function ComputationEditor({
 
       <Block
         title="Choices"
-        hint="Each choice is a formula. Mark the correct one. The other choices should model a specific mistake, and you can note which one for yourself. The note is never shown in a quiz."
+        hint="Each choice is a formula. Mark the correct one. The other choices should model a specific mistake."
       >
         {draft.choices.map((c, i) => (
           <div key={c.id} className="flex flex-wrap items-center gap-2">
@@ -423,19 +418,6 @@ export default function ComputationEditor({
                 setDraft((d) => ({
                   ...d,
                   choices: d.choices.map((x) => (x.id === c.id ? { ...x, formula: e.target.value } : x)),
-                }))
-              }
-            />
-            <input
-              className="input w-60"
-              aria-label={`Choice ${letter(i)} mistake`}
-              placeholder={correctId === c.id ? "(the correct answer)" : "mistake it models"}
-              disabled={correctId === c.id}
-              value={c.mistake}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  choices: d.choices.map((x) => (x.id === c.id ? { ...x, mistake: e.target.value } : x)),
                 }))
               }
             />
@@ -526,15 +508,7 @@ export default function ComputationEditor({
 }
 
 /** What the last preview roll produced, for the side panel. */
-export function RollPreview({
-  result,
-  formulas,
-  mistakes,
-}: {
-  result: RollResult | null;
-  formulas: string[];
-  mistakes: string[];
-}) {
+export function RollPreview({ result }: { result: RollResult | null }) {
   if (!result) {
     return <p className="text-sm text-muted">Choose “Roll a preview” to see a real question made from the recipe.</p>;
   }
@@ -562,10 +536,6 @@ export function RollPreview({
                 </div>
                 {right && <span className="text-xs font-medium text-good">Correct</span>}
               </div>
-              <p className="mt-0.5 pl-8 font-mono text-xs text-muted">
-                {formulas[i]}
-                {!right && mistakes[i] ? ` · ${mistakes[i]}` : ""}
-              </p>
             </li>
           );
         })}

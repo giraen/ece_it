@@ -372,17 +372,20 @@ function ImportFile() {
       }
     >
       {state.step === "idle" && (
+        <label className="btn cursor-pointer focus-within:ring-2 focus-within:ring-accent">
+        Choose a file…
         <input
           type="file"
           aria-label="Backup or pack file"
           accept=".ecebak,.ecepack"
-          className="block text-sm"
+          className="sr-only"
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
             void onFile(f);
           }}
         />
+      </label>
       )}
 
       {state.step === "password" && (

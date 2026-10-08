@@ -157,6 +157,8 @@ export interface Question {
   choices: Choice[];
   correctChoiceId: string;
   tags: string[];
+  /** Whether AI-reworded versions of this question may be shown in quizzes. Missing means no. */
+  allowAi?: boolean;
   difficulty?: number;
   targetSec?: number;
   createdAt: number;

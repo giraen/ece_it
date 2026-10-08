@@ -74,6 +74,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [rolled, setRolled] = useState<RollResult | null>(null);
   const [checked, setChecked] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -145,6 +146,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         correctChoiceId: comp ? comp.correctChoiceId : (correctId as string),
         template: comp?.template,
         tags: normalizeTags(tags),
+        allowAi,
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
@@ -308,6 +310,17 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             </InfoTip>
           </div>
           <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
+        </div>
+
+        <div className="flex items-center gap-1">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={allowAi} onChange={(e) => setAllowAi(e.target.checked)} />
+            Allow AI to reword
+          </label>
+          <InfoTip>
+            Lets quizzes show AI-reworded versions of this question. Each one is checked before it is used, and the
+            answer never changes. Off by default. Turning it off keeps the versions already made but stops showing them.
+          </InfoTip>
         </div>
 
         {errors.length > 0 && (

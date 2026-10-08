@@ -105,11 +105,14 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
   }
   const history = historyFrom(everyAttempt);
   const counts = serveCounts(everyAttempt);
-  const approved = await db.variants.filter((v) => !v.deletedAt && v.status === "approved").toArray();
+  const everyQuestion = await db.questions.filter((q) => !q.deletedAt).toArray();
+  // Reworded versions are only shown for questions that allow them. The others are kept but not served.
+  const allowed = new Set(everyQuestion.filter((q) => q.allowAi).map((q) => q.id));
+  const approved = await db.variants
+    .filter((v) => !v.deletedAt && v.status === "approved" && allowed.has(v.questionId))
+    .toArray();
   const variantsOf = new Map<string, Variant[]>();
   for (const v of approved) variantsOf.set(v.questionId, [...(variantsOf.get(v.questionId) ?? []), v]);
-
-  const everyQuestion = await db.questions.filter((q) => !q.deletedAt).toArray();
   // The formula engine is only loaded when there is a computation question to roll.
   const comp = everyQuestion.some((q) => q.type === "computation") ? await import("./computation") : null;
   // A computation recipe that cannot produce a question is left out rather than breaking the quiz.

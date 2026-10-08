@@ -141,8 +141,10 @@ export function contentKey(q: Question, topicId: string): string {
     updatedAt: _u,
     deletedAt: _d,
     topicId: _t,
+    allowAi: _a,
     ...rest
   } = q as Question & Record<string, unknown>;
+  void _a;
   void _id;
   void _c;
   void _u;

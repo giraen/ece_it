@@ -182,8 +182,14 @@ export default function VariantReview({ question }: { question: Question }) {
         </span>
         <button
           className="btn py-1"
-          disabled={busy || !canRun}
-          title={canRun ? undefined : "Add an API key first"}
+          disabled={busy || !canRun || !question.allowAi}
+          title={
+            !question.allowAi
+              ? "Turn on “Allow AI to reword” and save first"
+              : canRun
+                ? undefined
+                : "Add an API key first"
+          }
           onClick={() => void generate()}
         >
           {busy ? "Working…" : "Generate for this question"}
@@ -192,6 +198,12 @@ export default function VariantReview({ question }: { question: Question }) {
           Settings
         </Link>
       </div>
+      {!question.allowAi && (
+        <p className="text-xs text-muted">
+          Allow AI to reword is off for this question, so these are not shown in quizzes. Turn it on above and save to
+          use them.
+        </p>
+      )}
       {!canRun && (
         <p className="text-xs text-muted">
           No API key has been added, so this question is shown as written. You can add one in Settings.

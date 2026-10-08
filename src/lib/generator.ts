@@ -396,7 +396,7 @@ export function planTopUp(
 ): TopUpItem[] {
   const out: TopUpItem[] = [];
   for (const q of questions) {
-    if (q.deletedAt) continue;
+    if (q.deletedAt || !q.allowAi) continue;
     const mine = variants.filter((v) => v.questionId === q.id && v.status === "approved" && !v.deletedAt);
     if (q.type === "computation") {
       if (q.template && usable(q) && mine.filter((v) => v.kind === "frame").length < TARGET_UNSEEN) {

@@ -5,6 +5,7 @@ import QuizPicker from "@/components/QuizPicker";
 import { formatDateTime } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { abandonAttempt, isComplete } from "@/lib/quiz";
+import InfoTip from "@/components/InfoTip";
 
 export default function QuizPage() {
   const nodes = useNodes();
@@ -19,11 +20,13 @@ export default function QuizPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Quiz</h1>
-        <p className="mt-1 text-sm text-muted">
-          Choose a topic or a subject to be quizzed on, or run a mock board for a whole category. A quiz needs enough
-          questions to award mastery. With fewer, you can still take it for practice.
-        </p>
+        <div className="flex items-center gap-1">
+          <h1 className="text-xl font-semibold">Quiz</h1>
+          <InfoTip>
+            Choose a topic or a subject to be quizzed on, or run a mock board for a whole category. A quiz needs
+            enough questions to award mastery. With fewer, you can still take it for practice.
+          </InfoTip>
+        </div>
       </div>
 
       {inProgress.length > 0 && (

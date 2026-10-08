@@ -8,6 +8,7 @@ import { formatCountdown, formatDate } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { treeMastery, type TreeMastery } from "@/lib/mastery";
 import { childrenOf, KIND_LABEL } from "@/lib/tree";
+import InfoTip from "./InfoTip";
 
 const DAY = 86_400_000;
 
@@ -167,11 +168,13 @@ export default function MasteryOverview() {
   return (
     <div className="max-w-4xl space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Mastery</h2>
-        <p className="mt-1 text-sm text-muted">
-          Pass a quiz at a level to earn mastery for that level. It lasts 14 days for a topic, 42 for a subject, and 84
-          for a category, which you earn with a mock board. A failed quiz locks that same item for 24 hours.
-        </p>
+        <div className="flex items-center gap-1">
+          <h2 className="text-lg font-semibold">Mastery</h2>
+          <InfoTip>
+            Pass a quiz at a level to earn mastery for that level. It lasts 14 days for a topic, 42 for a subject, and
+            84 for a category, which you earn with a mock board. A failed quiz locks that same item for 24 hours.
+          </InfoTip>
+        </div>
       </div>
       {roots.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">

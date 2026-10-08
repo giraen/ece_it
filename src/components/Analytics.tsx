@@ -7,6 +7,7 @@ import { formatDate, formatDuration, formatPercent, formatRatio } from "@/lib/fo
 import { useAttempts } from "@/lib/hooks";
 import { SURENESS_LABEL } from "@/lib/scoring";
 import Sparkline from "./Sparkline";
+import InfoTip from "./InfoTip";
 
 function Tile({ value, label }: { value: string; label: string }) {
   return (
@@ -116,15 +117,20 @@ export default function Analytics() {
       </section>
 
       <section aria-label="Credit over time">
-        <h3 className="mb-2 font-medium">Credit over time</h3>
+        <div className="mb-2 flex items-center gap-1">
+          <h3 className="font-medium">Credit over time</h3>
+          <InfoTip>Each dot is one quiz. Green dots reached the mastery bar.</InfoTip>
+        </div>
         <div className="rounded-md border border-line bg-surface p-3">
           <CreditChart points={points} />
         </div>
-        <p className="mt-1 text-xs text-muted">Each dot is one quiz. Green dots reached the mastery bar.</p>
       </section>
 
       <section aria-label="By topic">
-        <h3 className="mb-2 font-medium">By topic, weakest first</h3>
+        <div className="mb-2 flex items-center gap-1">
+          <h3 className="font-medium">By topic, weakest first</h3>
+          <InfoTip>Pace is the median time taken divided by the target. Under 1.0× is on target.</InfoTip>
+        </div>
         <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
           <table className="w-full text-sm">
             <thead className="text-xs text-muted">
@@ -161,9 +167,6 @@ export default function Analytics() {
             </tbody>
           </table>
         </div>
-        <p className="mt-1 text-xs text-muted">
-          Pace is the median time taken divided by the target. Under 1.0× is on target.
-        </p>
       </section>
 
       {tags.length > 0 && (
@@ -186,7 +189,16 @@ export default function Analytics() {
       )}
 
       <section aria-label="Calibration">
-        <h3 className="mb-2 font-medium">How well you know what you know</h3>
+        <div className="mb-2 flex items-center gap-1">
+          <h3 className="font-medium">How well you know what you know</h3>
+          {sure.answered >= 5 && (
+            <InfoTip>
+              {sure.rate >= 0.9
+                ? `When you say Sure you are right ${formatPercent(sure.rate, 0)} of the time, so your confidence can be trusted.`
+                : `When you say Sure you are right only ${formatPercent(sure.rate, 0)} of the time. Slow down on the ones that feel obvious.`}
+            </InfoTip>
+          )}
+        </div>
         <div className="space-y-2 rounded-md border border-line bg-surface p-4">
           {cal.map((r) => (
             <div key={r.level} className="flex items-center gap-3 text-sm">
@@ -204,13 +216,6 @@ export default function Analytics() {
             </div>
           ))}
         </div>
-        {sure.answered >= 5 && (
-          <p className="mt-1 text-sm text-muted">
-            {sure.rate >= 0.9
-              ? `When you say Sure you are right ${formatPercent(sure.rate, 0)} of the time, so your confidence can be trusted.`
-              : `When you say Sure you are right only ${formatPercent(sure.rate, 0)} of the time. Slow down on the ones that feel obvious.`}
-          </p>
-        )}
       </section>
 
       <section aria-label="Questions to look at">

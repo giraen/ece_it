@@ -84,29 +84,6 @@ export function parseQuantity(text: string): number | null {
 
 const round12 = (v: number) => Number(v.toPrecision(12));
 
-const E_SERIES: Record<"E6" | "E12" | "E24", number[]> = {
-  E6: [1.0, 1.5, 2.2, 3.3, 4.7, 6.8],
-  E12: [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2],
-  E24: [
-    1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2,
-    9.1,
-  ],
-};
-
-/** Every standard value of an E-series between `from` and `to`. */
-export function eSeriesValues(series: "E6" | "E12" | "E24", from: number, to: number): number[] {
-  const out: number[] = [];
-  const lo = Math.floor(Math.log10(from)) - 1;
-  const hi = Math.ceil(Math.log10(to)) + 1;
-  for (let k = lo; k <= hi; k++) {
-    for (const m of E_SERIES[series]) {
-      const v = round12(m * 10 ** k);
-      if (v >= from * (1 - 1e-9) && v <= to * (1 + 1e-9)) out.push(v);
-    }
-  }
-  return out;
-}
-
 /** What is wrong with a value rule, as plain sentences. Empty means it is fine. */
 export function ruleProblems(rule: ValueRule, label: string): string[] {
   const bad = (msg: string) => [`${label}: ${msg}`];
@@ -123,12 +100,6 @@ export function ruleProblems(rule: ValueRule, label: string): string[] {
       if (a > b) return bad("the start must not be greater than the end.");
       return [];
     }
-    case "eseries": {
-      const [a, b] = [parseQuantity(rule.from), parseQuantity(rule.to)];
-      if (a === null || b === null) return bad("the start and end must be numbers.");
-      if (a <= 0 || a > b) return bad("the start must be above 0 and not greater than the end.");
-      return eSeriesValues(rule.series, a, b).length ? [] : bad("no standard values fall in that range.");
-    }
     case "int": {
       const [a, b] = [parseQuantity(rule.from), parseQuantity(rule.to)];
       if (a === null || b === null || !Number.isInteger(a) || !Number.isInteger(b))
@@ -142,6 +113,14 @@ export function ruleProblems(rule: ValueRule, label: string): string[] {
       return Number.isInteger(rule.decimals) && rule.decimals >= 0 && rule.decimals <= 8
         ? []
         : bad("decimals must be a whole number from 0 to 8.");
+    }
+    case "fraction": {
+      const [a, b, c, d] = [rule.numFrom, rule.numTo, rule.denFrom, rule.denTo].map(parseQuantity);
+      if ([a, b, c, d].some((x) => x === null || !Number.isInteger(x)))
+        return bad("the top and bottom limits must be whole numbers.");
+      if ((a as number) > (b as number)) return bad("the top must start at or below where it ends.");
+      if ((c as number) < 1) return bad("the bottom must start at 1 or more.");
+      return (c as number) > (d as number) ? bad("the bottom must start at or below where it ends.") : [];
     }
   }
 }
@@ -162,10 +141,6 @@ export function drawValue(rule: ValueRule, rand: () => number): number {
       const n = Math.floor((b - a) / s + 1e-9) + 1;
       return round12(a + Math.floor(rand() * n) * s);
     }
-    case "eseries": {
-      const vs = eSeriesValues(rule.series, parseQuantity(rule.from) as number, parseQuantity(rule.to) as number);
-      return vs[Math.floor(rand() * vs.length)];
-    }
     case "int": {
       const [a, b] = [parseQuantity(rule.from) as number, parseQuantity(rule.to) as number];
       return a + Math.floor(rand() * (b - a + 1));
@@ -174,6 +149,12 @@ export function drawValue(rule: ValueRule, rand: () => number): number {
       const [a, b] = [parseQuantity(rule.from) as number, parseQuantity(rule.to) as number];
       const v = Number((a + rand() * (b - a)).toFixed(rule.decimals));
       return Math.min(b, Math.max(a, v));
+    }
+    case "fraction": {
+      const [a, b, c, d] = [rule.numFrom, rule.numTo, rule.denFrom, rule.denTo].map((x) => parseQuantity(x) as number);
+      const top = a + Math.floor(rand() * (b - a + 1));
+      const bottom = c + Math.floor(rand() * (d - c + 1));
+      return round12(top / bottom);
     }
   }
 }

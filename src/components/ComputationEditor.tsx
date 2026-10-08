@@ -11,12 +11,15 @@ import InfoTip from "./InfoTip";
 const letter = (i: number) => String.fromCharCode(65 + i);
 
 const RULE_LABEL: Record<ValueRule["kind"], string> = {
-  list: "A list of values",
-  range: "A range with a step",
-  eseries: "Standard E-series values",
-  int: "A whole number",
-  decimal: "A decimal number",
+  int: "Whole number (integer)",
+  decimal: "Decimal number",
+  fraction: "Fraction",
+  range: "Range with a step",
+  list: "List of numbers",
 };
+
+/** The rules the dropdown offers, in this order. */
+const RULE_CHOICES: ValueRule["kind"][] = ["int", "decimal", "fraction", "range", "list"];
 
 function defaultRule(kind: ValueRule["kind"]): ValueRule {
   switch (kind) {
@@ -24,12 +27,12 @@ function defaultRule(kind: ValueRule["kind"]): ValueRule {
       return { kind, values: [] };
     case "range":
       return { kind, from: "", to: "", step: "" };
-    case "eseries":
-      return { kind, series: "E12", from: "", to: "" };
     case "int":
       return { kind, from: "", to: "" };
     case "decimal":
       return { kind, from: "", to: "", decimals: 2 };
+    case "fraction":
+      return { kind, numFrom: "", numTo: "", denFrom: "", denTo: "" };
   }
 }
 
@@ -80,35 +83,6 @@ function RuleFields({ rule, onChange }: { rule: ValueRule; onChange: (r: ValueRu
           />
         </span>
       );
-    case "eseries":
-      return (
-        <span className="flex flex-wrap gap-1.5">
-          <select
-            className="input w-24"
-            aria-label="Rule series"
-            value={rule.series}
-            onChange={(e) => onChange({ ...rule, series: e.target.value as "E6" | "E12" | "E24" })}
-          >
-            <option>E6</option>
-            <option>E12</option>
-            <option>E24</option>
-          </select>
-          <input
-            className={small}
-            aria-label="Rule from"
-            placeholder="from"
-            value={rule.from}
-            onChange={(e) => onChange({ ...rule, from: e.target.value })}
-          />
-          <input
-            className={small}
-            aria-label="Rule to"
-            placeholder="to"
-            value={rule.to}
-            onChange={(e) => onChange({ ...rule, to: e.target.value })}
-          />
-        </span>
-      );
     case "int":
       return (
         <span className="flex flex-wrap gap-1.5">
@@ -152,6 +126,41 @@ function RuleFields({ rule, onChange }: { rule: ValueRule; onChange: (r: ValueRu
             placeholder="places"
             value={String(rule.decimals)}
             onChange={(e) => onChange({ ...rule, decimals: Number(e.target.value) || 0 })}
+          />
+        </span>
+      );
+    case "fraction":
+      return (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted">Top</span>
+          <input
+            className={small}
+            aria-label="Top from"
+            placeholder="from"
+            value={rule.numFrom}
+            onChange={(e) => onChange({ ...rule, numFrom: e.target.value })}
+          />
+          <input
+            className={small}
+            aria-label="Top to"
+            placeholder="to"
+            value={rule.numTo}
+            onChange={(e) => onChange({ ...rule, numTo: e.target.value })}
+          />
+          <span className="ml-1 text-xs text-muted">Bottom</span>
+          <input
+            className={small}
+            aria-label="Bottom from"
+            placeholder="from"
+            value={rule.denFrom}
+            onChange={(e) => onChange({ ...rule, denFrom: e.target.value })}
+          />
+          <input
+            className={small}
+            aria-label="Bottom to"
+            placeholder="to"
+            value={rule.denTo}
+            onChange={(e) => onChange({ ...rule, denTo: e.target.value })}
           />
         </span>
       );
@@ -210,12 +219,51 @@ export default function ComputationEditor({
   return (
     <div className="space-y-4">
       <Block
+        title="Question wording"
+        hint="Write {R} where a value should appear, outside $...$ math. A brace right after a letter, _, ^ or } (as in X_{L} or \text{R}) is left alone as LaTeX. Add several wordings and one is picked at random each time."
+      >
+        {draft.stems.map((s, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <div className="flex-1">
+              <ImageTextarea
+                label={`Wording ${i + 1}`}
+                value={s}
+                rows={3}
+                onChange={(v) => setDraft((d) => ({ ...d, stems: d.stems.map((x, j) => (j === i ? v : x)) }))}
+                placeholder="A series RLC circuit has R = {R}, L = {L}. Find the impedance."
+              />
+            </div>
+            {draft.stems.length > 1 && (
+              <button
+                className="btn"
+                aria-label={`Remove wording ${i + 1}`}
+                onClick={() => setDraft((d) => ({ ...d, stems: d.stems.filter((_, j) => j !== i) }))}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="btn" onClick={() => setDraft((d) => ({ ...d, stems: [...d.stems, ""] }))}>
+          Add wording
+        </button>
+        {names.length > 0 && (
+          <p className="text-xs text-muted">
+            Available: {names.map((n) => `{${n}}`).join(" ")}.{" "}
+            {found.length > 0
+              ? `Used in the wording: ${found.map((n) => `{${n}}`).join(" ")}.`
+              : "No values are used in the wording yet."}
+          </p>
+        )}
+      </Block>
+
+      <Block
         title="Given values"
         hint="Values can use SI suffixes: 4.7k, 2.2u, 10m, 1M. The name is what you use in formulas and as {name} in the wording."
       >
-        <div className="space-y-2">
+        <div className="space-y-3">
           {draft.givens.map((g) => (
-            <div key={g.id} className="flex flex-wrap items-start gap-2">
+            <div key={g.id} className="flex flex-wrap items-start gap-2 rounded-md border border-line bg-paper p-3">
               <input
                 className="input w-20"
                 aria-label="Given name"
@@ -231,12 +279,12 @@ export default function ComputationEditor({
                 onChange={(e) => patchGiven(g.id, { unit: e.target.value })}
               />
               <select
-                className="input w-52"
+                className="input w-56"
                 aria-label="Value rule"
                 value={g.rule.kind}
                 onChange={(e) => patchGiven(g.id, { rule: defaultRule(e.target.value as ValueRule["kind"]) })}
               >
-                {(Object.keys(RULE_LABEL) as ValueRule["kind"][]).map((k) => (
+                {RULE_CHOICES.map((k) => (
                   <option key={k} value={k}>
                     {RULE_LABEL[k]}
                   </option>
@@ -354,45 +402,6 @@ export default function ComputationEditor({
         <button className="btn" onClick={() => setDraft((d) => ({ ...d, constraints: [...d.constraints, ""] }))}>
           Add constraint
         </button>
-      </Block>
-
-      <Block
-        title="Question wording"
-        hint="Write {R} where a value should appear, outside $...$ math. A brace right after a letter, _, ^ or } (as in X_{L} or \text{R}) is left alone as LaTeX. Add several wordings and one is picked at random each time."
-      >
-        {draft.stems.map((s, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <div className="flex-1">
-              <ImageTextarea
-                label={`Wording ${i + 1}`}
-                value={s}
-                rows={3}
-                onChange={(v) => setDraft((d) => ({ ...d, stems: d.stems.map((x, j) => (j === i ? v : x)) }))}
-                placeholder="A series RLC circuit has R = {R}, L = {L}. Find the impedance."
-              />
-            </div>
-            {draft.stems.length > 1 && (
-              <button
-                className="btn"
-                aria-label={`Remove wording ${i + 1}`}
-                onClick={() => setDraft((d) => ({ ...d, stems: d.stems.filter((_, j) => j !== i) }))}
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        ))}
-        <button className="btn" onClick={() => setDraft((d) => ({ ...d, stems: [...d.stems, ""] }))}>
-          Add wording
-        </button>
-        {names.length > 0 && (
-          <p className="text-xs text-muted">
-            Available: {names.map((n) => `{${n}}`).join(" ")}.{" "}
-            {found.length > 0
-              ? `Used in the wording: ${found.map((n) => `{${n}}`).join(" ")}.`
-              : "No values are used in the wording yet."}
-          </p>
-        )}
       </Block>
 
       <Block
@@ -540,19 +549,6 @@ export function RollPreview({ result }: { result: RollResult | null }) {
           );
         })}
       </ol>
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-muted">
-          Values drawn (found in {result.tries} {result.tries === 1 ? "try" : "tries"})
-        </summary>
-        <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-xs">
-          {Object.entries(rolled.values).map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt className="text-muted">{k}</dt>
-              <dd>{Number(v.toPrecision(8))}</dd>
-            </div>
-          ))}
-        </dl>
-      </details>
     </div>
   );
 }

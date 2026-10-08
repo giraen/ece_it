@@ -106,9 +106,9 @@ export interface ProviderConfig {
 export type ValueRule =
   | { kind: "list"; values: string[] }
   | { kind: "range"; from: string; to: string; step: string }
-  | { kind: "eseries"; series: "E6" | "E12" | "E24"; from: string; to: string }
   | { kind: "int"; from: string; to: string }
-  | { kind: "decimal"; from: string; to: string; decimals: number };
+  | { kind: "decimal"; from: string; to: string; decimals: number }
+  | { kind: "fraction"; numFrom: string; numTo: string; denFrom: string; denTo: string };
 
 export interface Given {
   id: string;

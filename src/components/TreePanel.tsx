@@ -305,7 +305,18 @@ interface Props {
 }
 
 export default function TreePanel({ nodes, questions, selectedId, onSelect }: Props) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Start with everything closed. Only the path down to the selected node stays open, such as when you arrive from a topic link.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const open = new Set<string>();
+    const climb = (id: string | null) => {
+      const n = id ? nodes.find((x) => x.id === id) : undefined;
+      if (!n || open.has(n.id)) return;
+      open.add(n.id);
+      for (const parentId of categoriesOf(n)) climb(parentId);
+    };
+    climb(selectedId);
+    return new Set(nodes.filter((n) => !open.has(n.id)).map((n) => n.id));
+  });
   const [editing, setEditing] = useState<Editing>(null);
 
   const byId = new Map(nodes.map((n) => [n.id, n]));

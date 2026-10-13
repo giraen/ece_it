@@ -79,7 +79,15 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
         <TopicPicker nodes={nodes} value={topicId} onChange={(id) => (setTopicId(id), edited())} />
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Explanation</label>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium">Explanation</label>
+            <InfoTip>
+              Write in Markdown: # headings, - bullets, 1. numbered lists, **bold**, *italic*, tables and checklists. The
+              buttons above the box insert them for you. Maths goes between dollar signs, and you can type it the quick
+              way: $d^2/dx^2$, $sqrt(x)$, $pi/2$, $int_0^1 x dx$. Subscripts with words need quotes, like
+              $V_(&quot;out&quot;)$. Text with a backslash is read as LaTeX.
+            </InfoTip>
+          </div>
           <ImageTextarea
             label="Explanation"
             value={body}

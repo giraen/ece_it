@@ -230,8 +230,10 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               <div className="mb-1 flex items-center gap-1">
                 <label className="text-sm font-medium">Question</label>
                 <InfoTip>
-                  Maths goes between dollar signs, like $x^2$. For a centered formula, put $$ on its own line above and
-                  below it.
+                  Maths goes between dollar signs, like $x^2$. You can type it the quick way: $d^2/dx^2$, $sqrt(x)$,
+                  $pi/2$, $int_0^1 x dx$. Subscripts with words need quotes, like $V_(&quot;out&quot;)$. Text with a
+                  backslash is read as LaTeX. The buttons above the box insert these for you. For a centered formula,
+                  put $$ on its own line above and below it.
                 </InfoTip>
               </div>
               <ImageTextarea

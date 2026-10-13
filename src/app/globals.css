@@ -70,6 +70,119 @@ body {
 .rich p:last-child {
   margin-bottom: 0;
 }
+/* Markdown. Tailwind resets all of these, so they are given back here. */
+.rich h1,
+.rich h2,
+.rich h3,
+.rich h4 {
+  margin: 0.9em 0 0.35em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.rich h1 {
+  font-size: 1.4em;
+}
+.rich h2 {
+  font-size: 1.25em;
+}
+.rich h3 {
+  font-size: 1.1em;
+}
+.rich h4 {
+  font-size: 1em;
+}
+.rich > :first-child {
+  margin-top: 0;
+}
+.rich ul,
+.rich ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.5em;
+}
+.rich ul {
+  list-style: disc;
+}
+.rich ol {
+  list-style: decimal;
+}
+.rich ul ul {
+  list-style: circle;
+}
+.rich li {
+  margin: 0.15em 0;
+}
+.rich li > p {
+  margin: 0;
+}
+.rich li > ul,
+.rich li > ol {
+  margin: 0.15em 0 0;
+}
+.rich ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.rich .task-list-item input {
+  margin-right: 0.5em;
+}
+.rich blockquote {
+  margin: 0 0 0.6em;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--color-line);
+  color: var(--color-muted);
+}
+.rich strong {
+  font-weight: 700;
+}
+.rich em {
+  font-style: italic;
+}
+.rich del {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.rich a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--color-accent-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+.rich pre {
+  margin: 0 0 0.6em;
+  padding: 0.75em 1em;
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-paper);
+}
+.rich pre code {
+  padding: 0;
+  background: none;
+}
+.rich hr {
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+}
+.rich table {
+  border-collapse: collapse;
+}
+.rich th,
+.rich td {
+  padding: 0.35em 0.75em;
+  border: 1px solid var(--color-line);
+  text-align: left;
+}
+.rich th {
+  background: var(--color-paper);
+  font-weight: 600;
+}
 .rich .katex-display {
   margin: 0.6em 0;
   overflow-x: auto;

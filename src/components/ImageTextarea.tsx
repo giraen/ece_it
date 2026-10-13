@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { storeImage } from "@/lib/images";
+import { continueList, indentList, wrapSelection, type Edit } from "@/lib/mathEdit";
+import MathToolbar from "./MathToolbar";
 
 interface Props {
   value: string;
@@ -26,12 +28,60 @@ function imagesFromFiles(files: FileList): File[] {
   return Array.from(files).filter((f) => f.type.startsWith("image/"));
 }
 
-/** A text box that turns pasted, dropped, or chosen images into ![](img:id) at the cursor. */
+/**
+ * A text box that turns pasted, dropped, or chosen images into ![](img:id) at the cursor.
+ * A toolbar above it inserts formatting and maths. It is always shown on boxes of three rows or more,
+ * and only while the box is being used on smaller ones.
+ */
 export default function ImageTextarea({ value, onChange, rows = 4, placeholder, label }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Where the selection should go once the new text has been drawn.
+  const pending = useRef<{ start: number; end: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const sel = pending.current;
+    const el = ref.current;
+    if (!sel || !el) return;
+    pending.current = null;
+    el.focus();
+    el.setSelectionRange(sel.start, sel.end);
+  }, [value]);
+
+  function apply(edit: Edit | null): boolean {
+    const el = ref.current;
+    if (!edit || !el) return false;
+    if (edit.text === el.value) {
+      el.setSelectionRange(edit.start, edit.end);
+      return true;
+    }
+    pending.current = { start: edit.start, end: edit.end };
+    onChange(edit.text);
+    return true;
+  }
+
+  function run(action: (text: string, s: number, e: number) => Edit) {
+    const el = ref.current;
+    if (el) apply(action(el.value, el.selectionStart, el.selectionEnd));
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const el = e.currentTarget;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && !e.altKey && (e.key === "b" || e.key === "B")) {
+      e.preventDefault();
+      apply(wrapSelection(el.value, el.selectionStart, el.selectionEnd, "**", "**", "bold"));
+    } else if (mod && !e.shiftKey && !e.altKey && (e.key === "i" || e.key === "I")) {
+      e.preventDefault();
+      apply(wrapSelection(el.value, el.selectionStart, el.selectionEnd, "*", "*", "italic"));
+    } else if (e.key === "Enter" && !e.shiftKey && !mod && !e.altKey && !e.nativeEvent.isComposing) {
+      if (el.selectionStart === el.selectionEnd && apply(continueList(el.value, el.selectionStart))) e.preventDefault();
+    } else if (e.key === "Tab" && !mod && !e.altKey) {
+      if (apply(indentList(el.value, el.selectionStart, el.selectionEnd, e.shiftKey))) e.preventDefault();
+    }
+  }
 
   async function insert(files: File[]) {
     const el = ref.current;
@@ -53,7 +103,10 @@ export default function ImageTextarea({ value, onChange, rows = 4, placeholder, 
   }
 
   return (
-    <div>
+    <div className="group">
+      <div className={rows >= 3 ? "mb-1" : "mb-1 hidden group-focus-within:block"}>
+        <MathToolbar run={run} />
+      </div>
       <textarea
         ref={ref}
         aria-label={label}
@@ -61,6 +114,7 @@ export default function ImageTextarea({ value, onChange, rows = 4, placeholder, 
         rows={rows}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
         onPaste={(e) => {
           const files = imagesFromItems(e.clipboardData.items);
           if (files.length) {

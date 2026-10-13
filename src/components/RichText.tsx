@@ -3,11 +3,18 @@
 import { useState } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Options } from "react-markdown";
 import remarkMath from "remark-math";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
 import { useImageUrl } from "@/lib/hooks";
+import { rehypeTypedMath } from "@/lib/mathText";
 
-const remarkPlugins: Options["remarkPlugins"] = [remarkMath];
-const rehypePlugins: Options["rehypePlugins"] = [[rehypeKatex, { throwOnError: false, strict: "ignore" }]];
+// Tables, checklists and ~~strikethrough~~; a single line break in the text stays a line break, like Obsidian.
+const remarkPlugins: Options["remarkPlugins"] = [remarkMath, [remarkGfm, { singleTilde: false }], remarkBreaks];
+const rehypePlugins: Options["rehypePlugins"] = [
+  rehypeTypedMath,
+  [rehypeKatex, { throwOnError: false, strict: "ignore" }],
+];
 
 function urlTransform(url: string): string {
   // Images saved in the bank are referenced as img:<id>.
@@ -57,7 +64,23 @@ function MarkdownImage({ src, alt }: { src?: string | Blob; alt?: string }) {
   return <StoredImage src={typeof src === "string" ? src : ""} alt={alt ?? ""} />;
 }
 
-const components: Options["components"] = { img: MarkdownImage };
+function MarkdownTable({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="my-2 max-w-full overflow-x-auto">
+      <table>{children}</table>
+    </div>
+  );
+}
+
+function MarkdownLink({ href, children }: { href?: string; children?: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
+
+const components: Options["components"] = { img: MarkdownImage, table: MarkdownTable, a: MarkdownLink };
 
 // A picture saved in the bank is written as ![alt](img:id).
 const IMAGE = /!\[([^\]]*)\]\(img:([0-9a-f]+)\)/g;

@@ -92,8 +92,8 @@ export async function deleteSource(id: string): Promise<void> {
 
 /** "label, where" or just "label" when `where` is empty. */
 export function joinReference(label: string, where: string): string {
-  const w = where.trim();
-  return w ? `${label}, ${w}` : label;
+  // Spaces inside and after the text are kept, so a space can be typed. The editors trim the whole reference when saving.
+  return where.trim() ? `${label}, ${where.replace(/^\s+/, "")}` : label;
 }
 
 /**
@@ -101,16 +101,17 @@ export function joinReference(label: string, where: string): string {
  * The longest matching label wins, so two sources with similar names do not get mixed up.
  */
 export function splitReference(reference: string, sources: Source[]): { source: Source | null; where: string } {
-  const text = reference.trim();
+  const text = reference.replace(/^\s+/, "");
   let best: { source: Source; label: string } | null = null;
   for (const s of sources) {
     const label = sourceLabel(s);
     if (!label) continue;
-    if ((text === label || text.startsWith(label + ", ")) && (!best || label.length > best.label.length)) {
+    if ((text.trimEnd() === label || text.startsWith(label + ", ")) && (!best || label.length > best.label.length)) {
       best = { source: s, label };
     }
   }
   if (!best) return { source: null, where: "" };
+  if (text.trimEnd() === best.label) return { source: best.source, where: "" };
   return { source: best.source, where: text.slice(best.label.length).replace(/^,\s*/, "") };
 }
 

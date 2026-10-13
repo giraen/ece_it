@@ -32,6 +32,19 @@ describe("sources", () => {
     expect(splitReference(sourceLabel(s), [s])).toEqual({ source: s, where: "" });
     expect(joinReference("A", "  ")).toBe("A");
   });
+    it("keeps spaces while the page is being typed", () => {
+    const s = src();
+    const label = sourceLabel(s);
+    // Typing "p. 143" one character at a time must never lose the space.
+    let where = "";
+    for (const ch of "p. 143, Problem 5") {
+      const value = joinReference(label, where + ch);
+      where = splitReference(value, [s]).where;
+    }
+    expect(where).toBe("p. 143, Problem 5");
+    expect(splitReference(joinReference(label, "p. "), [s]).where).toBe("p. ");
+    expect(splitReference(`${label}  `, [s])).toEqual({ source: s, where: "" });
+  });
   it("does not match a different text that only starts the same", () => {
     const s = src({ authors: "", edition: "", year: "", publisher: "", title: "Circuits" });
     expect(splitReference("Circuits and Systems, p. 3", [s]).source).toBeNull();

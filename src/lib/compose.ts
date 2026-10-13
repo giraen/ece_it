@@ -64,6 +64,44 @@ function spread(pool: Question[], keyFns: KeyFn[], rand: Rand, history?: Map<str
   return out;
 }
 
+/** True when the item at `i` has the same question within `gap` places on either side. */
+function clashes<T extends { id: string }>(list: T[], i: number, gap: number): boolean {
+  for (let k = Math.max(0, i - gap); k <= Math.min(list.length - 1, i + gap); k++) {
+    if (k !== i && list[k].id === list[i].id) return true;
+  }
+  return false;
+}
+
+/**
+ * Moves copies of the same question apart. It aims for at least 4 places between copies, and settles for
+ * fewer when the quiz is too short or too repetitive for that. Questions that appear once are left where they are
+ * unless one has to move to make room. Never adds or removes anything.
+ */
+export function separateCopies<T extends { id: string }>(list: readonly T[], rand: Rand = Math.random): T[] {
+  const out = [...list];
+  if (new Set(out.map((x) => x.id)).size === out.length) return out;
+  const spots = out.map((_, i) => i);
+  for (const gap of [4, 3, 2, 1]) {
+    for (let pass = 0; pass < 6; pass++) {
+      let moved = false;
+      for (let i = 0; i < out.length; i++) {
+        if (!clashes(out, i, gap)) continue;
+        for (const j of shuffle(spots, rand)) {
+          if (j === i) continue;
+          [out[i], out[j]] = [out[j], out[i]];
+          if (!clashes(out, i, gap) && !clashes(out, j, gap)) {
+            moved = true;
+            break;
+          }
+          [out[i], out[j]] = [out[j], out[i]];
+        }
+      }
+      if (!moved) break;
+    }
+  }
+  return out;
+}
+
 export interface ComposeInput {
   nodes: TreeNode[];
   questions: Question[];

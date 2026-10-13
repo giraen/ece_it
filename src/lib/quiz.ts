@@ -1,11 +1,11 @@
 import { composeBlueprintQuiz } from "./blueprint";
-import { composeQuiz, historyFrom, shuffle } from "./compose";
+import { composeQuiz, historyFrom, separateCopies, shuffle } from "./compose";
 import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
 import { formatCountdown } from "./format";
 import { newId, now } from "./ids";
 import { masteryFor } from "./mastery";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
-import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor } from "./quizPlan";
+import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
 import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
 import { pathOf, subtreeOf } from "./tree";
 
@@ -70,6 +70,7 @@ function shownFor(
   comp: Computation | null,
   variants: Variant[],
   counts: Map<string, number> | undefined,
+  taken?: Set<string>,
 ): Shown {
   if (q.type !== "computation") {
     const v = pickVariant(variants, counts);
@@ -81,8 +82,12 @@ function shownFor(
     frames.length && q.template
       ? { ...q, template: { ...q.template, stems: [...q.template.stems, ...frames.map((f) => f.stem)] } }
       : q;
-  const r = comp.rollQuestion(withFrames);
+  let r = comp.rollQuestion(withFrames);
+  for (let again = 0; again < 30 && r.ok && taken?.has(`${q.id}|${JSON.stringify(r.rolled.values)}`); again++) {
+    r = comp.rollQuestion(withFrames);
+  }
   if (!r.ok) throw new Error(`A computation question could not be generated. ${r.reason}`);
+  taken?.add(`${q.id}|${JSON.stringify(r.rolled.values)}`);
   return r.rolled;
 }
 
@@ -138,11 +143,12 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
         .filter((n) => n.kind === "topic")
         .map((n) => n.id),
     );
-    const pool = usable.filter((q) => topicIds.has(q.topicId));
+    // A question that may appear several times is listed that many times, so every copy counts as an item.
+    const pool = withCopies(usable.filter((q) => topicIds.has(q.topicId)));
     const plan = planFor(scope.kind, pool.length);
     const problem = itemsProblem(plan, items);
     if (problem) throw new Error(problem);
-    const chosen = composeQuiz({ nodes, questions: pool, scope, length: items, history });
+    const chosen = separateCopies(composeQuiz({ nodes, questions: pool, scope, length: items, history }));
     if (chosen.length === 0) throw new Error("There are no questions to quiz on here yet.");
     picked = chosen.map((question) => ({ question }));
     eligibility = masteryEligibility(plan, chosen, pool);
@@ -155,6 +161,7 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
   const targetSec = targetSecPerItem(minutes * 60, picked.length);
 
   const t = now();
+  const taken = new Set<string>();
   const attempt: QuizAttempt = {
     id: newId(),
     scopeNodeId: scope.id,
@@ -171,7 +178,7 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
         p.question,
         nodes,
         targetSec,
-        shownFor(p.question, comp, variantsOf.get(p.question.id) ?? [], counts.get(p.question.id)),
+        shownFor(p.question, comp, variantsOf.get(p.question.id) ?? [], counts.get(p.question.id), taken),
         p.entry,
       ),
     ),

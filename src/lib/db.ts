@@ -160,6 +160,8 @@ export interface Question {
   correctChoiceId: string;
   tags: string[];
   reference?: string;
+  /** How many times this question can appear in one quiz, from 1 to 10. Missing means 1. */
+  repeats?: number;
   /** Whether AI-reworded versions of this question may be shown in quizzes. Missing means no. */
   allowAi?: boolean;
   difficulty?: number;

@@ -14,6 +14,7 @@ import {
   minLengthForCoverage,
   planFor,
   suggestedMinutes,
+  withCopies,
 } from "@/lib/quizPlan";
 import { targetSecPerItem } from "@/lib/scoring";
 import { pathOf, subtreeOf } from "@/lib/tree";
@@ -38,7 +39,9 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
       .filter((n) => n.kind === "topic")
       .map((n) => n.id),
   );
-  const pool = questions.filter((q) => topicIds.has(q.topicId));
+  const distinct = questions.filter((q) => topicIds.has(q.topicId));
+  // A question that may appear more than once is listed once for each time it can appear.
+  const pool = withCopies(distinct);
   const plan = planFor(kind, pool.length);
   const info = masteryFor(attempts, node, nowMs);
   const locked = info.lockedUntil !== undefined;
@@ -103,7 +106,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
         <h1 className="text-xl font-semibold">New quiz</h1>
         <p className="mt-1 font-medium">{pathOf(nodes, node.id)}</p>
         <p className="text-sm text-muted">
-          {pool.length} question{pool.length === 1 ? "" : "s"} available
+          {distinct.length !== pool.length && ` (${distinct.length} different, some can appear more than once)`}
         </p>
       </div>
 

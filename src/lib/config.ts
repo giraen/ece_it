@@ -22,6 +22,8 @@ export const CONFIG = {
     /** When the person picks the number of items, the total time is suggested as items times this many seconds. */
     suggestedSecPerItem: 90,
   },
+  /** The most times one question may appear in a single quiz. */
+  maxRepeats: 10,
   /** Computation questions: two answer choices closer than this (as a fraction) trigger a re-roll. */
   minChoiceSpacing: 0.02,
   /** Computation questions: how many times to re-roll before a template is called unusable. */

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Choice, Question, TreeNode } from "@/lib/db";
+import { CONFIG } from "@/lib/config";
 import {
   draftFromQuestion,
   draftToQuestion,
@@ -77,6 +78,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [checked, setChecked] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [reference, setReference] = useState(initial?.reference ?? "");
+  const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -108,6 +110,9 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
     const filled = choices.filter((c) => c.text.trim());
     const problems: string[] = [];
     if (!topicId) problems.push("Pick a category, subject, and topic.");
+    const repeats = repeatsText.trim() === "" ? NaN : Number(repeatsText);
+    if (!Number.isInteger(repeats) || repeats < 1 || repeats > CONFIG.maxRepeats)
+      problems.push(`Times it can appear in one quiz must be a whole number from 1 to ${CONFIG.maxRepeats}.`);
     if (isComp) {
       setChecked(true);
       // The detailed list is shown inside the recipe editor, so only one summary line is added here.
@@ -139,8 +144,9 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             template: { ...(compQuestion.template as NonNullable<typeof compQuestion.template>), stems },
           }
         : null;
-      const { reference: _old, ...kept } = (initial ?? {}) as Partial<Question>;
+      const { reference: _old, repeats: _oldRepeats, ...kept } = (initial ?? {}) as Partial<Question>;
       void _old;
+      void _oldRepeats;
       await saveQuestion({
         ...kept, // keeps anything not edited here
         id: initial?.id ?? newId(),
@@ -151,8 +157,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         correctChoiceId: comp ? comp.correctChoiceId : (correctId as string),
         template: comp?.template,
         tags: normalizeTags(tags),
-        // Left out when blank, so a question without a reference looks the same as before.
-        ...(reference.trim() ? { reference: reference.trim() } : {}),
+        // Left out when it is 1, so a question that never repeats looks the same as before.
+        ...(Number(repeatsText) > 1 ? { repeats: Number(repeatsText) } : {}),
         allowAi,
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
@@ -339,6 +345,27 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             placeholder="Gonzalez, Electronics Vol. 2, p. 143"
             value={reference}
             onChange={(e) => setReference(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium" htmlFor="question-repeats">
+              Times it can appear in one quiz
+            </label>
+            <InfoTip>
+              Usually 1. Set it higher when a question should come up more than once in a quiz, such as a computation
+              question you want to practise with different numbers each time. Each time it appears counts as its own
+              question, so it adds to the quiz length and to the number of questions available. Copies are spread apart,
+              and a computation question gets different numbers every time. Mock boards always show a question once.
+            </InfoTip>
+          </div>
+          <input
+            id="question-repeats"
+            className="input w-24"
+            inputMode="numeric"
+            value={repeatsText}
+            onChange={(e) => setRepeatsText(e.target.value)}
           />
         </div>
 

@@ -37,6 +37,18 @@ export function planFor(kind: "topic" | "subject", available: number): QuizPlan 
   };
 }
 
+/** How many times a question can appear in one quiz: a whole number from 1 to the most allowed. Missing means 1. */
+export function repeatsOf(q: Pick<Question, "repeats">): number {
+  const n = q.repeats;
+  if (typeof n !== "number" || !Number.isFinite(n)) return 1;
+  return Math.min(CONFIG.maxRepeats, Math.max(1, Math.floor(n)));
+}
+
+/** The questions with each one listed as many times as it may appear. This is what a quiz draws from. */
+export function withCopies(questions: Question[]): Question[] {
+  return questions.flatMap((q) => Array.from({ length: repeatsOf(q) }, () => q));
+}
+
 /** The longest total time a quiz may be given, in minutes. */
 export const MAX_MINUTES = 24 * 60;
 

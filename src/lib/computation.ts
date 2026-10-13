@@ -448,6 +448,82 @@ export function isUsable(q: TemplateLike): boolean {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Suggesting wrong formulas
+// ---------------------------------------------------------------------------------------------
+
+type Recipe = Pick<ComputationTemplate, "givens" | "derived" | "constraints" | "format">;
+
+/** The first thing wrong with the givens, derived values and constraints, or null. Choices and wordings are not checked. */
+export function recipeProblem(t: Recipe): string | null {
+  const dummy = {
+    choices: [
+      { id: "a", text: "1" },
+      { id: "b", text: "2" },
+    ],
+    correctChoiceId: "a",
+    template: { ...t, stems: ["x"], mistakes: {} },
+  };
+  return validateTemplate(dummy)[0] ?? null;
+}
+
+/**
+ * Keeps the candidate formulas that make a good wrong choice: they must be readable, use only known names, and give
+ * an answer that is a real number and not too close to the correct one, the existing choices, or each other,
+ * on nearly every roll. Candidates are judged in order, so earlier ones win ties. The recipe must be valid.
+ */
+export function screenFormulas(
+  t: Recipe,
+  correct: string,
+  existing: string[],
+  candidates: string[],
+  rand: () => number = Math.random,
+): { kept: string[]; dropped: string[] } {
+  const scopes: Record<string, number>[] = [];
+  for (let tries = 0; tries < 300 && scopes.length < 24; tries++) {
+    try {
+      const scope: Record<string, number> = {};
+      for (const g of t.givens) scope[g.name] = drawValue(g.rule, rand);
+      for (const d of t.derived) scope[d.name] = evalNumber(d.formula, scope);
+      if (t.constraints.every((c) => evalCondition(c, scope))) scopes.push(scope);
+    } catch {
+      // a roll that fails is simply skipped
+    }
+  }
+  if (scopes.length < 6) return { kept: [], dropped: candidates };
+
+  const known = new Set<string>([...t.givens.map((g) => g.name), ...t.derived.map((d) => d.name)]);
+  const valuesOf = (f: string) =>
+    scopes.map((s) => {
+      try {
+        return evalNumber(f, s);
+      } catch {
+        return Number.NaN;
+      }
+    });
+
+  const others = [correct, ...existing].map(valuesOf);
+  const kept: string[] = [];
+  const dropped: string[] = [];
+  for (const c of candidates) {
+    if (checkFormula(c, known, "Choice").length) {
+      dropped.push(c);
+      continue;
+    }
+    const v = valuesOf(c);
+    let bad = 0;
+    for (let i = 0; i < v.length; i++) {
+      if (!Number.isFinite(v[i]) || others.some((o) => Number.isFinite(o[i]) && tooClose(v[i], o[i]))) bad++;
+    }
+    if (bad > scopes.length * 0.1) dropped.push(c);
+    else {
+      kept.push(c);
+      others.push(v);
+    }
+  }
+  return { kept, dropped };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Editor drafts
 // ---------------------------------------------------------------------------------------------
 

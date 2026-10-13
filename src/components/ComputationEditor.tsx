@@ -2,12 +2,14 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import type { AnswerFormat, Given, ValueRule } from "@/lib/db";
-import { slotsIn, type CompDraft, type RollResult } from "@/lib/computation";
+import { recipeProblem, slotsIn, type CompDraft, type RollResult } from "@/lib/computation";
+import { suggestWrongFormulas, suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import { newId } from "@/lib/ids";
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
 import RichText from "./RichText";
 import InfoTip from "./InfoTip";
+import SuggestWrong from "./SuggestWrong";
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 
@@ -218,6 +220,51 @@ export default function ComputationEditor({
   const names = [...draft.givens.map((g) => g.name), ...draft.derived.map((x) => x.name)].filter(Boolean);
   const found = Array.from(new Set(draft.stems.flatMap(slotsIn)));
   const sentences = draft.choiceMode === "sentence";
+
+  // The wrong choices the AI can fill in: every empty box except the correct one.
+  const emptyChoices = draft.choices.filter((c) => !c.formula.trim() && c.id !== correctId);
+  const correctText = draft.choices.find((c) => c.id === correctId)?.formula.trim() ?? "";
+  const recipe = { givens: draft.givens, derived: draft.derived, constraints: draft.constraints, format: draft.format };
+  const recipeIssue = sentences || !correctText ? null : recipeProblem(recipe);
+  const suggestBlock = !draft.stems[0]?.trim()
+    ? "Write the question wording first."
+    : !correctText
+      ? "Mark the correct choice and write it first."
+      : emptyChoices.length === 0
+        ? "Every choice is filled in. Empty the ones you want replaced."
+        : recipeIssue
+          ? `Fix this first: ${recipeIssue}`
+          : null;
+
+  async function suggestChoices(ask: Ask, count: number): Promise<number> {
+    const others = draft.choices.filter((c) => c.id !== correctId && c.formula.trim()).map((c) => c.formula.trim());
+    const list = sentences
+      ? await suggestWrongText({
+          ask,
+          stem: draft.stems[0],
+          correct: correctText,
+          others,
+          count,
+          slots: [...draft.givens, ...draft.derived].filter((x) => x.name).map((x) => ({ name: x.name, unit: x.unit })),
+        })
+      : await suggestWrongFormulas({
+          ask,
+          template: { ...recipe, stems: draft.stems },
+          correct: correctText,
+          others,
+          count,
+        });
+    setDraft((d) => {
+      let k = 0;
+      return {
+        ...d,
+        choices: d.choices.map((c) =>
+          !c.formula.trim() && c.id !== correctId && k < list.length ? { ...c, formula: list[k++] } : c,
+        ),
+      };
+    });
+    return list.length;
+  }
 
   return (
     <div className="space-y-4">
@@ -501,6 +548,7 @@ export default function ComputationEditor({
         >
           Add choice
         </button>
+        <SuggestWrong blocked={suggestBlock} count={emptyChoices.length} onSuggest={suggestChoices} />
       </Block>
 
       <Block

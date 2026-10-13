@@ -17,11 +17,13 @@ import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
 import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
+import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ComputationEditor, { blankDraft, RollPreview } from "./ComputationEditor";
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
 import Reference from "./Reference";
 import RichText from "./RichText";
+import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
 import VariantReview from "./VariantReview";
@@ -93,6 +95,27 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
     setChoices((cs) => cs.filter((c) => c.id !== id));
     // If the correct choice was removed, nothing is marked correct until you pick again.
     setCorrectId((cur) => (cur === id ? null : cur));
+  }
+
+  // The wrong choices the AI can fill in: every empty box except the correct one.
+  const emptyChoices = choices.filter((c) => !c.text.trim() && c.id !== correctId);
+  const correctText = choices.find((c) => c.id === correctId)?.text.trim() ?? "";
+  const suggestBlock = !stem.trim()
+    ? "Write the question first."
+    : !correctText
+      ? "Mark the correct choice and write it first."
+      : emptyChoices.length === 0
+        ? "Every choice is filled in. Empty the ones you want replaced."
+        : null;
+
+  async function suggestChoices(ask: Ask, count: number): Promise<number> {
+    const others = choices.filter((c) => c.id !== correctId && c.text.trim()).map((c) => c.text.trim());
+    const list = await suggestWrongText({ ask, stem, correct: correctText, others, count });
+    setChoices((cs) => {
+      let k = 0;
+      return cs.map((c) => (!c.text.trim() && c.id !== correctId && k < list.length ? { ...c, text: list[k++] } : c));
+    });
+    return list.length;
   }
 
   const compQuestion = draftToQuestion(draft, compCorrect);
@@ -304,6 +327,9 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               >
                 Add choice
               </button>
+              <div className="mt-3">
+                <SuggestWrong blocked={suggestBlock} count={emptyChoices.length} onSuggest={suggestChoices} />
+              </div>
             </fieldset>
           </>
         ) : (

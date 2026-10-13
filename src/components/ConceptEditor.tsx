@@ -11,7 +11,6 @@ import DraftReview from "./DraftReview";
 import ImageTextarea from "./ImageTextarea";
 import Reference from "./Reference";
 import ReferenceInput from "./ReferenceInput";
-import { lastSourceLabel, rememberReference } from "@/lib/sources";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
@@ -29,7 +28,7 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
   const [topicId, setTopicId] = useState<string | null>(initial?.topicId ?? defaultTopicId);
   const [body, setBody] = useState(initial?.body ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
-  const [reference, setReference] = useState(() => initial?.reference ?? lastSourceLabel());
+  const [reference, setReference] = useState(initial?.reference ?? "");
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,7 +57,6 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
-      await rememberReference(reference);
       // After the first save the address names the concept, so a refresh or a bookmark opens it.
       if (!initial) router.replace(`/concept?id=${id}`);
       else setSaved(true);

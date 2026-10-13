@@ -23,7 +23,6 @@ export const SOURCE_KINDS: { kind: Source["kind"]; label: string; where: string 
 ];
 
 const KEY = "sources";
-const LAST = "ece:lastSource";
 
 function clean(v: unknown): Source[] {
   if (!Array.isArray(v)) return [];
@@ -119,23 +118,4 @@ export function splitReference(reference: string, sources: Source[]): { source: 
 export function keepSourceOnly(reference: string, sources: Source[]): string {
   const { source } = splitReference(reference, sources);
   return source ? sourceLabel(source) : reference;
-}
-
-/** Remembers which source was used last, so the next new question or note can start with it. */
-export async function rememberReference(reference: string): Promise<void> {
-  try {
-    const { source } = splitReference(reference, await loadSources());
-    if (source) localStorage.setItem(LAST, sourceLabel(source));
-  } catch {
-    // storage can be blocked; the default simply will not be remembered
-  }
-}
-
-/** The source label used last, or an empty string. */
-export function lastSourceLabel(): string {
-  try {
-    return typeof window === "undefined" ? "" : (localStorage.getItem(LAST) ?? "");
-  } catch {
-    return "";
-  }
 }

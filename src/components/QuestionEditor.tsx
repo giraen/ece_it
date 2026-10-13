@@ -23,7 +23,7 @@ import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
 import Reference from "./Reference";
 import ReferenceInput from "./ReferenceInput";
-import { keepSourceOnly, lastSourceLabel, loadSources, rememberReference } from "@/lib/sources";
+import { keepSourceOnly, loadSources } from "@/lib/sources";
 import RichText from "./RichText";
 import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
@@ -81,8 +81,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [rolled, setRolled] = useState<RollResult | null>(null);
   const [checked, setChecked] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
-  // A new question starts with the source used last, so a run of questions from one book needs no retyping.
-  const [reference, setReference] = useState(() => initial?.reference ?? lastSourceLabel());
+  const [reference, setReference] = useState(initial?.reference ?? "");
   const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -189,7 +188,6 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
-      await rememberReference(reference);
       if (andAnother) {
         // The next question usually comes from the same source, but from a different page.
         setReference(keepSourceOnly(reference, await loadSources()));

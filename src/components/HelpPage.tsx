@@ -276,8 +276,8 @@ export default function HelpPage() {
               know: author, edition, year, publisher, or a web address. Press <Btn>Save source</Btn>.
             </li>
             <li>
-              On each question, the source is already chosen for you, since the last one you used comes back. Type only
-              the page or problem, such as <code>p. 143, Problem 5</code>.
+              On each question, pick the source from the dropdown, then type only the page or problem, such as{" "}
+              <code>p. 143, Problem 5</code>.
             </li>
             <li>
               <Btn>Manage sources</Btn> lets you edit or remove a source. Questions that already use it keep their text.

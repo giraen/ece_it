@@ -3,7 +3,7 @@ import AsciiMathParser from "asciimath2tex";
 let parser: AsciiMathParser | null = null;
 
 /** Formulas with these get the full "display" size, so fractions and integrals are not squashed inside a sentence. */
-const BIG = /\\(?:frac|int|oint|sum|prod|lim)\b/;
+const BIG = /\\(?:frac|int|oint|sum|prod|lim)(?![a-zA-Z])/;
 
 /**
  * Turns quick, typed maths such as d^2/dx^2 or sqrt(x)/2 into LaTeX.

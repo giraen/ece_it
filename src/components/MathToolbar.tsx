@@ -43,14 +43,17 @@ const FORMAT: Item[] = [
 
 const MAIN: Item[] = [
   maths("a⁄b", "Fraction", "‹a›/‹b›", true),
-  maths("xⁿ", "Power", "‹x›^‹2›", true),
-  maths("xₙ", 'Subscript (words go in quotes, like V_("out"))', '‹V›_("‹out›")', true),
+  maths("x^n", "Power", "‹x›^‹n›", true),
+  maths('x_("text")', 'Subscript (words go in quotes, like x_("text"))', '‹x›_("‹text›")', true),
   maths("√", "Square root", "sqrt(‹x›)"),
+  maths("ⁿ√", "Higher root: change the 3 to any number (cube root, fourth root…)", "root(‹3›)(‹x›)"),
   maths("∫ₐᵇ", "Integral with limits", "int_‹a›^‹b› ‹f(x)› dx"),
   maths("lim", "Limit", "lim_(‹x->0›) ‹f(x)›"),
   maths("d/dx", "Derivative", "(d‹y›)/(d‹x›)"),
   maths("∂/∂x", "Partial derivative", "(del ‹f›)/(del ‹x›)"),
   maths("Σ", "Sum", "sum_(‹n=1›)^‹oo› ‹a_n›"),
+  maths("°", "Degree: a number followed by ^@", "‹30›^@"),
+  maths("%", "Percent", "‹50›%"),
 ];
 
 const DEL: Item[] = [
@@ -64,11 +67,11 @@ const MORE: Item[] = [
   maths("∫", "Integral, no limits", "int ‹f(x)› dx"),
   maths("∮", "Closed-loop integral", "oint ‹F› * dl"),
   maths("∬", "Double integral", "\\iint_‹D› ‹f›\\,dA"),
+  maths("∭", "Triple integral", "\\iiint_‹V› ‹f›\\,dV"),
   maths("d²y/dx²", "Second derivative", "(d^2 ‹y›)/(d‹x›^2)"),
   maths("∂²f/∂x²", "Second partial derivative", "(del^2 ‹f›)/(del ‹x›^2)"),
   maths("lim x→∞", "Limit at infinity", "lim_(‹x->oo›) ‹f(x)›"),
   maths("∏", "Product", "prod_(‹i=1›)^‹n› ‹x_i›"),
-  maths("ⁿ√", "Nth root", "root(‹3›)(‹x›)"),
   maths("|x|", "Absolute value", "abs(‹x›)"),
   maths("x⃗", "Vector", "vec ‹F›"),
   maths("x̂", "Unit vector", "hat ‹x›"),
@@ -116,7 +119,6 @@ const SYMBOLS: Item[] = [
   ["∞", "oo"],
   ["→", "->"],
   ["⇒", "=>"],
-  ["°", "^@"],
   ["∝", "prop"],
   ["∠", "/_"],
   ["∥", "||"],

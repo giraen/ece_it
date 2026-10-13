@@ -127,6 +127,8 @@ const TYPED: { typed: string; note: string }[] = [
   { typed: "$sum_(n=1)^oo 1/n^2$", note: "A sum" },
   { typed: "$lim_(x->0) (sin x)/x$", note: "A limit" },
   { typed: "$vec F = m vec a$", note: "A vector" },
+  { typed: "$root(3)(x)$", note: "A cube root, or any other root" },
+  { typed: "$30^@$ and $50%$", note: "A degree and a percent" },
   { typed: "$100 mu F$ and $4.7 k Omega$", note: "Units and Greek letters" },
 ];
 

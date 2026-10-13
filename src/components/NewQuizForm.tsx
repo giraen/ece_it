@@ -88,11 +88,11 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
         : { ok: true, text: "This quiz can award mastery if you reach the bar." };
   }
 
-  async function start() {
+  async function start(practice: boolean) {
     setError(null);
     setStarting(true);
     try {
-      const id = await startAttempt(node.id, items, minutesValue);
+      const id = await startAttempt(node.id, items, minutesValue, practice);
       router.push(`/quiz/play?id=${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the quiz.");
@@ -204,14 +204,27 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
+      {pool.length > 0 && (
+        <p className="text-xs text-muted">
+          Practice uses the same settings, but nothing counts toward mastery and nothing gets locked. You can practise
+          while this {kind} is locked or already mastered. It still shows in your results and analytics.
+        </p>
+      )}
 
       <div className="flex gap-2">
         <button
           className="btn btn-primary"
           disabled={starting || locked || pool.length === 0 || !validItems || minutesError !== null}
-          onClick={() => void start()}
+          onClick={() => void start(false)}
         >
           {starting ? "Starting…" : "Start quiz"}
+        </button>
+        <button
+          className="btn"
+          disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
+          onClick={() => void start(true)}
+        >
+          Practice
         </button>
         <Link href="/quiz" className="btn">
           Back

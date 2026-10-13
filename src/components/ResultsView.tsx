@@ -13,6 +13,7 @@ import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, ty
 import RichText from "./RichText";
 import Reference from "./Reference";
 import InfoTip from "./InfoTip";
+import PracticeTag from "./PracticeTag";
 
 const LETTERS = "ABCDEFGH";
 
@@ -202,7 +203,10 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
     <div className="max-w-4xl space-y-8">
       <div>
         <h1 className="text-xl font-semibold">Results</h1>
-        <p className="mt-1 font-medium">{attempt.scopeName}</p>
+        <p className="mt-1 font-medium">
+          {attempt.scopeName}
+          {attempt.practice && <PracticeTag />}
+        </p>
         {attempt.submittedAt && <p className="text-sm text-muted">{formatDateTime(attempt.submittedAt)}</p>}
       </div>
 
@@ -223,7 +227,12 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           )}
         </p>
 
-        {s.masteryAwarded ? (
+        {attempt.practice ? (
+          <p aria-label="Mastery" className="rounded-md border border-line bg-surface p-3 text-sm">
+            <span className="font-medium">Practice quiz.</span> It does not count toward mastery and it never locks
+            anything. You can take the real quiz whenever you are ready.
+          </p>
+        ) : s.masteryAwarded ? (
           <p aria-label="Mastery" className="rounded-md border border-good/40 bg-good/5 p-3 text-sm">
             <span className="font-medium text-good">Mastery earned.</span> This {kind} stays mastered until{" "}
             {formatDate(expiryFor(kind, submittedAt))}.

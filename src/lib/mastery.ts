@@ -28,7 +28,7 @@ export function expiryFor(kind: NodeKind, earnedAt: number): number {
 /** A submitted quiz awards mastery when it passed and was eligible. */
 export function awardsMastery(a: QuizAttempt): boolean {
   const s = a.summary;
-  if (a.status !== "submitted" || !s) return false;
+  if (a.status !== "submitted" || !s || a.practice) return false;
   return s.masteryAwarded ?? (s.passed && a.eligible !== false);
 }
 
@@ -55,7 +55,8 @@ export function masteryFor(attempts: QuizAttempt[], node: Pick<TreeNode, "id" | 
   }
 
   let lockedUntil: number | undefined;
-  const last = mine.find((a) => a.eligible !== false);
+  // A practice quiz is never eligible, so it never starts the lock.
+  const last = mine.find((a) => a.eligible !== false && !a.practice);
   if (last?.summary && !last.summary.passed && last.submittedAt !== undefined) {
     const until = last.submittedAt + CONFIG.cooldownHours * HOUR;
     if (nowMs < until) lockedUntil = until;

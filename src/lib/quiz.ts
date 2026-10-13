@@ -96,7 +96,13 @@ function shownFor(
  * built from the category's blueprint, so `items` is ignored for it. Each item's target time is the quiz's total
  * time divided by the number of items. It is only a statistic.
  */
-export async function startAttempt(scopeId: string, items: number, totalMinutes: number): Promise<string> {
+export async function startAttempt(
+  scopeId: string,
+  items: number,
+  totalMinutes: number,
+  /** A practice quiz ignores the lock, awards nothing, and never starts the lock. */
+  practice = false,
+): Promise<string> {
   const nodes = await db.nodes.filter((n) => !n.deletedAt).toArray();
   const scope = nodes.find((n) => n.id === scopeId);
   if (!scope) throw new Error("That item no longer exists.");
@@ -104,7 +110,7 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
   // A node stays locked for a day after a failed quiz that could have earned mastery.
   const everyAttempt = await db.attempts.toArray();
   const { lockedUntil } = masteryFor(everyAttempt, scope, now());
-  if (lockedUntil !== undefined) {
+  if (lockedUntil !== undefined && !practice) {
     throw new Error(
       `This ${scope.kind} is locked after a failed quiz. You can retake it in ${formatCountdown(lockedUntil - now())}.`,
     );
@@ -168,8 +174,9 @@ export async function startAttempt(scopeId: string, items: number, totalMinutes:
     scopeKind: scope.kind,
     scopeName: pathOf(nodes, scope.id),
     mode,
-    eligible: eligibility.eligible,
-    ineligibleReason: eligibility.reason,
+    eligible: practice ? false : eligibility.eligible,
+    ineligibleReason: practice ? "This was a practice quiz." : eligibility.reason,
+    ...(practice ? { practice: true } : {}),
     status: "in_progress",
     startedAt: t,
     currentIndex: 0,
@@ -284,7 +291,7 @@ export async function submitAttempt(id: string): Promise<void> {
         credit: overall.credit,
         totalMs: overall.totalMs,
         passed: pass.passed,
-        masteryAwarded: pass.passed && a.eligible !== false,
+        masteryAwarded: pass.passed && a.eligible !== false && !a.practice,
         bar: pass.bar,
         failedGroups: pass.failedGroups,
       },

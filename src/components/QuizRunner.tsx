@@ -6,6 +6,7 @@ import { formatDuration } from "@/lib/format";
 import { useAttempt } from "@/lib/hooks";
 import { abandonAttempt, isComplete, saveTime, setCurrentIndex, submitAttempt } from "@/lib/quiz";
 import QuestionPane from "./QuestionPane";
+import PracticeTag from "./PracticeTag";
 
 function Redirect({ to, text }: { to: string; text: string }) {
   const router = useRouter();
@@ -73,7 +74,10 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
       <div className="mb-4 rounded-md border border-line bg-surface p-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{attempt.scopeName}</p>
+            <p className="truncate text-sm font-medium">
+              {attempt.scopeName}
+              {attempt.practice && <PracticeTag />}
+            </p>
             <p className="text-xs text-muted">
               {mock ? "Mock board: no pause, no going back · " : ""}
               {answered} of {total} answered

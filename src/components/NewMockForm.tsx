@@ -62,11 +62,11 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
       : null;
   const perItemSec = items > 0 && !minutesError ? targetSecPerItem(minutesValue * 60, items) : 0;
 
-  async function start() {
+  async function start(practice: boolean) {
     setError(null);
     setStarting(true);
     try {
-      const id = await startAttempt(node.id, items, minutesValue);
+      const id = await startAttempt(node.id, items, minutesValue, practice);
       router.push(`/quiz/play?id=${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the mock.");
@@ -182,14 +182,27 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
       </ul>
 
       {error && <p className="text-sm text-danger">{error}</p>}
+      {items > 0 && (
+        <p className="text-xs text-muted">
+          Practice is the same mock, but nothing counts toward mastery and nothing gets locked. You can practise while
+          this category is locked or already mastered. It still shows in your results and analytics.
+        </p>
+      )}
 
       <div className="flex gap-2">
         <button
           className="btn btn-primary"
           disabled={starting || locked || items === 0 || minutesError !== null}
-          onClick={() => void start()}
+          onClick={() => void start(false)}
         >
           {starting ? "Starting…" : "Start mock"}
+        </button>
+        <button
+          className="btn"
+          disabled={starting || items === 0 || minutesError !== null}
+          onClick={() => void start(true)}
+        >
+          Practice
         </button>
         <Link href="/quiz" className="btn">
           Back

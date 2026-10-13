@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { abandonAttempt, isComplete } from "@/lib/quiz";
 import InfoTip from "@/components/InfoTip";
+import PracticeTag from "@/components/PracticeTag";
 
 export default function QuizPage() {
   const nodes = useNodes();
@@ -36,7 +37,10 @@ export default function QuizPage() {
             {inProgress.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{a.scopeName}</p>
+                  <p className="truncate text-sm font-medium">
+                    {a.scopeName}
+                    {a.practice && <PracticeTag />}
+                  </p>
                   <p className="text-xs text-muted">
                     {a.items.filter(isComplete).length} of {a.items.length} answered · started{" "}
                     {formatDateTime(a.startedAt)}

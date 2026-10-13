@@ -126,7 +126,11 @@ export function creditOverTime(attempts: QuizAttempt[]): QuizPoint[] {
   return attempts
     .filter((a) => !a.deletedAt && a.status === "submitted" && a.summary && a.submittedAt !== undefined)
     .sort((a, b) => (a.submittedAt ?? 0) - (b.submittedAt ?? 0))
-    .map((a) => ({ at: a.submittedAt as number, credit: a.summary?.credit ?? 0, scopeName: a.scopeName }));
+    .map((a) => ({
+      at: a.submittedAt as number,
+      credit: a.summary?.credit ?? 0,
+      scopeName: a.practice ? `${a.scopeName} (practice)` : a.scopeName,
+    }));
 }
 
 export interface QuestionStat {

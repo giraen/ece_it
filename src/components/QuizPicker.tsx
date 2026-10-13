@@ -110,27 +110,28 @@ function Row({
             <Link href={`/blueprint?category=${node.id}`} className="btn" aria-label={`Blueprint for ${node.name}`}>
               {hasBlueprint ? "Blueprint" : "Set up blueprint"}
             </Link>
-            {hasBlueprint &&
-              (locked ? (
-                <span className="btn cursor-not-allowed opacity-50" aria-disabled="true">
-                  Mock
-                </span>
-              ) : (
-                <Link
-                  href={`/quiz/new?node=${node.id}`}
-                  className="btn btn-primary"
-                  aria-label={`Mock board for ${node.name}`}
-                >
-                  Mock
-                </Link>
-              ))}
+            {hasBlueprint && (
+              <Link
+                href={`/quiz/new?node=${node.id}`}
+                className={locked ? "btn" : "btn btn-primary"}
+                aria-label={`Mock board for ${node.name}`}
+                title={locked ? "Locked after a failed mock. You can still practise." : undefined}
+              >
+                Mock
+              </Link>
+            )}
           </span>
-        ) : count === 0 || locked ? (
+        ) : count === 0 ? (
           <span className="btn w-20 cursor-not-allowed opacity-50" aria-disabled="true">
             Quiz
           </span>
         ) : (
-          <Link href={`/quiz/new?node=${node.id}`} className="btn w-20" aria-label={`Quiz on ${node.name}`}>
+          <Link
+            href={`/quiz/new?node=${node.id}`}
+            className="btn w-20"
+            aria-label={`Quiz on ${node.name}`}
+            title={locked ? "Locked after a failed quiz. You can still practise." : undefined}
+          >
             Quiz
           </Link>
         )}

@@ -263,6 +263,8 @@ export interface QuizAttempt {
   /** False when the quiz was too short or too thin to award mastery. Missing means eligible. */
   eligible?: boolean;
   ineligibleReason?: string;
+  /** Taken just to practise. It never awards mastery and never starts the 24-hour lock. */
+  practice?: boolean;
   status: "in_progress" | "submitted" | "abandoned";
   startedAt: number;
   submittedAt?: number;

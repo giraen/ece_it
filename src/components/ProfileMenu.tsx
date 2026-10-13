@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/progress", label: "Analytics", match: ["/progress", "/blueprint"] },
   { href: "/bank", label: "Bank", match: ["/bank", "/editor", "/concept"] },
   { href: "/settings", label: "Settings", match: ["/settings"] },
+  { href: "/help", label: "Help", match: ["/help"] },
 ];
 
 /** The profile button and the floating menu that opens under it. */

@@ -22,6 +22,8 @@ import ComputationEditor, { blankDraft, RollPreview } from "./ComputationEditor"
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
 import Reference from "./Reference";
+import ReferenceInput from "./ReferenceInput";
+import { keepSourceOnly, lastSourceLabel, loadSources, rememberReference } from "@/lib/sources";
 import RichText from "./RichText";
 import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
@@ -79,7 +81,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [rolled, setRolled] = useState<RollResult | null>(null);
   const [checked, setChecked] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
-  const [reference, setReference] = useState(initial?.reference ?? "");
+  // A new question starts with the source used last, so a run of questions from one book needs no retyping.
+  const [reference, setReference] = useState(() => initial?.reference ?? lastSourceLabel());
   const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -186,7 +189,10 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
+      await rememberReference(reference);
       if (andAnother) {
+        // The next question usually comes from the same source, but from a different page.
+        setReference(keepSourceOnly(reference, await loadSources()));
         // Keep the topic, the type, and the tags, since the next question usually shares them.
         setStem("");
         setChoices(blankChoices());
@@ -365,13 +371,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               and when you review a quiz, never during the quiz.
             </InfoTip>
           </div>
-          <input
-            id="question-reference"
-            className="input w-full"
-            placeholder="Gonzalez, Electronics Vol. 2, p. 143"
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-          />
+          <ReferenceInput id="question-reference" value={reference} onChange={setReference} />
         </div>
 
         <div>

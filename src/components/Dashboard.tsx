@@ -7,6 +7,7 @@ import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { pathOf } from "@/lib/tree";
 import BackupStatus from "./BackupStatus";
 import InfoTip from "./InfoTip";
+import PracticeTag from "./PracticeTag";
 
 function Tile({
   href,
@@ -140,7 +141,10 @@ export default function Dashboard() {
                         href={`/quiz/results?id=${a.id}`}
                         className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-paper"
                       >
-                        <span className="min-w-0 flex-1 truncate">{a.scopeName}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {a.scopeName}
+                          {a.practice && <PracticeTag />}
+                        </span>
                         <span className={`font-medium tabular-nums ${a.summary?.passed ? "text-good" : "text-danger"}`}>
                           {a.summary ? formatPercent(a.summary.credit) : ""}
                         </span>

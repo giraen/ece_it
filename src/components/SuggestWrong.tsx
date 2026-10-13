@@ -73,7 +73,7 @@ export default function SuggestWrong({ blocked, count, onSuggest }: Props) {
           </span>
         )}
       </div>
-      {result && (
+      {result && (result.ok || blocked === null) && (
         <p role="status" className={`text-xs ${result.ok ? "text-muted" : "text-danger"}`}>
           {result.text}
         </p>

@@ -314,7 +314,9 @@ export function validateTemplate(q: TemplateLike): string[] {
       problems.push(...checkFormula(d.formula, known, `Derived ${d.name || "(blank)"}`));
       known.add(d.name);
     });
-    t.constraints.forEach((c, i) => problems.push(...checkFormula(c, known, `Constraint ${i + 1}`)));
+    t.constraints.forEach((c, i) =>
+      conditionParts(c).forEach((part) => problems.push(...checkFormula(part, known, `Constraint ${i + 1}`))),
+    );
 
     if (t.stems.length === 0 || t.stems.some((s) => !s.trim())) problems.push("Write the question wording.");
     t.stems.forEach((s, i) => {
@@ -361,10 +363,34 @@ function evalNumber(expr: string, scope: Record<string, number>): number {
   return r;
 }
 
+/** A constraint may hold several conditions separated by ";", such as "A != B ; y1 != 0". All of them must be true. */
+export function conditionParts(expr: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    else if (ch === ";" && depth === 0) {
+      parts.push(expr.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(expr.slice(start));
+  const kept = parts.map((p) => p.trim()).filter(Boolean);
+  // A box with only blanks or semicolons is still reported as empty by the formula check.
+  return kept.length ? kept : [expr];
+}
+
 function evalCondition(expr: string, scope: Record<string, number>): boolean {
-  const r = mathEvaluate(expr, { ...scope }) as unknown;
-  if (typeof r !== "boolean") throw new Error("must be a yes-or-no condition");
-  return r;
+  let all = true;
+  for (const part of conditionParts(expr)) {
+    const r = mathEvaluate(part, { ...scope }) as unknown;
+    if (typeof r !== "boolean") throw new Error("must be a yes-or-no condition");
+    if (!r) all = false;
+  }
+  return all;
 }
 
 function tooClose(a: number, b: number): boolean {

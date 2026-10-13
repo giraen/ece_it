@@ -428,7 +428,7 @@ export default function ComputationEditor({
 
       <Block
         title="Constraints (optional)"
-        hint="Conditions every roll must meet, such as R1 != R2 or XL > XC. Rolls that fail are thrown away."
+        hint="Conditions every roll must meet, such as R1 != R2 or XL > XC. To put several in one box, separate them with a semicolon: R1 != R2 ; XL > XC. Rolls that fail are thrown away."
       >
         {draft.constraints.map((c, i) => (
           <div key={i} className="flex gap-2">

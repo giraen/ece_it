@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
 import { addTag, deleteQuestions, removeTag, renameTag } from "@/lib/questions";
 import { pathOf, subtreeOf } from "@/lib/tree";
+import Reference from "./Reference";
 import RichText from "./RichText";
 
 /** Pictures become a short marker, so a row stays compact. */
@@ -47,7 +48,11 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const visible = inScope
     .filter((q) => !activeKey || q.tags.some((t) => t.toLowerCase() === activeKey))
     .filter(
-      (q) => !needle || q.stem.toLowerCase().includes(needle) || q.tags.some((t) => t.toLowerCase().includes(needle)),
+      (q) =>
+        !needle ||
+        q.stem.toLowerCase().includes(needle) ||
+        (q.reference ?? "").toLowerCase().includes(needle) ||
+        q.tags.some((t) => t.toLowerCase().includes(needle)),
     )
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
@@ -87,8 +92,8 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </div>
         <input
           className="input w-56"
-          placeholder="Search questions and tags"
-          aria-label="Search questions and tags"
+          placeholder="Search questions, tags and references"
+          aria-label="Search questions, tags and references"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -193,6 +198,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                     )}
                     {pathOf(nodes, q.topicId)}
                   </p>
+                  <Reference text={q.reference} className="mt-0.5 truncate" />
                   {q.tags.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {q.tags.map((t) => (

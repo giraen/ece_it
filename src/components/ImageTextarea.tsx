@@ -1,9 +1,10 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useContext, useLayoutEffect, useRef, useState } from "react";
 import { storeImage } from "@/lib/images";
 import { continueList, indentList, wrapSelection, type Edit } from "@/lib/mathEdit";
 import MathToolbar from "./MathToolbar";
+import { ToolbarGroupContext } from "./ToolbarGroup";
 
 interface Props {
   value: string;
@@ -30,11 +31,12 @@ function imagesFromFiles(files: FileList): File[] {
 
 /**
  * A text box that turns pasted, dropped, or chosen images into ![](img:id) at the cursor.
- * A toolbar above it inserts formatting and maths. It is always shown on boxes of three rows or more,
- * and only while the box is being used on smaller ones.
+ * A toolbar floats above it while it is being used, to insert formatting and maths.
+ * Inside a ToolbarGroup there is one shared toolbar at the top of the group instead.
  */
 export default function ImageTextarea({ value, onChange, rows = 4, placeholder, label }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const group = useContext(ToolbarGroupContext);
   const picker = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +68,13 @@ export default function ImageTextarea({ value, onChange, rows = 4, placeholder, 
     const el = ref.current;
     if (el) apply(action(el.value, el.selectionStart, el.selectionEnd));
   }
+
+  // The shared toolbar calls this, so it always works on the latest text and the latest onChange.
+  const latest = useRef(run);
+  useLayoutEffect(() => {
+    latest.current = run;
+  });
+  const forGroup = useCallback((action: (text: string, s: number, e: number) => Edit) => latest.current(action), []);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget;
@@ -103,10 +112,14 @@ export default function ImageTextarea({ value, onChange, rows = 4, placeholder, 
   }
 
   return (
-    <div className="group">
-      <div className={rows >= 3 ? "mb-1" : "mb-1 hidden group-focus-within:block"}>
-        <MathToolbar run={run} />
-      </div>
+    <div className="group relative">
+      {/* The toolbar floats above the box while it is in use. It must not push the page around,
+          or a click on a button below would land on the wrong thing when the box loses focus. */}
+      {!group && (
+        <div className="absolute inset-x-0 bottom-full z-20 mb-1 hidden rounded-md border border-line bg-surface p-1 shadow-lg group-focus-within:block">
+          <MathToolbar run={run} />
+        </div>
+      )}
       <textarea
         ref={ref}
         aria-label={label}
@@ -115,6 +128,7 @@ export default function ImageTextarea({ value, onChange, rows = 4, placeholder, 
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onFocus={() => group?.setActive(forGroup, label)}
         onPaste={(e) => {
           const files = imagesFromItems(e.clipboardData.items);
           if (files.length) {

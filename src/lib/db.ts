@@ -56,6 +56,7 @@ export interface Concept {
   title: string;
   /** Markdown with LaTeX and images, like a question stem. */
   body: string;
+  reference?: string;
   tags: string[];
   createdAt: number;
   updatedAt: number;
@@ -127,7 +128,7 @@ export interface Derived {
 export interface AnswerFormat {
   unit: string;
   sigFigs: number;
-  notation: "engineering" | "plain";
+  notation: "engineering" | "plain" | "scientific";
 }
 
 /**
@@ -144,6 +145,7 @@ export interface ComputationTemplate {
   format: AnswerFormat;
   /** For the editor only: the mistake each wrong choice models. */
   mistakes: Record<string, string>;
+  choiceMode?: "formula" | "sentence";
 }
 
 export interface Question {
@@ -157,6 +159,7 @@ export interface Question {
   choices: Choice[];
   correctChoiceId: string;
   tags: string[];
+  reference?: string;
   /** Whether AI-reworded versions of this question may be shown in quizzes. Missing means no. */
   allowAi?: boolean;
   difficulty?: number;
@@ -204,6 +207,7 @@ export interface AttemptItem {
   tags: string[];
   topicId: string;
   topicName: string;
+  reference?: string;
   subjectId: string;
   subjectName: string;
   categoryId: string;

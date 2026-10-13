@@ -231,8 +231,10 @@ export function formatQuantity(
   }
 
   const unitTex = u ? `\\,${texUnit(u)}` : "";
-  if (v >= 1e-3 && v < 1e9) return `$${sign}${trimNumber(v, sf)}${unitTex}$`;
-  const e = Math.floor(Math.log10(v));
+  if (notation !== "scientific" && v >= 1e-3 && v < 1e9) return `$${sign}${trimNumber(v, sf)}${unitTex}$`;
+  let e = Math.floor(Math.log10(v));
+  // 9.996 rounds up to 10 at 3 figures, so move to the next power of ten.
+  if (Number((v / 10 ** e).toPrecision(sf)) >= 10) e += 1;
   return `$${sign}${trimNumber(v / 10 ** e, sf)}\\times10^{${e}}${unitTex}$`;
 }
 
@@ -261,6 +263,29 @@ function checkFormula(expr: string, known: Set<string>, label: string): string[]
   } catch (e) {
     return [`${label}: ${e instanceof Error ? e.message : "the formula cannot be read."}`];
   }
+}
+
+const TWO_WORDS = /[A-Za-z]{2,}\s+[A-Za-z]{2,}/;
+
+/** Checks one choice that should be a formula, with plain-language errors. */
+function checkChoiceFormula(expr: string, known: Set<string>, label: string): string[] {
+  const found = checkFormula(expr, known, label);
+  if (found.length === 0) return found;
+  const text = expr.trim();
+  if (text && TWO_WORDS.test(text)) {
+    return [
+      `${label} has to be a formula that gives a number, like r1 + r2 + r3. Words aren't allowed here. ` +
+        `If the choices are sentences, set the choices to Sentences.`,
+    ];
+  }
+  return found;
+}
+
+/** Checks one sentence choice: it needs some text, and every {name} in it must exist. */
+function checkSentenceChoice(text: string, known: Set<string>, label: string): string[] {
+  if (!text.trim()) return [`${label}: write the choice.`];
+  const unknown = slotsIn(text).filter((n) => !known.has(n));
+  return unknown.length ? [`${label}: {${unknown[0]}} is not a given or derived value.`] : [];
 }
 
 /** Everything wrong with a template that can be found without rolling it. Never throws. */
@@ -298,7 +323,11 @@ export function validateTemplate(q: TemplateLike): string[] {
     });
 
     if (q.choices.length < 2) problems.push("Add at least two choices.");
-    q.choices.forEach((c, i) => problems.push(...checkFormula(c.text, known, `Choice ${String.fromCharCode(65 + i)}`)));
+    const sentences = t.choiceMode === "sentence";
+    q.choices.forEach((c, i) => {
+      const label = `Choice ${String.fromCharCode(65 + i)}`;
+      problems.push(...(sentences ? checkSentenceChoice(c.text, known, label) : checkChoiceFormula(c.text, known, label)));
+    });
     if (!q.choices.some((c) => c.id === q.correctChoiceId)) problems.push("Mark exactly one choice as correct.");
 
     if (!Number.isInteger(t.format.sigFigs) || t.format.sigFigs < 1 || t.format.sigFigs > 8)
@@ -378,14 +407,18 @@ export function rollQuestion(
         continue;
       }
 
-      const values = q.choices.map((c) => evalNumber(c.text, scope));
-      const texts = values.map((v) => formatQuantity(v, t.format.unit, t.format.sigFigs, t.format.notation));
+      const sentences = t.choiceMode === "sentence";
+      // A sentence choice is text with {name} slots. A formula choice is worked out to a number.
+      const values = sentences ? [] : q.choices.map((c) => evalNumber(c.text, scope));
+      const texts = sentences
+        ? q.choices.map((c) => fillStem(c.text.trim(), t, scope))
+        : values.map((v) => formatQuantity(v, t.format.unit, t.format.sigFigs, t.format.notation));
       let clash = new Set(texts).size !== texts.length;
       for (let i = 0; i < values.length && !clash; i++) {
         for (let j = i + 1; j < values.length; j++) if (tooClose(values[i], values[j])) clash = true;
       }
       if (clash) {
-        reason = "two choices were too close together";
+        reason = sentences ? "two choices came out the same" : "two choices were too close together";
         continue;
       }
 
@@ -431,6 +464,7 @@ export interface CompDraft {
   stems: string[];
   choices: DraftChoice[];
   format: AnswerFormat;
+  choiceMode: "formula" | "sentence";
 }
 
 export function draftToQuestion(d: CompDraft, correctChoiceId: string | null): TemplateLike & { stem: string } {
@@ -445,6 +479,8 @@ export function draftToQuestion(d: CompDraft, correctChoiceId: string | null): T
       stems: d.stems,
       format: d.format,
       mistakes: Object.fromEntries(d.choices.filter((c) => c.mistake.trim()).map((c) => [c.id, c.mistake.trim()])),
+      // Left out for formula choices, so questions saved before this setting existed stay exactly as they were.
+      ...(d.choiceMode === "sentence" ? { choiceMode: "sentence" as const } : {}),
     },
   };
 }
@@ -459,5 +495,6 @@ export function draftFromQuestion(q: Pick<Question, "choices" | "template">): Co
     stems: t.stems,
     choices: q.choices.map((c) => ({ id: c.id, formula: c.text, mistake: t.mistakes[c.id] ?? "" })),
     format: t.format,
+    choiceMode: t.choiceMode === "sentence" ? "sentence" : "formula",
   };
 }

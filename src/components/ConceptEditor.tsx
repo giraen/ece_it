@@ -9,6 +9,7 @@ import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
 import DraftReview from "./DraftReview";
 import ImageTextarea from "./ImageTextarea";
+import Reference from "./Reference";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
@@ -26,6 +27,7 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
   const [topicId, setTopicId] = useState<string | null>(initial?.topicId ?? defaultTopicId);
   const [body, setBody] = useState(initial?.body ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [reference, setReference] = useState(initial?.reference ?? "");
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,6 +51,8 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
         title: titleFrom(body.trim()),
         body: body.trim(),
         tags,
+        // Left out when blank, so a note without a reference looks the same as before.
+        ...(reference.trim() ? { reference: reference.trim() } : {}),
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
@@ -115,6 +119,28 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
           />
         </div>
 
+        <div>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium" htmlFor="concept-reference">
+              Reference
+            </label>
+            <InfoTip>
+              Optional. Where this came from, such as a book and page or a web address. Questions you accept from this
+              note get the same reference.
+            </InfoTip>
+          </div>
+          <input
+            id="concept-reference"
+            className="input w-full"
+            placeholder="Gonzalez, Electronics Vol. 2, p. 143"
+            value={reference}
+            onChange={(e) => {
+              setReference(e.target.value);
+              edited();
+            }}
+          />
+        </div>
+
         {errors.length > 0 && (
           <ul className="list-disc rounded-md border border-danger/40 bg-danger/5 py-2 pr-3 pl-7 text-sm text-danger">
             {errors.map((e) => (
@@ -154,6 +180,7 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
             ) : (
               <p className="text-sm text-muted">The explanation appears here as you type.</p>
             )}
+            <Reference text={reference} className="mt-3" />
             {tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1" aria-label="Tags">
                 {tags.map((t) => (

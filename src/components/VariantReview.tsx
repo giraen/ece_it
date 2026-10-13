@@ -8,6 +8,7 @@ import { updateVariant, useProviders, useVariantsFor } from "@/lib/aiStore";
 import { useKeyIds } from "@/lib/aiKeys";
 import { generateForQuestion, type RunEvent } from "@/lib/runGeneration";
 import ImageTextarea from "./ImageTextarea";
+import ToolbarGroup from "./ToolbarGroup";
 import RichText from "./RichText";
 import InfoTip from "./InfoTip";
 
@@ -45,28 +46,30 @@ function Edit({ v, q, onDone }: { v: Variant; q: Question; onDone: () => void })
   return (
     <div className="space-y-2">
       <ImageTextarea label="Variant wording" value={stem} onChange={setStem} rows={3} />
-      {v.kind === "concept" &&
-        choices.map((c, i) => (
-          <div key={c.id} className="flex items-start gap-2">
-            <input
-              type="radio"
-              name={`vc-${v.id}`}
-              className="mt-2.5"
-              aria-label={`Variant choice ${letter(i)} is correct`}
-              checked={correct === c.id}
-              onChange={() => setCorrect(c.id)}
-            />
-            <span className="mt-1.5 w-4 text-sm text-muted">{letter(i)}</span>
-            <div className="flex-1">
-              <ImageTextarea
-                label={`Variant choice ${letter(i)}`}
-                rows={2}
-                value={c.text}
-                onChange={(t) => setChoices((cs) => cs.map((x) => (x.id === c.id ? { ...x, text: t } : x)))}
+      <ToolbarGroup enabled={v.kind === "concept"}>
+        {v.kind === "concept" &&
+          choices.map((c, i) => (
+            <div key={c.id} className="flex items-start gap-2">
+              <input
+                type="radio"
+                name={`vc-${v.id}`}
+                className="mt-2.5"
+                aria-label={`Variant choice ${letter(i)} is correct`}
+                checked={correct === c.id}
+                onChange={() => setCorrect(c.id)}
               />
+              <span className="mt-1.5 w-4 text-sm text-muted">{letter(i)}</span>
+              <div className="flex-1">
+                <ImageTextarea
+                  label={`Variant choice ${letter(i)}`}
+                  rows={2}
+                  value={c.text}
+                  onChange={(t) => setChoices((cs) => cs.map((x) => (x.id === c.id ? { ...x, text: t } : x)))}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </ToolbarGroup>
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex gap-2">
         <button className="btn btn-primary" onClick={() => void save()}>

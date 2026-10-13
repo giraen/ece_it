@@ -9,6 +9,7 @@ import { useProviders } from "@/lib/aiStore";
 import { draftCounts } from "@/lib/concepts";
 import { draftMany, type RunControl, type RunEvent } from "@/lib/runGeneration";
 import InfoTip from "./InfoTip";
+import Reference from "./Reference";
 import RichText from "./RichText";
 
 /** A short plain-text taste of a note, with pictures shown as [image]. */
@@ -69,6 +70,7 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
         !needle ||
         c.title.toLowerCase().includes(needle) ||
         c.body.toLowerCase().includes(needle) ||
+        (c.reference ?? "").toLowerCase().includes(needle) ||
         c.tags.some((t) => t.toLowerCase().includes(needle)),
     )
     .filter((c) => filter === "all" || (filter === "drafted") === isDrafted(c.id))
@@ -365,6 +367,7 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
                 {open && (
                   <div className="mt-3 rounded-md border border-line border-l-4 border-l-accent bg-paper p-4">
                     <RichText text={c.body} className="text-[15px] leading-relaxed" />
+                    <Reference text={c.reference} className="mt-3" />
                   </div>
                 )}
               </li>

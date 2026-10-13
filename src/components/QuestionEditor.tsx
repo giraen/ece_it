@@ -18,6 +18,8 @@ import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
 import ComputationEditor, { blankDraft, RollPreview } from "./ComputationEditor";
 import ImageTextarea from "./ImageTextarea";
+import ToolbarGroup from "./ToolbarGroup";
+import Reference from "./Reference";
 import RichText from "./RichText";
 import TagInput from "./TagInput";
 import TopicPicker from "./TopicPicker";
@@ -74,6 +76,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [rolled, setRolled] = useState<RollResult | null>(null);
   const [checked, setChecked] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [reference, setReference] = useState(initial?.reference ?? "");
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -136,8 +139,10 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             template: { ...(compQuestion.template as NonNullable<typeof compQuestion.template>), stems },
           }
         : null;
+      const { reference: _old, ...kept } = (initial ?? {}) as Partial<Question>;
+      void _old;
       await saveQuestion({
-        ...initial, // keeps anything not edited here
+        ...kept, // keeps anything not edited here
         id: initial?.id ?? newId(),
         topicId,
         type,
@@ -146,6 +151,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         correctChoiceId: comp ? comp.correctChoiceId : (correctId as string),
         template: comp?.template,
         tags: normalizeTags(tags),
+        // Left out when blank, so a question without a reference looks the same as before.
+        ...(reference.trim() ? { reference: reference.trim() } : {}),
         allowAi,
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
@@ -249,38 +256,40 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               <legend className="mb-2 text-sm font-medium">
                 Choices <InfoTip>Select the round button next to the correct choice.</InfoTip>
               </legend>
-              <div className="space-y-3">
-                {choices.map((c, i) => (
-                  <div key={c.id} className="flex items-start gap-2">
-                    <input
-                      type="radio"
-                      name="correct"
-                      className="mt-2.5"
-                      checked={correctId === c.id}
-                      onChange={() => setCorrectId(c.id)}
-                      aria-label={`Choice ${letter(i)} is correct`}
-                    />
-                    <span className="mt-1.5 w-5 text-sm font-medium text-muted">{letter(i)}</span>
-                    <div className="flex-1">
-                      <ImageTextarea
-                        label={`Choice ${letter(i)}`}
-                        value={c.text}
-                        onChange={(v) => setChoiceText(c.id, v)}
-                        rows={2}
+              <ToolbarGroup>
+                <div className="space-y-3">
+                  {choices.map((c, i) => (
+                    <div key={c.id} className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="correct"
+                        className="mt-2.5"
+                        checked={correctId === c.id}
+                        onChange={() => setCorrectId(c.id)}
+                        aria-label={`Choice ${letter(i)} is correct`}
                       />
+                      <span className="mt-1.5 w-5 text-sm font-medium text-muted">{letter(i)}</span>
+                      <div className="flex-1">
+                        <ImageTextarea
+                          label={`Choice ${letter(i)}`}
+                          value={c.text}
+                          onChange={(v) => setChoiceText(c.id, v)}
+                          rows={2}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="btn mt-0.5"
+                        onClick={() => removeChoice(c.id)}
+                        disabled={choices.length <= MIN_CHOICES}
+                        aria-label={`Remove choice ${letter(i)}`}
+                      >
+                        Remove
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className="btn mt-0.5"
-                      onClick={() => removeChoice(c.id)}
-                      disabled={choices.length <= MIN_CHOICES}
-                      aria-label={`Remove choice ${letter(i)}`}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </ToolbarGroup>
               <button
                 type="button"
                 className="btn mt-3"
@@ -312,6 +321,25 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             </InfoTip>
           </div>
           <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium" htmlFor="question-reference">
+              Reference
+            </label>
+            <InfoTip>
+              Optional. Where this question came from, such as a book and page or a web address. It shows in the Bank
+              and when you review a quiz, never during the quiz.
+            </InfoTip>
+          </div>
+          <input
+            id="question-reference"
+            className="input w-full"
+            placeholder="Gonzalez, Electronics Vol. 2, p. 143"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+          />
         </div>
 
         <div className="flex items-center gap-1">
@@ -362,6 +390,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
           {type === "computation" ? (
             <div className="space-y-3">
               <RollPreview result={rolled} />
+              <Reference text={reference} />
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1" aria-label="Tags">
                   {tags.map((t) => (
@@ -399,6 +428,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
                   </li>
                 ))}
               </ol>
+              <Reference text={reference} className="mt-3" />
               {tags.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-1" aria-label="Tags">
                   {tags.map((t) => (

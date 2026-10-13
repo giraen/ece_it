@@ -1,10 +1,11 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import type { Given, ValueRule } from "@/lib/db";
+import type { AnswerFormat, Given, ValueRule } from "@/lib/db";
 import { slotsIn, type CompDraft, type RollResult } from "@/lib/computation";
 import { newId } from "@/lib/ids";
 import ImageTextarea from "./ImageTextarea";
+import ToolbarGroup from "./ToolbarGroup";
 import RichText from "./RichText";
 import InfoTip from "./InfoTip";
 
@@ -198,6 +199,7 @@ export function blankDraft(): CompDraft {
     stems: [""],
     choices: Array.from({ length: 4 }, () => ({ id: newId(), formula: "", mistake: "" })),
     format: { unit: "", sigFigs: 3, notation: "engineering" },
+    choiceMode: "formula",
   };
 }
 
@@ -215,6 +217,7 @@ export default function ComputationEditor({
 
   const names = [...draft.givens.map((g) => g.name), ...draft.derived.map((x) => x.name)].filter(Boolean);
   const found = Array.from(new Set(draft.stems.flatMap(slotsIn)));
+  const sentences = draft.choiceMode === "sentence";
 
   return (
     <div className="space-y-4">
@@ -406,43 +409,90 @@ export default function ComputationEditor({
 
       <Block
         title="Choices"
-        hint="Each choice is a formula. Mark the correct one. The other choices should model a specific mistake."
+        hint="Choose what the choices are. Formulas: each choice is a formula worked out to a number, like sqrt(R^2 + X^2). Sentences: each choice is text. Sentences can use {name} for a rolled value and $...$ for maths. Mark the correct one."
       >
-        {draft.choices.map((c, i) => (
-          <div key={c.id} className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+          <span className="font-medium">The choices are</span>
+          <label className="flex items-center gap-2">
             <input
               type="radio"
-              name="comp-correct"
-              aria-label={`Choice ${letter(i)} is correct`}
-              checked={correctId === c.id}
-              onChange={() => setCorrectId(c.id)}
+              name="comp-choice-mode"
+              checked={!sentences}
+              onChange={() => setDraft((d) => ({ ...d, choiceMode: "formula" }))}
             />
-            <span className="w-4 text-sm font-medium text-muted">{letter(i)}</span>
+            Formulas (numbers)
+          </label>
+          <label className="flex items-center gap-2">
             <input
-              className="input min-w-64 flex-1 font-mono"
-              aria-label={`Choice ${letter(i)} formula`}
-              placeholder="sqrt(R^2 + (XL - XC)^2)"
-              value={c.formula}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  choices: d.choices.map((x) => (x.id === c.id ? { ...x, formula: e.target.value } : x)),
-                }))
-              }
+              type="radio"
+              name="comp-choice-mode"
+              checked={sentences}
+              onChange={() => setDraft((d) => ({ ...d, choiceMode: "sentence" }))}
             />
-            <button
-              className="btn"
-              disabled={draft.choices.length <= 2}
-              aria-label={`Remove choice ${letter(i)}`}
-              onClick={() => {
-                setDraft((d) => ({ ...d, choices: d.choices.filter((x) => x.id !== c.id) }));
-                if (correctId === c.id) setCorrectId(null);
-              }}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
+            Sentences
+          </label>
+        </div>
+        {sentences && (
+          <p className="text-xs text-muted">
+            Write each choice as text. Use {"{name}"} to show a rolled value, and $...$ for maths. Every roll shows
+            these same sentences, so the correct one has to be true for every roll.
+          </p>
+        )}
+        <ToolbarGroup enabled={sentences}>
+          {draft.choices.map((c, i) => (
+            <div key={c.id} className="flex flex-wrap items-start gap-2">
+              <input
+                type="radio"
+                name="comp-correct"
+                className="mt-2.5"
+                aria-label={`Choice ${letter(i)} is correct`}
+                checked={correctId === c.id}
+                onChange={() => setCorrectId(c.id)}
+              />
+              <span className="mt-1.5 w-4 text-sm font-medium text-muted">{letter(i)}</span>
+              {sentences ? (
+                <div className="min-w-64 flex-1">
+                  <ImageTextarea
+                    label={`Choice ${letter(i)} sentence`}
+                    value={c.formula}
+                    rows={2}
+                    placeholder="R_EQ does not change"
+                    onChange={(v) =>
+                      setDraft((d) => ({
+                        ...d,
+                        choices: d.choices.map((x) => (x.id === c.id ? { ...x, formula: v } : x)),
+                      }))
+                    }
+                  />
+                </div>
+              ) : (
+                <input
+                  className="input min-w-64 flex-1 font-mono"
+                  aria-label={`Choice ${letter(i)} formula`}
+                  placeholder="sqrt(R^2 + (XL - XC)^2)"
+                  value={c.formula}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      choices: d.choices.map((x) => (x.id === c.id ? { ...x, formula: e.target.value } : x)),
+                    }))
+                  }
+                />
+              )}
+              <button
+                className="btn"
+                disabled={draft.choices.length <= 2}
+                aria-label={`Remove choice ${letter(i)}`}
+                onClick={() => {
+                  setDraft((d) => ({ ...d, choices: d.choices.filter((x) => x.id !== c.id) }));
+                  if (correctId === c.id) setCorrectId(null);
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </ToolbarGroup>
         <button
           className="btn"
           onClick={() =>
@@ -455,7 +505,7 @@ export default function ComputationEditor({
 
       <Block
         title="How answers are shown"
-        hint="Engineering notation picks the SI prefix for you, so 3180 Ω shows as 3.18 kΩ."
+        hint="Engineering notation picks the SI prefix for you, so 3180 Ω shows as 3.18 kΩ. Scientific shows 3.18 × 10³ Ω. Plain shows 3180 Ω. With sentence choices, this only changes how {name} values from the derived list look."
       >
         <div className="flex flex-wrap gap-3">
           <div>
@@ -489,11 +539,12 @@ export default function ComputationEditor({
               onChange={(e) =>
                 setDraft((d) => ({
                   ...d,
-                  format: { ...d.format, notation: e.target.value as "engineering" | "plain" },
+                  format: { ...d.format, notation: e.target.value as AnswerFormat["notation"] },
                 }))
               }
             >
               <option value="engineering">Engineering (k, m, µ…)</option>
+              <option value="scientific">Scientific (× 10ⁿ)</option>
               <option value="plain">Plain numbers</option>
             </select>
           </div>

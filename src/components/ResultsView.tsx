@@ -11,6 +11,7 @@ import { expiryFor, masteryFor } from "@/lib/mastery";
 import { groupKeysFor } from "@/lib/quizPlan";
 import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/scoring";
 import RichText from "./RichText";
+import Reference from "./Reference";
 import InfoTip from "./InfoTip";
 
 const LETTERS = "ABCDEFGH";
@@ -122,6 +123,7 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
           );
         })}
       </ol>
+      <Reference text={item.reference} />
     </li>
   );
 }

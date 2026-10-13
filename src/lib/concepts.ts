@@ -101,6 +101,8 @@ export async function acceptDraft(draftId: string, concept: Concept): Promise<st
       choices: d.choices,
       correctChoiceId: d.correctChoiceId,
       tags: concept.tags,
+      // The question comes from the same place as the note.
+      ...(concept.reference?.trim() ? { reference: concept.reference.trim() } : {}),
       createdAt: t,
       updatedAt: t,
     });

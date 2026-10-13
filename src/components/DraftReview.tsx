@@ -8,6 +8,7 @@ import { useProviders } from "@/lib/aiStore";
 import { acceptDraft, updateDraft, useDraftsFor } from "@/lib/concepts";
 import { draftFromConcept, type RunEvent } from "@/lib/runGeneration";
 import ImageTextarea from "./ImageTextarea";
+import ToolbarGroup from "./ToolbarGroup";
 import RichText from "./RichText";
 import InfoTip from "./InfoTip";
 
@@ -30,27 +31,29 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
   return (
     <div className="space-y-2">
       <ImageTextarea label="Draft question" value={stem} onChange={setStem} rows={3} />
-      {choices.map((c, i) => (
-        <div key={c.id} className="flex items-start gap-2">
-          <input
-            type="radio"
-            name={`dc-${d.id}`}
-            className="mt-2.5"
-            aria-label={`Draft choice ${letter(i)} is correct`}
-            checked={correct === c.id}
-            onChange={() => setCorrect(c.id)}
-          />
-          <span className="mt-1.5 w-4 text-sm text-muted">{letter(i)}</span>
-          <div className="flex-1">
-            <ImageTextarea
-              label={`Draft choice ${letter(i)}`}
-              rows={2}
-              value={c.text}
-              onChange={(t) => setChoices((cs) => cs.map((x) => (x.id === c.id ? { ...x, text: t } : x)))}
+      <ToolbarGroup>
+        {choices.map((c, i) => (
+          <div key={c.id} className="flex items-start gap-2">
+            <input
+              type="radio"
+              name={`dc-${d.id}`}
+              className="mt-2.5"
+              aria-label={`Draft choice ${letter(i)} is correct`}
+              checked={correct === c.id}
+              onChange={() => setCorrect(c.id)}
             />
+            <span className="mt-1.5 w-4 text-sm text-muted">{letter(i)}</span>
+            <div className="flex-1">
+              <ImageTextarea
+                label={`Draft choice ${letter(i)}`}
+                rows={2}
+                value={c.text}
+                onChange={(t) => setChoices((cs) => cs.map((x) => (x.id === c.id ? { ...x, text: t } : x)))}
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </ToolbarGroup>
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex gap-2">
         <button className="btn btn-primary" onClick={() => void save()}>

@@ -36,6 +36,7 @@ function buildItem(
     choices: shown.choices,
     correctChoiceId: shown.correctChoiceId,
     tags: q.tags,
+    ...(q.reference?.trim() ? { reference: q.reference.trim() } : {}),
     topicId: q.topicId,
     topicName: topic?.name ?? "(deleted topic)",
     subjectId: subject?.id ?? "",

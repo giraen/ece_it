@@ -8,6 +8,7 @@ import { UserIcon } from "./icons";
 // `match` lists the pages that belong to each item, so the profile button lights up while you are inside any of them.
 const ITEMS = [
   { href: "/progress", label: "Analytics", match: ["/progress", "/blueprint"] },
+  { href: "/extract", label: "Extract", match: ["/extract"] },
   { href: "/bank", label: "Bank", match: ["/bank", "/editor", "/concept"] },
   { href: "/settings", label: "Settings", match: ["/settings"] },
   { href: "/help", label: "Help", match: ["/help"] },

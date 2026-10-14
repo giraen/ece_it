@@ -71,6 +71,8 @@ export interface DraftQuestion {
   stem: string;
   choices: Choice[];
   correctChoiceId: string;
+  /** Where the question came from. Set on questions read from pasted text. */
+  reference?: string;
   provider: string;
   model: string;
   status: "pending" | "accepted" | "discarded";

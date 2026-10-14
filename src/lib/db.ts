@@ -73,6 +73,8 @@ export interface DraftQuestion {
   correctChoiceId: string;
   /** Where the question came from. Set on questions read from pasted text. */
   reference?: string;
+  /** For pasted questions: a topic Claude recommended that is not in the bank yet. It waits for you to check it. */
+  proposedTopic?: string;
   provider: string;
   model: string;
   status: "pending" | "accepted" | "discarded";
@@ -162,6 +164,8 @@ export interface Question {
   correctChoiceId: string;
   tags: string[];
   reference?: string;
+  /** For pasted questions: a topic Claude recommended that is not in the bank yet. It waits for you to check it. */
+  proposedTopic?: string;
   /** How many times this question can appear in one quiz, from 1 to 10. Missing means 1. */
   repeats?: number;
   /** Whether AI-reworded versions of this question may be shown in quizzes. Missing means no. */

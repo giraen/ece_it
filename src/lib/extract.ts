@@ -38,6 +38,9 @@ const KEY_START = /^\d+\s*[.\-:)=]?\s*\(?[A-Ha-h]\)?(?![A-Za-z0-9])/;
 const letter = (i: number) => String.fromCharCode(65 + i);
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
+/** A name or path with case, spacing and punctuation removed, for comparing. */
+export const normName = norm;
+
 interface Cur {
   number: number | null;
   stem: string[];
@@ -236,10 +239,6 @@ export function toDrafts(
     }
     if (!p.stem) notes.push(`Could not find the question. Original text: ${p.raw.slice(0, 200)}`);
     const named = p.topic ? opts.findTopic(p.topic) : null;
-    if (p.topic && !named)
-      notes.push(
-        `The topic "${p.topic}" was not found${opts.defaultTopicId ? ", so the default topic was used" : ""}.`,
-      );
     const reference = opts.reference(p.reference);
     return {
       id: newId(),
@@ -249,6 +248,8 @@ export function toDrafts(
       choices,
       correctChoiceId,
       ...(reference ? { reference } : {}),
+      // A recommended topic that is not in the bank yet waits for you to check it.
+      ...(p.topic && !named ? { proposedTopic: p.topic } : {}),
       provider: "pasted",
       model: "",
       status: "pending" as const,
@@ -272,13 +273,13 @@ export const STATUS_LABEL: Record<ExtractStatus, string> = {
 
 /** What is still missing before a pasted question can join the bank. */
 export function extractStatus(
-  d: Pick<DraftQuestion, "stem" | "choices" | "correctChoiceId" | "topicId">,
+  d: Pick<DraftQuestion, "stem" | "choices" | "correctChoiceId" | "topicId"> & { proposedTopic?: string },
 ): ExtractStatus {
   if (!d.stem.trim()) return "problem";
   const filled = d.choices.filter((c) => c.text.trim());
   if (filled.length < 2) return "needs-choices";
   if (!filled.some((c) => c.id === d.correctChoiceId)) return "needs-answer";
-  if (!d.topicId) return "needs-topic";
+  if (!d.topicId || d.proposedTopic) return "needs-topic";
   return "ready";
 }
 
@@ -335,19 +336,31 @@ export function findTopic(entries: TopicEntry[], text: string): string | null {
   return hits.size === 1 ? [...hits][0] : null;
 }
 
-/** The instructions, with the topics in the bank listed so each question can be given one. */
-export function instructionsWithTopics(entries: TopicEntry[]): string {
-  if (entries.length === 0) return EXTRACT_INSTRUCTIONS;
+/** Splits "Category > Subject > Topic" into its three names, or returns null if it is not written that way. */
+export function parseTopicPath(text: string): string[] | null {
+  const parts = text.split(/\s*(?:>|›|»|→)\s*/).map((p) => p.trim());
+  return parts.length === 3 && parts.every(Boolean) ? parts : null;
+}
+
+/** The instructions, with the categories and the topics already in the bank, so Claude can recommend a topic. */
+export function instructionsWithTopics(nodes: TreeNode[]): string {
+  const live = nodes.filter((n) => !n.deletedAt);
+  const categories = childrenOf(live, null)
+    .filter((n) => n.kind === "category")
+    .map((n) => n.name);
   const seen = new Set<string>();
   const lines: string[] = [];
-  for (const e of entries) {
+  for (const e of topicEntries(live)) {
     const line = e.parts.join(" > ");
     if (!seen.has(line)) {
       seen.add(line);
       lines.push(`- ${line}`);
     }
   }
-  return `${EXTRACT_INSTRUCTIONS}\n\nTopics in my question bank. For each question, copy the one that fits best into its Topic line, exactly as written here:\n${lines.join("\n")}`;
+  let out = EXTRACT_INSTRUCTIONS;
+  if (categories.length) out += `\n\nMy categories: ${categories.join(", ")}.`;
+  if (lines.length) out += `\n\nTopics already in my question bank:\n${lines.join("\n")}`;
+  return out;
 }
 
 /** What to paste into a chat with Claude, along with the PDF or pictures, to get text this page can read. */
@@ -371,6 +384,6 @@ Rules:
 - If the file has an answer key, put "Answer: " and the letter after each question. If it has no key, leave the Answer line out. Do not guess the answers unless I ask you to.
 - If a question has no choices, leave the choice lines out, and give "Answer: " followed by the answer itself.
 - Add a Ref line only if the page or question number is known.
-- Add a Topic line only if a list of topics is given at the end. Copy one entry from the list exactly. If none fits a question, leave its Topic line out. A file can cover several topics, so choose for each question on its own.
+- Add a Topic line to every question, written as Category > Subject > Topic. Use one of my categories. If a topic from my list fits, copy it exactly. If none fits, recommend a new Subject and Topic yourself. I will check your recommendation and can change it. A file can cover several topics, so choose for each question on its own.
 - If a question depends on a figure or picture, end its text with [figure].
 - Skip page headers, footers, and instructions that are not questions.`;

@@ -13,14 +13,26 @@ import {
   extractWarnings,
   findTopic,
   instructionsWithTopics,
+  normName,
   parseExtract,
+  parseTopicPath,
   sameStem,
   toDrafts,
   topicEntries,
   type ExtractStatus,
+  type TopicEntry,
 } from "@/lib/extract";
-import { acceptPasted, discardPasted, savePasted, setPastedTopic, usePasted } from "@/lib/extractStore";
-import { pathOf } from "@/lib/tree";
+import {
+  acceptPasted,
+  applyTopicToProposals,
+  createTopicPath,
+  discardPasted,
+  savePasted,
+  setPastedTopic,
+  setProposedTopic,
+  usePasted,
+} from "@/lib/extractStore";
+import { childrenOf, pathOf } from "@/lib/tree";
 import { keepSourceOnly, useSources } from "@/lib/sources";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ImageTextarea from "./ImageTextarea";
@@ -158,6 +170,74 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
   );
 }
 
+/** The topic Claude recommended when it is not in the bank. It can be edited, created, or swapped for an existing topic. */
+function Recommended({ d, nodes, entries }: { d: DraftQuestion; nodes: TreeNode[]; entries: TopicEntry[] }) {
+  const [text, setText] = useState(d.proposedTopic ?? "");
+  const [busy, setBusy] = useState(false);
+  const live = nodes.filter((n) => !n.deletedAt);
+  const parts = parseTopicPath(text);
+  const cat = parts ? live.find((n) => n.kind === "category" && normName(n.name) === normName(parts[0])) : undefined;
+  const subject =
+    cat && parts ? childrenOf(live, cat.id).find((n) => normName(n.name) === normName(parts[1])) : undefined;
+
+  async function commit() {
+    const t = text.trim();
+    if (t === (d.proposedTopic ?? "")) return;
+    const hit = t ? findTopic(entries, t) : null;
+    if (hit) await setPastedTopic([d.id], hit);
+    else await setProposedTopic(d.id, t);
+  }
+
+  async function create() {
+    setBusy(true);
+    try {
+      const id = await createTopicPath(text);
+      if (id) await applyTopicToProposals(text, id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1 rounded border border-line bg-paper p-2">
+      <label className="block text-xs font-medium">
+        Claude recommends this topic, which is not in your bank yet
+        <input
+          className="input mt-1 w-full"
+          value={text}
+          placeholder="Category > Subject > Topic"
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => void commit()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void commit();
+          }}
+        />
+      </label>
+      {parts && cat ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted">
+            Creates {subject ? "" : `the subject “${parts[1]}” and `}the topic “{parts[2]}” under {cat.name}.
+          </span>
+          <button type="button" className="btn btn-primary py-1" disabled={busy} onClick={() => void create()}>
+            Create it
+          </button>
+        </div>
+      ) : (
+        <p className="text-muted">
+          {parts
+            ? `There is no category called “${parts[0]}”. Fix the name above, or press Change to pick a topic you have.`
+            : "Write it as Category > Subject > Topic to create it, or press Change to pick a topic you have."}
+        </p>
+      )}
+      {d.topicId && (
+        <button type="button" className="underline" onClick={() => void setPastedTopic([d.id], d.topicId)}>
+          Ignore the recommendation and keep {pathOf(nodes, d.topicId)}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }) {
   const sources = useSources();
   const questions = useQuestions();
@@ -176,7 +256,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   if (!sources || !questions) return null;
 
   const entries = topicEntries(nodes);
-  const instructions = instructionsWithTopics(entries);
+  const instructions = instructionsWithTopics(nodes);
   const isDuplicate = (d: DraftQuestion) =>
     d.topicId !== "" && questions.some((q) => q.topicId === d.topicId && sameStem(q.stem, d.stem));
   const rows = pasted.map((d) => ({ d, status: extractStatus(d) }));
@@ -228,6 +308,39 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       text: `Moved ${chosen.length} question${chosen.length === 1 ? "" : "s"} to ${pathOf(nodes, moveTo)}.`,
     });
     setSelected([]);
+  }
+
+  const creatable = Array.from(
+    new Map(
+      rows
+        .map((r) => r.d.proposedTopic)
+        .filter((t): t is string => !!t)
+        .filter((t) => {
+          const parts = parseTopicPath(t);
+          return (
+            !!parts &&
+            nodes.some((n) => !n.deletedAt && n.kind === "category" && normName(n.name) === normName(parts[0]))
+          );
+        })
+        .map((t) => [normName(t), t] as const),
+    ).values(),
+  );
+
+  async function createAllRecommended() {
+    setBusy(true);
+    try {
+      let made = 0;
+      for (const t of creatable) {
+        const id = await createTopicPath(t);
+        if (id) {
+          await applyTopicToProposals(t, id);
+          made++;
+        }
+      }
+      setMessage({ ok: true, text: `Created or matched ${made} recommended topic${made === 1 ? "" : "s"}.` });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addAll() {
@@ -290,7 +403,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               <li>The Ref line is optional and is added to the source you pick below.</li>
               <li>
                 The Topic line, such as “Topic: ELEX &gt; Circuits &gt; Basics”, puts that question in its own topic.
-                The copied instructions list your topics so Claude can choose one for each question.
+                Claude recommends one for each question. If it is not in your bank yet, you can edit it and create it,
+                or pick a topic you have.
               </li>
             </ul>
           </div>
@@ -350,6 +464,11 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               >
                 Add all ready ({addable.length})
               </button>
+              {creatable.length > 0 && (
+                <button className="btn py-1" disabled={busy} onClick={() => void createAllRecommended()}>
+                  Create the recommended topics ({creatable.length})
+                </button>
+              )}
               <button
                 className="btn btn-danger py-1"
                 onClick={() => {
@@ -442,6 +561,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                           {changing === d.id ? "Done" : "Change"}
                         </button>
                       </p>
+                      {d.proposedTopic && <Recommended key={d.id} d={d} nodes={nodes} entries={entries} />}
                       {changing === d.id && (
                         <TopicPicker
                           nodes={nodes}
@@ -484,7 +604,9 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                           <p className="text-xs text-muted">Press Edit to add the other choices.</p>
                         )}
                         {status === "needs-topic" && (
-                          <p className="text-xs text-muted">Choose a topic with Change above.</p>
+                          <p className="text-xs text-muted">
+                            Settle the topic above: create the recommended one, or press Change.
+                          </p>
                         )}
                         {warnings.map((w) => (
                           <p key={w} className="text-xs text-danger">

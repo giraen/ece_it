@@ -42,7 +42,7 @@ const FORMAT: Item[] = [
 ];
 
 const MAIN: Item[] = [
-  maths("a⁄b", "Fraction", "‹a›/‹b›", true),
+  maths("a⁄b", "Fraction", "\\frac{‹a›}{‹b›}"),
   maths("x^n", "Power", "‹x›^‹n›", true),
   maths('x_("text")', 'Subscript (words go in quotes, like x_("text"))', '‹x›_("‹text›")', true),
   maths("√", "Square root", "sqrt(‹x›)"),

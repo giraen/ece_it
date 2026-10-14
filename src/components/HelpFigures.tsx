@@ -118,18 +118,18 @@ export function MathPlayground() {
 }
 
 const TYPED: { typed: string; note: string }[] = [
-  { typed: "$a/b$", note: "A fraction" },
-  { typed: "$x^2 + y^2$", note: "A power" },
-  { typed: "$sqrt(x^2 + 1)$", note: "A square root" },
-  { typed: '$V_("out") = 5$', note: "A subscript with words, in quotes" },
-  { typed: "$(dy)/(dx) = 2x$", note: "A derivative" },
-  { typed: "$int_0^1 x^2 dx$", note: "An integral with limits" },
-  { typed: "$sum_(n=1)^oo 1/n^2$", note: "A sum" },
-  { typed: "$lim_(x->0) (sin x)/x$", note: "A limit" },
-  { typed: "$vec F = m vec a$", note: "A vector" },
-  { typed: "$root(3)(x)$", note: "A cube root, or any other root" },
-  { typed: "$30^@$ and $50%$", note: "A degree and a percent" },
-  { typed: "$100 mu F$ and $4.7 k Omega$", note: "Units and Greek letters" },
+  { typed: "$\\frac{a + b}{c}$", note: "fraction" },
+  { typed: "$x^2 + y^2$", note: "power" },
+  { typed: "$sqrt(x^2 + 1)$", note: "square root" },
+  { typed: '$V_("out") = 5$', note: "subscript" },
+  { typed: "$(dy)/(dx) = 2x$", note: "derivative" },
+  { typed: "$int_0^1 x^2 dx$", note: "definite integral" },
+  { typed: "$sum_(n=1)^oo 1/n^2$", note: "sum" },
+  { typed: "$lim_(x->0) (sin x)/x$", note: "limit" },
+  { typed: "$vec F = m vec a$", note: "vector" },
+  { typed: "$root(3)(x)$", note: "higher root" },
+  { typed: "$30^@$ and $50%$", note: "degree and percent" },
+  { typed: "$100 mu F$ and $4.7 k Omega$", note: "Symbols" },
 ];
 
 export function TypedTable() {

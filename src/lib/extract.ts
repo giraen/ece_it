@@ -1,5 +1,6 @@
-import type { Choice, DraftQuestion } from "./db";
+import type { Choice, DraftQuestion, TreeNode } from "./db";
 import { newId } from "./ids";
+import { childrenOf } from "./tree";
 
 /** Questions read from pasted text are kept as drafts under this concept id, so they use the same review storage. */
 export const EXTRACT_CONCEPT = "extract";
@@ -16,6 +17,8 @@ export interface Parsed {
   /** The answer as written, when it is not one of the choices (or there are no choices). */
   answerText: string | null;
   reference: string | null;
+  /** The topic named on a "Topic:" line, such as "ELEX > Circuits > Basics". */
+  topic: string | null;
   /** The text this question was read from, for questions that could not be understood. */
   raw: string;
   notes: string[];
@@ -26,6 +29,7 @@ const START_NUM = /^\s*(\d+)[.)](?:\s+(.*))?$/;
 const CHOICE = /^\s*(?:\(([A-Ha-h])\)|([A-Ha-h])[.)])\s*(.*)$/;
 const ANSWER = /^\s*(?:Answer|Ans|Key|Correct(?:\s+answer)?)\s*[:=]\s*(.*)$/i;
 const REF = /^\s*(?:Ref|Reference|Source)\s*:\s*(.*)$/i;
+const TOPIC = /^\s*Topic\s*:\s*(.*)$/i;
 const SKIP = /^\s*(?:Solution|Explanation|Rationale|Notes?)\s*:/i;
 const KEY_HEAD = /^\s*(?:answer\s*key|answers|key)\s*:?\s*(.*)$/i;
 const KEY_PAIR = /(\d+)\s*[.\-:)=]?\s*\(?([A-Ha-h])\)?(?![A-Za-z0-9])/g;
@@ -40,6 +44,7 @@ interface Cur {
   choices: string[];
   answer: string | null;
   ref: string | null;
+  topic: string | null;
   raw: string[];
   phase: "stem" | "choices" | "done";
 }
@@ -50,6 +55,7 @@ const fresh = (number: number | null, first: string): Cur => ({
   choices: [],
   answer: null,
   ref: null,
+  topic: null,
   raw: first ? [first] : [],
   phase: "stem",
 });
@@ -150,6 +156,12 @@ export function parseExtract(text: string): Parsed[] {
       blank = false;
       continue;
     }
+    const tp = TOPIC.exec(line);
+    if (tp) {
+      c.topic = tp[1].trim();
+      blank = false;
+      continue;
+    }
     const ch = CHOICE.exec(line);
     const label = ch ? (ch[1] ?? ch[2]).toUpperCase() : "";
     if (ch && c.phase !== "done" && label === letter(c.choices.length)) {
@@ -186,6 +198,7 @@ export function parseExtract(text: string): Parsed[] {
       correct: r.correct,
       answerText: r.answerText,
       reference: c.ref || null,
+      topic: c.topic || null,
       raw: c.raw.join("\n").trim(),
       notes: r.notes,
     };
@@ -202,7 +215,14 @@ export function combineReference(own: string | null, batchReference: string, sou
 /** Turns what was read into drafts waiting for review. */
 export function toDrafts(
   parsed: Parsed[],
-  opts: { topicId: string; reference: (own: string | null) => string; at: number },
+  opts: {
+    /** Used for questions with no "Topic:" line, or whose topic is not in the tree. Empty means none. */
+    defaultTopicId: string;
+    /** Finds the topic a "Topic:" line names. */
+    findTopic: (text: string) => string | null;
+    reference: (own: string | null) => string;
+    at: number;
+  },
 ): DraftQuestion[] {
   return parsed.map((p, i) => {
     let choices: Choice[] = p.choices.map((t) => ({ id: newId(), text: t }));
@@ -215,11 +235,16 @@ export function toDrafts(
       notes.push("Check the answer: it was not matched to a choice.");
     }
     if (!p.stem) notes.push(`Could not find the question. Original text: ${p.raw.slice(0, 200)}`);
+    const named = p.topic ? opts.findTopic(p.topic) : null;
+    if (p.topic && !named)
+      notes.push(
+        `The topic "${p.topic}" was not found${opts.defaultTopicId ? ", so the default topic was used" : ""}.`,
+      );
     const reference = opts.reference(p.reference);
     return {
       id: newId(),
       conceptId: EXTRACT_CONCEPT,
-      topicId: opts.topicId,
+      topicId: named ?? opts.defaultTopicId,
       stem: p.stem,
       choices,
       correctChoiceId,
@@ -235,21 +260,25 @@ export function toDrafts(
   });
 }
 
-export type ExtractStatus = "ready" | "needs-answer" | "needs-choices" | "problem";
+export type ExtractStatus = "ready" | "needs-answer" | "needs-choices" | "needs-topic" | "problem";
 
 export const STATUS_LABEL: Record<ExtractStatus, string> = {
   ready: "Ready",
   "needs-answer": "Needs answer",
   "needs-choices": "Needs choices",
+  "needs-topic": "Needs topic",
   problem: "Needs a question",
 };
 
 /** What is still missing before a pasted question can join the bank. */
-export function extractStatus(d: Pick<DraftQuestion, "stem" | "choices" | "correctChoiceId">): ExtractStatus {
+export function extractStatus(
+  d: Pick<DraftQuestion, "stem" | "choices" | "correctChoiceId" | "topicId">,
+): ExtractStatus {
   if (!d.stem.trim()) return "problem";
   const filled = d.choices.filter((c) => c.text.trim());
   if (filled.length < 2) return "needs-choices";
   if (!filled.some((c) => c.id === d.correctChoiceId)) return "needs-answer";
+  if (!d.topicId) return "needs-topic";
   return "ready";
 }
 
@@ -274,6 +303,53 @@ export function sameStem(a: string, b: string): boolean {
   return x.length > 0 && x === norm(b);
 }
 
+/** One topic in the tree, with the names of its category, subject, and topic. A shared subject gives one entry per category. */
+export interface TopicEntry {
+  id: string;
+  parts: string[];
+}
+
+export function topicEntries(nodes: TreeNode[]): TopicEntry[] {
+  const live = nodes.filter((n) => !n.deletedAt);
+  const out: TopicEntry[] = [];
+  for (const cat of live.filter((n) => n.kind === "category")) {
+    for (const sub of childrenOf(live, cat.id)) {
+      for (const topic of childrenOf(live, sub.id)) out.push({ id: topic.id, parts: [cat.name, sub.name, topic.name] });
+    }
+  }
+  return out;
+}
+
+/**
+ * Finds the topic named in text such as "ELEX > Circuits > Basics". The category and subject may be left out when the
+ * rest is enough to tell topics apart. Case, spacing and punctuation do not matter.
+ */
+export function findTopic(entries: TopicEntry[], text: string): string | null {
+  const want = text.split(/\s*(?:>|›|»|→)\s*/).map(norm);
+  if (want.length === 0 || want.length > 3 || want.some((w) => !w)) return null;
+  const hits = new Set<string>();
+  for (const e of entries) {
+    const tail = e.parts.slice(3 - want.length).map(norm);
+    if (tail.every((t, i) => t === want[i])) hits.add(e.id);
+  }
+  return hits.size === 1 ? [...hits][0] : null;
+}
+
+/** The instructions, with the topics in the bank listed so each question can be given one. */
+export function instructionsWithTopics(entries: TopicEntry[]): string {
+  if (entries.length === 0) return EXTRACT_INSTRUCTIONS;
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const e of entries) {
+    const line = e.parts.join(" > ");
+    if (!seen.has(line)) {
+      seen.add(line);
+      lines.push(`- ${line}`);
+    }
+  }
+  return `${EXTRACT_INSTRUCTIONS}\n\nTopics in my question bank. For each question, copy the one that fits best into its Topic line, exactly as written here:\n${lines.join("\n")}`;
+}
+
 /** What to paste into a chat with Claude, along with the PDF or pictures, to get text this page can read. */
 export const EXTRACT_INSTRUCTIONS = `Turn the questions in the attached file into plain text in exactly the format below, so I can paste it into my question bank. Put the whole result in one code block, with no commentary.
 
@@ -286,6 +362,7 @@ C. Third choice
 D. Fourth choice
 Answer: B
 Ref: p. 12, no. 3
+Topic: Category > Subject > Topic
 
 Rules:
 - Wrap every equation, formula, and expression with variables in dollar signs, in the question and in the choices, like $3x - 2y + 6 = 0$. Plain numbers and words stay outside the dollar signs.
@@ -294,5 +371,6 @@ Rules:
 - If the file has an answer key, put "Answer: " and the letter after each question. If it has no key, leave the Answer line out. Do not guess the answers unless I ask you to.
 - If a question has no choices, leave the choice lines out, and give "Answer: " followed by the answer itself.
 - Add a Ref line only if the page or question number is known.
+- Add a Topic line only if a list of topics is given at the end. Copy one entry from the list exactly. If none fits a question, leave its Topic line out. A file can cover several topics, so choose for each question on its own.
 - If a question depends on a figure or picture, end its text with [figure].
 - Skip page headers, footers, and instructions that are not questions.`;

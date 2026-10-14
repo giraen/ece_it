@@ -7,17 +7,20 @@ import { newId, now } from "@/lib/ids";
 import { useNodes, useQuestions } from "@/lib/hooks";
 import { updateDraft } from "@/lib/concepts";
 import {
-  EXTRACT_INSTRUCTIONS,
   STATUS_LABEL,
   combineReference,
   extractStatus,
   extractWarnings,
+  findTopic,
+  instructionsWithTopics,
   parseExtract,
   sameStem,
   toDrafts,
+  topicEntries,
   type ExtractStatus,
 } from "@/lib/extract";
-import { acceptPasted, discardPasted, savePasted, usePasted } from "@/lib/extractStore";
+import { acceptPasted, discardPasted, savePasted, setPastedTopic, usePasted } from "@/lib/extractStore";
+import { pathOf } from "@/lib/tree";
 import { keepSourceOnly, useSources } from "@/lib/sources";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ImageTextarea from "./ImageTextarea";
@@ -43,6 +46,7 @@ const BADGE: Record<ExtractStatus, string> = {
   ready: "bg-good/10 text-good",
   "needs-answer": "bg-accent-soft text-accent",
   "needs-choices": "bg-accent-soft text-accent",
+  "needs-topic": "bg-accent-soft text-accent",
   problem: "bg-danger/10 text-danger",
 };
 
@@ -158,7 +162,10 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const sources = useSources();
   const questions = useQuestions();
   const [text, setText] = useState("");
-  const [topicId, setTopicId] = useState<string | null>(pasted[0]?.topicId ?? null);
+  const [defaultTopic, setDefaultTopic] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  const [changing, setChanging] = useState<string | null>(null);
   const [reference, setReference] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -168,16 +175,19 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
 
   if (!sources || !questions) return null;
 
-  const inTopic = topicId ? questions.filter((q) => q.topicId === topicId) : [];
-  const isDuplicate = (d: DraftQuestion) => inTopic.some((q) => sameStem(q.stem, d.stem));
+  const entries = topicEntries(nodes);
+  const instructions = instructionsWithTopics(entries);
+  const isDuplicate = (d: DraftQuestion) =>
+    d.topicId !== "" && questions.some((q) => q.topicId === d.topicId && sameStem(q.stem, d.stem));
   const rows = pasted.map((d) => ({ d, status: extractStatus(d) }));
+  const chosen = selected.filter((id) => pasted.some((d) => d.id === id));
   const count = (s: ExtractStatus) => rows.filter((r) => r.status === s).length;
   const shown = rows.filter((r) => filter === "all" || r.status === filter);
   const addable = rows.filter((r) => r.status === "ready" && !isDuplicate(r.d));
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(EXTRACT_INSTRUCTIONS);
+      await navigator.clipboard.writeText(instructions);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
@@ -186,13 +196,13 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   }
 
   async function read() {
-    if (!topicId) return setMessage({ ok: false, text: "Pick a category, subject, and topic first." });
     const parsed = parseExtract(text);
     if (parsed.length === 0)
       return setMessage({ ok: false, text: "No questions were found. Check that the text follows the format." });
     const sourceOnly = reference.trim() ? keepSourceOnly(reference, sources ?? []) : "";
     const drafts = toDrafts(parsed, {
-      topicId,
+      defaultTopicId: defaultTopic ?? "",
+      findTopic: (t) => findTopic(entries, t),
       reference: (own) => combineReference(own, reference, sourceOnly),
       at: now(),
     });
@@ -207,16 +217,24 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   }
 
   async function addOne(d: DraftQuestion) {
-    if (!topicId) return setMessage({ ok: false, text: "Pick a category, subject, and topic first." });
-    await acceptPasted(d.id, topicId);
+    await acceptPasted(d.id);
+  }
+
+  async function moveSelected() {
+    if (!moveTo || chosen.length === 0) return;
+    await setPastedTopic(chosen, moveTo);
+    setMessage({
+      ok: true,
+      text: `Moved ${chosen.length} question${chosen.length === 1 ? "" : "s"} to ${pathOf(nodes, moveTo)}.`,
+    });
+    setSelected([]);
   }
 
   async function addAll() {
-    if (!topicId) return setMessage({ ok: false, text: "Pick a category, subject, and topic first." });
     setBusy(true);
     try {
       let n = 0;
-      for (const r of addable) if (await acceptPasted(r.d.id, topicId)) n++;
+      for (const r of addable) if (await acceptPasted(r.d.id)) n++;
       const skipped = rows.filter((r) => r.status === "ready").length - addable.length;
       setMessage({
         ok: true,
@@ -232,6 +250,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
     { id: "ready", label: "Ready", n: count("ready") },
     { id: "needs-answer", label: "Needs answer", n: count("needs-answer") },
     { id: "needs-choices", label: "Needs choices", n: count("needs-choices") },
+    { id: "needs-topic", label: "Needs topic", n: count("needs-topic") },
     { id: "problem", label: "Needs a question", n: count("problem") },
   ];
 
@@ -269,6 +288,10 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               <li>The choices are optional. If you give only an answer, you add the wrong choices here.</li>
               <li>An answer key at the end, such as “Answers: 1.B 2.C 3.A”, is matched by number.</li>
               <li>The Ref line is optional and is added to the source you pick below.</li>
+              <li>
+                The Topic line, such as “Topic: ELEX &gt; Circuits &gt; Basics”, puts that question in its own topic.
+                The copied instructions list your topics so Claude can choose one for each question.
+              </li>
             </ul>
           </div>
         </details>
@@ -278,7 +301,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             readOnly
             aria-label="Instructions for Claude"
             className="input mt-2 h-48 w-full font-mono text-xs"
-            value={EXTRACT_INSTRUCTIONS}
+            value={instructions}
           />
         </details>
       </section>
@@ -293,8 +316,11 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
           onChange={(e) => setText(e.target.value)}
         />
         <div>
-          <p className="mb-1 text-sm font-medium">Add them to</p>
-          <TopicPicker nodes={nodes} value={topicId} onChange={setTopicId} />
+          <p className="text-sm font-medium">Default topic (optional)</p>
+          <p className="mb-1 text-xs text-muted">
+            For questions with no Topic line. You can change the topic of any question below.
+          </p>
+          <TopicPicker nodes={nodes} value={defaultTopic} onChange={setDefaultTopic} />
         </div>
         <div>
           <label htmlFor="extract-reference" className="mb-1 block text-sm font-medium">
@@ -319,8 +345,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             <>
               <button
                 className="btn btn-primary py-1"
-                disabled={busy || addable.length === 0 || !topicId}
-                title={topicId ? undefined : "Pick a topic first"}
+                disabled={busy || addable.length === 0}
                 onClick={() => void addAll()}
               >
                 Add all ready ({addable.length})
@@ -354,6 +379,30 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={shown.length > 0 && shown.every((r) => chosen.includes(r.d.id))}
+                  onChange={(e) => setSelected(e.target.checked ? shown.map((r) => r.d.id) : [])}
+                />
+                Select all shown
+              </label>
+              {chosen.length > 0 && <span className="text-muted">{chosen.length} selected</span>}
+            </div>
+            {chosen.length > 0 && (
+              <div
+                className="space-y-2 rounded-md border border-line bg-paper p-3"
+                role="group"
+                aria-label="Move selected"
+              >
+                <p className="text-sm font-medium">Move the selected questions to</p>
+                <TopicPicker nodes={nodes} value={moveTo} onChange={setMoveTo} />
+                <button className="btn btn-primary py-1" disabled={!moveTo} onClick={() => void moveSelected()}>
+                  Move {chosen.length}
+                </button>
+              </div>
+            )}
             <ul className="space-y-2">
               {shown.map(({ d, status }, i) => {
                 const warnings = extractWarnings(d);
@@ -361,6 +410,14 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                 return (
                   <li key={d.id} className="space-y-2 rounded-md border border-line bg-surface p-3">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select question ${i + 1}`}
+                        checked={chosen.includes(d.id)}
+                        onChange={(e) =>
+                          setSelected((cur) => (e.target.checked ? [...cur, d.id] : cur.filter((x) => x !== d.id)))
+                        }
+                      />
                       <span className="text-muted">{i + 1}</span>
                       <span className={`rounded px-1.5 py-0.5 font-medium ${BADGE[status]}`}>
                         {STATUS_LABEL[status]}
@@ -369,6 +426,31 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                         <span className="rounded bg-danger/10 px-1.5 py-0.5 text-danger">Already in this topic?</span>
                       )}
                       {d.reference && <span className="text-muted">{d.reference}</span>}
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="text-muted">Topic:</span>
+                        <span className={d.topicId ? "" : "text-danger"}>
+                          {d.topicId ? pathOf(nodes, d.topicId) : "none yet"}
+                        </span>
+                        <button
+                          type="button"
+                          className="underline"
+                          aria-label={`Change topic of question ${i + 1}`}
+                          onClick={() => setChanging(changing === d.id ? null : d.id)}
+                        >
+                          {changing === d.id ? "Done" : "Change"}
+                        </button>
+                      </p>
+                      {changing === d.id && (
+                        <TopicPicker
+                          nodes={nodes}
+                          value={d.topicId || null}
+                          onChange={(id) => {
+                            if (id) void setPastedTopic([d.id], id);
+                          }}
+                        />
+                      )}
                     </div>
                     {editing === d.id ? (
                       <Edit d={d} onDone={() => setEditing(null)} />
@@ -401,6 +483,9 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                         {status === "needs-choices" && (
                           <p className="text-xs text-muted">Press Edit to add the other choices.</p>
                         )}
+                        {status === "needs-topic" && (
+                          <p className="text-xs text-muted">Choose a topic with Change above.</p>
+                        )}
                         {warnings.map((w) => (
                           <p key={w} className="text-xs text-danger">
                             {w}
@@ -410,14 +495,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                         <div className="flex gap-2">
                           <button
                             className="btn btn-primary py-1"
-                            disabled={status !== "ready" || !topicId}
-                            title={
-                              status !== "ready"
-                                ? "Finish this question first"
-                                : !topicId
-                                  ? "Pick a topic first"
-                                  : undefined
-                            }
+                            disabled={status !== "ready"}
+                            title={status !== "ready" ? "Finish this question first" : undefined}
                             onClick={() => void addOne(d)}
                           >
                             Add to the question bank

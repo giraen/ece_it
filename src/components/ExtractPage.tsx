@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { Choice, DraftQuestion, TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
-import { useNodes, useQuestions } from "@/lib/hooks";
+import { useNodes, useQuestions, useTagSuggestions } from "@/lib/hooks";
 import { updateDraft } from "@/lib/concepts";
 import {
   STATUS_LABEL,
@@ -28,6 +28,7 @@ import {
   createTopicPath,
   discardPasted,
   savePasted,
+  setPastedTags,
   setPastedTopic,
   setProposedTopic,
   usePasted,
@@ -40,6 +41,7 @@ import InfoTip from "./InfoTip";
 import ReferenceInput from "./ReferenceInput";
 import RichText from "./RichText";
 import SuggestWrong from "./SuggestWrong";
+import TagInput from "./TagInput";
 import ToolbarGroup from "./ToolbarGroup";
 import TopicPicker from "./TopicPicker";
 
@@ -51,8 +53,7 @@ A. $3x + 2y - 12 = 0$
 B. $4x - 9y = 6$
 C. $12x + 18y = 15$
 D. $15x - 10y - 9 = 0$
-Answer: D
-Ref: p. 1, no. 1`;
+Answer: D`;
 
 const BADGE: Record<ExtractStatus, string> = {
   ready: "bg-good/10 text-good",
@@ -170,6 +171,17 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
   );
 }
 
+/** The tags a waiting question will get, edited the same way as in the question editor. */
+function CardTags({ d }: { d: DraftQuestion }) {
+  const suggestions = useTagSuggestions(d.topicId || null);
+  return (
+    <div className="space-y-1 text-xs">
+      <p className="text-muted">Tags</p>
+      <TagInput value={d.tags ?? []} onChange={(tags) => void setPastedTags(d.id, tags)} suggestions={suggestions} />
+    </div>
+  );
+}
+
 /** The topic Claude recommended when it is not in the bank. It can be edited, created, or swapped for an existing topic. */
 function Recommended({ d, nodes, entries }: { d: DraftQuestion; nodes: TreeNode[]; entries: TopicEntry[] }) {
   const [text, setText] = useState(d.proposedTopic ?? "");
@@ -241,6 +253,7 @@ function Recommended({ d, nodes, entries }: { d: DraftQuestion; nodes: TreeNode[
 function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }) {
   const sources = useSources();
   const questions = useQuestions();
+  const allTags = useTagSuggestions(null);
   const [text, setText] = useState("");
   const [defaultTopic, setDefaultTopic] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -256,7 +269,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   if (!sources || !questions) return null;
 
   const entries = topicEntries(nodes);
-  const instructions = instructionsWithTopics(nodes);
+  const instructions = instructionsWithTopics(nodes, allTags);
   const isDuplicate = (d: DraftQuestion) =>
     d.topicId !== "" && questions.some((q) => q.topicId === d.topicId && sameStem(q.stem, d.stem));
   const rows = pasted.map((d) => ({ d, status: extractStatus(d) }));
@@ -397,10 +410,14 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             <ul className="list-disc space-y-1 pl-5 text-muted">
               <li>Put a blank line between questions. Numbers such as 1. or 2) work in place of Q:.</li>
               <li>Put equations between $ signs, in the question and in the choices.</li>
+              <li>
+                A Tags line, such as “Tags: series, formulas”, tags that question. You can change tags on each question
+                below.
+              </li>
               <li>The Answer line is optional. You can mark the answer here instead.</li>
               <li>The choices are optional. If you give only an answer, you add the wrong choices here.</li>
               <li>An answer key at the end, such as “Answers: 1.B 2.C 3.A”, is matched by number.</li>
-              <li>The Ref line is optional and is added to the source you pick below.</li>
+              <li>There is no source unless you pick one below. A Ref line, if you add one, is added to it.</li>
               <li>
                 The Topic line, such as “Topic: ELEX &gt; Circuits &gt; Basics”, puts that question in its own topic.
                 Claude recommends one for each question. If it is not in your bank yet, you can edit it and create it,
@@ -572,6 +589,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                         />
                       )}
                     </div>
+                    <CardTags d={d} />
                     {editing === d.id ? (
                       <Edit d={d} onDone={() => setEditing(null)} />
                     ) : (

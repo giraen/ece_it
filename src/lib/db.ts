@@ -75,6 +75,8 @@ export interface DraftQuestion {
   reference?: string;
   /** For pasted questions: a topic Claude recommended that is not in the bank yet. It waits for you to check it. */
   proposedTopic?: string;
+  /** For pasted questions: tags to put on the question when it is added. */
+  tags?: string[];
   provider: string;
   model: string;
   status: "pending" | "accepted" | "discarded";

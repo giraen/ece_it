@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, type DraftQuestion } from "./db";
 import { EXTRACT_CONCEPT, extractStatus, normName, parseTopicPath } from "./extract";
 import { newId, now } from "./ids";
-import { saveQuestion } from "./questions";
+import { normalizeTags, saveQuestion } from "./questions";
 import { saveDrafts } from "./concepts";
 import { createNode } from "./nodes";
 import { childrenOf } from "./tree";
@@ -49,7 +49,7 @@ export async function acceptPasted(draftId: string): Promise<boolean> {
       stem: d.stem.trim(),
       choices,
       correctChoiceId: d.correctChoiceId,
-      tags: [],
+      tags: normalizeTags(d.tags ?? []),
       ...(d.reference?.trim() ? { reference: d.reference.trim() } : {}),
       createdAt: t,
       updatedAt: t,
@@ -77,6 +77,11 @@ export async function setPastedTopic(ids: string[], topicId: string): Promise<vo
   await db.transaction("rw", db.drafts, async () => {
     for (const id of ids) await db.drafts.update(id, { topicId, proposedTopic: undefined, updatedAt: t });
   });
+}
+
+/** Replaces the tags a waiting question will get. */
+export async function setPastedTags(id: string, tags: string[]): Promise<void> {
+  await db.drafts.update(id, { tags: normalizeTags(tags), updatedAt: now() });
 }
 
 /** Changes the topic Claude recommended for a question, or drops the recommendation when the text is empty. */

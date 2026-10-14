@@ -19,6 +19,8 @@ export interface Parsed {
   reference: string | null;
   /** The topic named on a "Topic:" line, such as "ELEX > Circuits > Basics". */
   topic: string | null;
+  /** The tags named on a "Tags:" line, such as "series, formulas". */
+  tags: string[];
   /** The text this question was read from, for questions that could not be understood. */
   raw: string;
   notes: string[];
@@ -30,6 +32,7 @@ const CHOICE = /^\s*(?:\(([A-Ha-h])\)|([A-Ha-h])[.)])\s*(.*)$/;
 const ANSWER = /^\s*(?:Answer|Ans|Key|Correct(?:\s+answer)?)\s*[:=]\s*(.*)$/i;
 const REF = /^\s*(?:Ref|Reference|Source)\s*:\s*(.*)$/i;
 const TOPIC = /^\s*Topic\s*:\s*(.*)$/i;
+const TAGS = /^\s*Tags?\s*:\s*(.*)$/i;
 const SKIP = /^\s*(?:Solution|Explanation|Rationale|Notes?)\s*:/i;
 const KEY_HEAD = /^\s*(?:answer\s*key|answers|key)\s*:?\s*(.*)$/i;
 const KEY_PAIR = /(\d+)\s*[.\-:)=]?\s*\(?([A-Ha-h])\)?(?![A-Za-z0-9])/g;
@@ -48,6 +51,7 @@ interface Cur {
   answer: string | null;
   ref: string | null;
   topic: string | null;
+  tags: string[];
   raw: string[];
   phase: "stem" | "choices" | "done";
 }
@@ -59,6 +63,7 @@ const fresh = (number: number | null, first: string): Cur => ({
   answer: null,
   ref: null,
   topic: null,
+  tags: [],
   raw: first ? [first] : [],
   phase: "stem",
 });
@@ -88,6 +93,21 @@ function resolve(answer: string | null, choices: string[]): Pick<Parsed, "correc
   if (hit >= 0) return { correct: hit, answerText: null, notes };
   if (choices.length > 0) notes.push(`The answer "${a}" does not match any choice.`);
   return { correct: null, answerText: a, notes };
+}
+
+/** Splits "a, b; c" into tags. */
+function splitTags(s: string): string[] {
+  return s
+    .split(/[,;]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/** Drops repeats that differ only by capital letters. The first spelling wins. */
+function uniqueTags(tags: string[]): string[] {
+  const out: string[] = [];
+  for (const t of tags) if (!out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
+  return out;
 }
 
 /** Reads text in the standard Extract format. See EXTRACT_INSTRUCTIONS. */
@@ -165,6 +185,12 @@ export function parseExtract(text: string): Parsed[] {
       blank = false;
       continue;
     }
+    const tg = TAGS.exec(line);
+    if (tg) {
+      c.tags.push(...splitTags(tg[1]));
+      blank = false;
+      continue;
+    }
     const ch = CHOICE.exec(line);
     const label = ch ? (ch[1] ?? ch[2]).toUpperCase() : "";
     if (ch && c.phase !== "done" && label === letter(c.choices.length)) {
@@ -202,6 +228,7 @@ export function parseExtract(text: string): Parsed[] {
       answerText: r.answerText,
       reference: c.ref || null,
       topic: c.topic || null,
+      tags: uniqueTags(c.tags),
       raw: c.raw.join("\n").trim(),
       notes: r.notes,
     };
@@ -250,6 +277,7 @@ export function toDrafts(
       ...(reference ? { reference } : {}),
       // A recommended topic that is not in the bank yet waits for you to check it.
       ...(p.topic && !named ? { proposedTopic: p.topic } : {}),
+      ...(p.tags.length ? { tags: p.tags } : {}),
       provider: "pasted",
       model: "",
       status: "pending" as const,
@@ -342,8 +370,8 @@ export function parseTopicPath(text: string): string[] | null {
   return parts.length === 3 && parts.every(Boolean) ? parts : null;
 }
 
-/** The instructions, with the categories and the topics already in the bank, so Claude can recommend a topic. */
-export function instructionsWithTopics(nodes: TreeNode[]): string {
+/** The instructions, with the categories, topics and tags already in the bank, so Claude can recommend from them. */
+export function instructionsWithTopics(nodes: TreeNode[], tags: string[] = []): string {
   const live = nodes.filter((n) => !n.deletedAt);
   const categories = childrenOf(live, null)
     .filter((n) => n.kind === "category")
@@ -360,6 +388,7 @@ export function instructionsWithTopics(nodes: TreeNode[]): string {
   let out = EXTRACT_INSTRUCTIONS;
   if (categories.length) out += `\n\nMy categories: ${categories.join(", ")}.`;
   if (lines.length) out += `\n\nTopics already in my question bank:\n${lines.join("\n")}`;
+  if (tags.length) out += `\n\nTags already in my question bank: ${tags.join(", ")}`;
   return out;
 }
 
@@ -374,8 +403,8 @@ B. Second choice
 C. Third choice
 D. Fourth choice
 Answer: B
-Ref: p. 12, no. 3
 Topic: Category > Subject > Topic
+Tags: first tag, second tag
 
 Rules:
 - Wrap every equation, formula, and expression with variables in dollar signs, in the question and in the choices, like $3x - 2y + 6 = 0$. Plain numbers and words stay outside the dollar signs.
@@ -383,7 +412,8 @@ Rules:
 - Keep the choices in the order given and keep their letters.
 - If the file has an answer key, put "Answer: " and the letter after each question. If it has no key, leave the Answer line out. Do not guess the answers unless I ask you to.
 - If a question has no choices, leave the choice lines out, and give "Answer: " followed by the answer itself.
-- Add a Ref line only if the page or question number is known.
+- Do not add a Ref line. I add the source myself.
 - Add a Topic line to every question, written as Category > Subject > Topic. Use one of my categories. If a topic from my list fits, copy it exactly. If none fits, recommend a new Subject and Topic yourself. I will check your recommendation and can change it. A file can cover several topics, so choose for each question on its own.
+- Add a Tags line to a question only when a tag would help me find it later, such as the kind of problem or the method it needs. Give one to three short tags separated by commas. Reuse a tag from my list when one fits, and leave the line out otherwise.
 - If a question depends on a figure or picture, end its text with [figure].
 - Skip page headers, footers, and instructions that are not questions.`;

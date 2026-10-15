@@ -28,7 +28,6 @@ export default function PreferencesPanel() {
         <input
           id="mastery-bar"
           type="number"
-          inputMode="numeric"
           min={MASTERY_BAR_MIN}
           max={MASTERY_BAR_MAX}
           step={1}

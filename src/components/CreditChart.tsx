@@ -89,7 +89,7 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
   useEffect(() => {
     const el = stage.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setWidth(Math.max(280, Math.round(el.clientWidth))));
+    const ro = new ResizeObserver(() => setWidth(Math.round(el.clientWidth)));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -229,12 +229,11 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
       <div ref={stage} className="relative">
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="block h-auto w-full touch-pan-y select-none"
+          className="block h-auto w-full select-none"
           role="img"
           aria-label="Credit score over time, one line per category. Use the left and right arrow keys to step through the points."
           tabIndex={0}
           onPointerMove={(e) => setActive(nearest(e))}
-          onPointerDown={(e) => setActive(nearest(e))}
           onPointerLeave={() => setActive(null)}
           onBlur={() => setActive(null)}
           onKeyDown={onKeyDown}

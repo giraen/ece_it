@@ -2,14 +2,7 @@
 
 import { useState } from "react";
 import { CONFIG } from "@/lib/config";
-import {
-  MASTERY_BAR_DEFAULT,
-  MASTERY_BAR_MAX,
-  MASTERY_BAR_MIN,
-  cleanMasteryBar,
-  saveMasteryBar,
-  useMasteryBar,
-} from "@/lib/preferences";
+import { MASTERY_BAR_MAX, MASTERY_BAR_MIN, cleanMasteryBar, saveMasteryBar, useMasteryBar } from "@/lib/preferences";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
@@ -49,18 +42,6 @@ export default function PreferencesPanel() {
           }}
         />
         <span className="text-sm text-muted">%</span>
-        {saved !== MASTERY_BAR_DEFAULT && (
-          <button
-            type="button"
-            className="btn py-1"
-            onClick={() => {
-              setText(null);
-              void saveMasteryBar(MASTERY_BAR_DEFAULT);
-            }}
-          >
-            Reset to {MASTERY_BAR_DEFAULT}%
-          </button>
-        )}
       </div>
       {!valid && (
         <p role="alert" className="text-sm text-danger">

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { byTag, byTopic, calibration, creditOverTime, observations, questionStats, summarize } from "@/lib/analytics";
+import { byTag, byTopic, calibration, categorySeries, observations, questionStats, summarize } from "@/lib/analytics";
+import { FIXED_CATEGORIES } from "@/lib/categories";
 import { CONFIG } from "@/lib/config";
-import { formatDate, formatDuration, formatPercent, formatRatio } from "@/lib/format";
+import { formatDuration, formatPercent, formatRatio } from "@/lib/format";
 import { useAttempts } from "@/lib/hooks";
 import { useMasteryBar } from "@/lib/preferences";
 import { SURENESS_LABEL } from "@/lib/scoring";
+import CreditChart from "./CreditChart";
 import Sparkline from "./Sparkline";
 import InfoTip from "./InfoTip";
 
@@ -16,65 +18,6 @@ function Tile({ value, label }: { value: string; label: string }) {
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
       <p className="text-sm text-muted">{label}</p>
     </div>
-  );
-}
-
-function CreditChart({ points, bar }: { points: { at: number; credit: number; scopeName: string }[]; bar: number }) {
-  const W = 640;
-  const H = 150;
-  const pad = { l: 36, r: 12, t: 10, b: 22 };
-  const x = (i: number) =>
-    pad.l + (points.length === 1 ? (W - pad.l - pad.r) / 2 : (i / (points.length - 1)) * (W - pad.l - pad.r));
-  const y = (v: number) => pad.t + (1 - Math.min(1, Math.max(0, v))) * (H - pad.t - pad.b);
-  const masteryY = y(bar);
-  const passY = y(CONFIG.minimumPass);
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Credit score of each quiz over time">
-      {[0, 0.5, 1].map((v) => (
-        <g key={v}>
-          <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="var(--color-line)" strokeWidth="1" />
-          <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="var(--color-muted)">
-            {Math.round(v * 100)}%
-          </text>
-        </g>
-      ))}
-      <line
-        x1={pad.l}
-        x2={W - pad.r}
-        y1={masteryY}
-        y2={masteryY}
-        stroke="var(--color-good)"
-        strokeWidth="1.5"
-        strokeDasharray="5 4"
-      />
-      <text x={W - pad.r} y={masteryY - 4} textAnchor="end" fontSize="10" fill="var(--color-good)">
-        goal {Math.round(bar * 100)}%
-      </text>
-      <line x1={pad.l} x2={W - pad.r} y1={passY} y2={passY} stroke="var(--color-danger)" strokeWidth="1.5" />
-      <text x={W - pad.r} y={passY + 12} textAnchor="end" fontSize="10" fill="var(--color-danger)">
-        minimum {Math.round(CONFIG.minimumPass * 100)}%
-      </text>
-      {points.length > 1 && (
-        <polyline
-          points={points.map((p, i) => `${x(i)},${y(p.credit)}`).join(" ")}
-          fill="none"
-          stroke="var(--color-accent)"
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-      )}
-      {points.map((p, i) => (
-        <circle key={i} cx={x(i)} cy={y(p.credit)} r="3.5" fill="var(--color-accent)">
-          <title>{`${p.scopeName}: ${formatPercent(p.credit)} on ${formatDate(p.at)}`}</title>
-        </circle>
-      ))}
-      <text x={pad.l} y={H - 6} fontSize="10" fill="var(--color-muted)">
-        {formatDate(points[0].at)}
-      </text>
-      <text x={W - pad.r} y={H - 6} textAnchor="end" fontSize="10" fill="var(--color-muted)">
-        {formatDate(points[points.length - 1].at)}
-      </text>
-    </svg>
   );
 }
 
@@ -97,7 +40,7 @@ export default function Analytics() {
   }
 
   const sum = summarize(attempts);
-  const points = creditOverTime(attempts);
+  const series = categorySeries(attempts, FIXED_CATEGORIES);
   const topics = byTopic(obs).sort((a, b) => a.credit - b.credit);
   const tags = byTag(obs)
     .filter((g) => g.n >= 3)
@@ -121,12 +64,13 @@ export default function Analytics() {
         <div className="mb-2 flex items-center gap-1">
           <h3 className="font-medium">Credit over time</h3>
           <InfoTip>
-            Each dot is one quiz. Green dots reached the mastery bar, the dashed green line, which you set in Settings.
-            The red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
+            One line per category, and All for every category together. Click a category to show or hide it. Switch the
+            time axis to see each quiz, or a weekly or monthly average. The dashed green line is the goal you set in
+            Settings. The red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
           </InfoTip>
         </div>
         <div className="rounded-md border border-line bg-surface p-3">
-          <CreditChart points={points} bar={bar} />
+          <CreditChart series={series} bar={bar} />
         </div>
       </section>
 

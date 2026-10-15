@@ -133,6 +133,81 @@ export function creditOverTime(attempts: QuizAttempt[]): QuizPoint[] {
     }));
 }
 
+export interface SeriesPoint {
+  at: number;
+  /** Average credit of this quiz's questions in the category. */
+  credit: number;
+  /** The category's running average after this quiz: the latest credit of each topic so far, averaged. */
+  avg: number;
+  /** The quiz it came from, e.g. "ELEX › Circuits". */
+  label: string;
+}
+
+export interface CategorySeries {
+  key: string;
+  name: string;
+  points: SeriesPoint[];
+}
+
+/** The key of the extra series that covers every category together. */
+export const ALL_KEY = "all";
+
+/**
+ * One line of points per category, plus one for all of them together (always last), oldest first.
+ * A quiz makes a point in every category it asked questions from, scored on those questions only.
+ */
+export function categorySeries(
+  attempts: QuizAttempt[],
+  categories: readonly { key: string; name: string }[],
+): CategorySeries[] {
+  const done = attempts
+    .filter((a) => !a.deletedAt && a.status === "submitted" && a.summary && a.submittedAt !== undefined)
+    .sort((a, b) => (a.submittedAt ?? 0) - (b.submittedAt ?? 0));
+  const names = categories.map((c) => c.name.trim().toLowerCase());
+  const out: CategorySeries[] = categories.map((c) => ({ key: c.key, name: c.name, points: [] }));
+  const all: CategorySeries = { key: ALL_KEY, name: "All categories", points: [] };
+  const latest: Map<string, number>[] = categories.map(() => new Map());
+  const latestAll = new Map<string, number>();
+  const mean = (m: Map<string, number>) => {
+    let sum = 0;
+    for (const v of m.values()) sum += v;
+    return m.size ? sum / m.size : 0;
+  };
+
+  for (const a of done) {
+    const label = a.practice ? `${a.scopeName} (practice)` : a.scopeName;
+    const at = a.submittedAt as number;
+    type Sum = { sum: number; n: number };
+    const add = (m: Map<string, Sum>, id: string, credit: number) => {
+      const t = m.get(id) ?? { sum: 0, n: 0 };
+      t.sum += credit;
+      t.n += 1;
+      m.set(id, t);
+    };
+    const perCat: Map<string, Sum>[] = categories.map(() => new Map());
+    const perAll = new Map<string, Sum>();
+    for (const it of a.items) {
+      add(perAll, it.topicId, it.credit);
+      const ci = names.indexOf((it.categoryName ?? "").trim().toLowerCase());
+      if (ci >= 0) add(perCat[ci], it.topicId, it.credit);
+    }
+    perCat.forEach((topics, ci) => {
+      if (topics.size === 0) return;
+      let sum = 0;
+      let n = 0;
+      for (const [topicId, t] of topics) {
+        latest[ci].set(topicId, t.sum / t.n);
+        sum += t.sum;
+        n += t.n;
+      }
+      out[ci].points.push({ at, credit: sum / n, avg: mean(latest[ci]), label });
+    });
+    for (const [topicId, t] of perAll) latestAll.set(topicId, t.sum / t.n);
+    all.points.push({ at, credit: a.summary?.credit ?? 0, avg: mean(latestAll), label });
+  }
+  return [...out, all];
+}
+
 export interface QuestionStat {
   questionId: string;
   stem: string;

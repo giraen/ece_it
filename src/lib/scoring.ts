@@ -145,14 +145,14 @@ export interface PassResult {
 const EPS = 1e-9;
 
 /** Passes when the average credit reaches the bar and no sizeable group falls below the floor. */
-export function evaluatePass(credit: number, groups: GroupStats[]): PassResult {
+export function evaluatePass(credit: number, groups: GroupStats[], bar: number = CONFIG.passBar): PassResult {
   const failedGroups = groups
     .filter((g) => g.n >= CONFIG.minPerGroup && g.credit + EPS < CONFIG.childFloor)
     .map((g) => g.label);
   return {
-    passed: credit + EPS >= CONFIG.passBar && failedGroups.length === 0,
+    passed: credit + EPS >= bar && failedGroups.length === 0,
     credit,
-    bar: CONFIG.passBar,
+    bar,
     failedGroups,
   };
 }
@@ -177,9 +177,9 @@ export function explainGroup(g: GroupStats): string {
 }
 
 /** The weakest groups, lowest credit first. Only groups below the bar are listed. */
-export function needsWork(groups: GroupStats[], limit = 3): Weakness[] {
+export function needsWork(groups: GroupStats[], limit = 3, bar: number = CONFIG.passBar): Weakness[] {
   return groups
-    .filter((g) => g.credit + EPS < CONFIG.passBar)
+    .filter((g) => g.credit + EPS < bar)
     .sort((a, b) => a.credit - b.credit)
     .slice(0, limit)
     .map((g) => ({ key: g.key, label: g.label, credit: g.credit, reason: explainGroup(g) }));

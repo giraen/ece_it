@@ -5,6 +5,7 @@ import { byTag, byTopic, calibration, creditOverTime, observations, questionStat
 import { CONFIG } from "@/lib/config";
 import { formatDate, formatDuration, formatPercent, formatRatio } from "@/lib/format";
 import { useAttempts } from "@/lib/hooks";
+import { useMasteryBar } from "@/lib/preferences";
 import { SURENESS_LABEL } from "@/lib/scoring";
 import Sparkline from "./Sparkline";
 import InfoTip from "./InfoTip";
@@ -18,14 +19,15 @@ function Tile({ value, label }: { value: string; label: string }) {
   );
 }
 
-function CreditChart({ points }: { points: { at: number; credit: number; scopeName: string }[] }) {
+function CreditChart({ points, bar }: { points: { at: number; credit: number; scopeName: string }[]; bar: number }) {
   const W = 640;
   const H = 150;
   const pad = { l: 36, r: 12, t: 10, b: 22 };
   const x = (i: number) =>
     pad.l + (points.length === 1 ? (W - pad.l - pad.r) / 2 : (i / (points.length - 1)) * (W - pad.l - pad.r));
   const y = (v: number) => pad.t + (1 - Math.min(1, Math.max(0, v))) * (H - pad.t - pad.b);
-  const bar = y(CONFIG.passBar);
+  const masteryY = y(bar);
+  const passY = y(CONFIG.minimumPass);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Credit score of each quiz over time">
       {[0, 0.5, 1].map((v) => (
@@ -39,14 +41,18 @@ function CreditChart({ points }: { points: { at: number; credit: number; scopeNa
       <line
         x1={pad.l}
         x2={W - pad.r}
-        y1={bar}
-        y2={bar}
+        y1={masteryY}
+        y2={masteryY}
         stroke="var(--color-good)"
         strokeWidth="1.5"
         strokeDasharray="5 4"
       />
-      <text x={W - pad.r} y={bar - 4} textAnchor="end" fontSize="10" fill="var(--color-good)">
-        mastery bar {Math.round(CONFIG.passBar * 100)}%
+      <text x={W - pad.r} y={masteryY - 4} textAnchor="end" fontSize="10" fill="var(--color-good)">
+        goal {Math.round(bar * 100)}%
+      </text>
+      <line x1={pad.l} x2={W - pad.r} y1={passY} y2={passY} stroke="var(--color-danger)" strokeWidth="1.5" />
+      <text x={W - pad.r} y={passY + 12} textAnchor="end" fontSize="10" fill="var(--color-danger)">
+        minimum {Math.round(CONFIG.minimumPass * 100)}%
       </text>
       {points.length > 1 && (
         <polyline
@@ -63,7 +69,7 @@ function CreditChart({ points }: { points: { at: number; credit: number; scopeNa
           cx={x(i)}
           cy={y(p.credit)}
           r="3.5"
-          fill={p.credit + 1e-9 >= CONFIG.passBar ? "var(--color-good)" : "var(--color-accent)"}
+          fill={p.credit + 1e-9 >= bar ? "var(--color-good)" : "var(--color-accent)"}
         >
           <title>{`${p.scopeName}: ${formatPercent(p.credit)} on ${formatDate(p.at)}`}</title>
         </circle>
@@ -80,6 +86,7 @@ function CreditChart({ points }: { points: { at: number; credit: number; scopeNa
 
 export default function Analytics() {
   const attempts = useAttempts();
+  const bar = useMasteryBar();
   if (!attempts) return <p className="text-sm text-muted">Loading…</p>;
 
   const obs = observations(attempts);
@@ -119,10 +126,13 @@ export default function Analytics() {
       <section aria-label="Credit over time">
         <div className="mb-2 flex items-center gap-1">
           <h3 className="font-medium">Credit over time</h3>
-          <InfoTip>Each dot is one quiz. Green dots reached the mastery bar.</InfoTip>
+          <InfoTip>
+            Each dot is one quiz. Green dots reached the mastery bar, the dashed green line, which you set in Settings.
+            The red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
+          </InfoTip>
         </div>
         <div className="rounded-md border border-line bg-surface p-3">
-          <CreditChart points={points} />
+          <CreditChart points={points} bar={bar} />
         </div>
       </section>
 
@@ -151,7 +161,7 @@ export default function Analytics() {
                   <td className="px-2 text-right tabular-nums">{g.n}</td>
                   <td className="px-2 text-right tabular-nums">{formatPercent(g.accuracy, 0)}</td>
                   <td
-                    className={`px-2 text-right tabular-nums ${g.credit + 1e-9 >= CONFIG.passBar ? "text-good" : "text-danger"}`}
+                    className={`px-2 text-right tabular-nums ${g.credit + 1e-9 >= bar ? "text-good" : "text-danger"}`}
                   >
                     {formatPercent(g.credit)}
                   </td>
@@ -178,7 +188,7 @@ export default function Analytics() {
                 <span className="min-w-0 flex-1 truncate">{g.label}</span>
                 <span className="text-xs text-muted">{g.n} answered</span>
                 <span
-                  className={`w-16 text-right tabular-nums ${g.credit + 1e-9 >= CONFIG.passBar ? "text-good" : "text-danger"}`}
+                  className={`w-16 text-right tabular-nums ${g.credit + 1e-9 >= bar ? "text-good" : "text-danger"}`}
                 >
                   {formatPercent(g.credit)}
                 </span>

@@ -39,14 +39,17 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
 
 function GroupRow({
   g,
+  bar,
   depth = 0,
   toggle,
 }: {
   g: GroupStats;
+  /** The bar this quiz was scored against. */
+  bar: number;
   depth?: number;
   toggle?: { open: boolean; onClick: () => void };
 }) {
-  const low = g.credit + 1e-9 < CONFIG.passBar;
+  const low = g.credit + 1e-9 < bar;
   return (
     <tr className="border-t border-line">
       <td className="py-2 pr-2" style={{ paddingLeft: depth * 20 }}>
@@ -159,7 +162,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
   const groups = groupStats(items, (it) => groupKeysFor(kind, it));
   const sortedGroups = [...groups].sort((a, b) => a.credit - b.credit);
-  const weak = needsWork(groups);
+  const weak = needsWork(groups, 3, s.bar);
   const groupLabel = kind === "category" ? "Entry" : kind === "subject" ? "Topic" : "Tag";
   // The weakest topic, if any fell below the bar, can be practised on its own.
   const topicGroups =
@@ -168,7 +171,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
       : kind === "subject"
         ? groups
         : groupStats(items, (it) => [{ key: it.topicId, label: it.topicName }]);
-  const weakestTopic = needsWork(topicGroups, 1)[0];
+  const weakestTopic = needsWork(topicGroups, 1, s.bar)[0];
   // If there are weak spots and you have written notes on that topic, offer to read them.
   const reviewTopic =
     kind === "topic"
@@ -311,6 +314,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
                 <Fragment key={g.key}>
                   <GroupRow
                     g={g}
+                    bar={s.bar}
                     toggle={
                       kind === "category" ? { open: open.has(g.key), onClick: () => toggleOpen(g.key) } : undefined
                     }
@@ -322,7 +326,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
                       (it) => [{ key: it.topicId, label: it.topicName }],
                     )
                       .sort((a, b) => a.credit - b.credit)
-                      .map((t) => <GroupRow key={t.key} g={t} depth={1} />)}
+                      .map((t) => <GroupRow key={t.key} g={t} bar={s.bar} depth={1} />)}
                 </Fragment>
               ))}
             </tbody>

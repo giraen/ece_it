@@ -2,8 +2,10 @@
  * Every tunable number in one place. Change a value here, never in the logic.
  */
 export const CONFIG = {
-  /** Average credit a quiz must reach to pass for mastery. Below this is a fail. */
+  /** The mastery bar when none is set in Settings: the average credit a quiz must reach to pass for mastery. */
   passBar: 0.95,
+  /** The fixed minimum to pass. The graph draws it as a line, and the mastery bar can never be set at or below it. */
+  minimumPass: 0.75,
   /** No child group (tag, topic, or subject) may fall below this credit. */
   childFloor: 0.5,
   /** A group only counts toward the floor once it has this many questions in the quiz. */

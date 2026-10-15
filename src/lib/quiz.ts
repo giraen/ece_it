@@ -4,6 +4,7 @@ import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, t
 import { formatCountdown } from "./format";
 import { newId, now } from "./ids";
 import { masteryFor } from "./mastery";
+import { loadMasteryBar } from "./preferences";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
 import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
 import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
@@ -265,6 +266,8 @@ export function isComplete(item: AttemptItem): boolean {
 
 /** Scores the quiz and locks it. A question with no choice or no sureness rating scores 0. */
 export async function submitAttempt(id: string): Promise<void> {
+  // Read before the transaction, which only covers the attempts. A quiz is scored against the bar as it is now.
+  const bar = await loadMasteryBar();
   await db.transaction("rw", db.attempts, async () => {
     const a = await db.attempts.get(id);
     if (!a || a.status !== "in_progress") return;
@@ -275,7 +278,7 @@ export async function submitAttempt(id: string): Promise<void> {
     });
     const overall = overallStats(items);
     const groups = groupStats(items, (it) => groupKeysFor(a.scopeKind, it));
-    const pass = evaluatePass(overall.credit, groups);
+    const pass = evaluatePass(overall.credit, groups, bar);
     const t = now();
     await db.attempts.put({
       ...a,

@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import AiSettings from "./AiSettings";
 import BackupPage from "./BackupPage";
 import DangerZone from "./DangerZone";
+import PreferencesPanel from "./PreferencesPanel";
 import StorageStatus from "./StorageStatus";
 import InfoTip from "./InfoTip";
 
@@ -15,6 +16,10 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="mt-1 text-sm text-muted">
           Jump to:{" "}
+          <a href="#preferences" className="underline">
+            Preferences
+          </a>
+          {" · "}
           <a href="#ai" className="underline">
             AI helper
           </a>
@@ -32,6 +37,13 @@ export default function SettingsPage() {
           </a>
         </p>
       </div>
+
+      <section id="preferences" aria-labelledby="preferences-title" className="scroll-mt-4 space-y-4">
+        <h2 id="preferences-title" className="text-lg font-semibold">
+          Preferences
+        </h2>
+        <PreferencesPanel />
+      </section>
 
       <section id="ai" aria-labelledby="ai-title" className="scroll-mt-4 space-y-4">
         <div className="flex items-center gap-1">

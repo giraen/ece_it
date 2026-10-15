@@ -64,13 +64,7 @@ function CreditChart({ points, bar }: { points: { at: number; credit: number; sc
         />
       )}
       {points.map((p, i) => (
-        <circle
-          key={i}
-          cx={x(i)}
-          cy={y(p.credit)}
-          r="3.5"
-          fill={p.credit + 1e-9 >= bar ? "var(--color-good)" : "var(--color-accent)"}
-        >
+        <circle key={i} cx={x(i)} cy={y(p.credit)} r="3.5" fill="var(--color-accent)">
           <title>{`${p.scopeName}: ${formatPercent(p.credit)} on ${formatDate(p.at)}`}</title>
         </circle>
       ))}

@@ -41,8 +41,10 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
       else tagIndex.set(key, { label: t, count: 1 });
     }
   }
+  // The tag row is only shown inside a subject or a topic, where the list of tags is short enough to use.
+  const showTags = selected?.kind === "subject" || selected?.kind === "topic";
   // A filter on a tag that is not in this view is ignored, so changing the selection cannot leave you with an empty list.
-  const activeKey = tagFilter && tagIndex.has(tagFilter) ? tagFilter : null;
+  const activeKey = showTags && tagFilter && tagIndex.has(tagFilter) ? tagFilter : null;
 
   const needle = search.trim().toLowerCase();
   const visible = inScope
@@ -105,7 +107,10 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </Link>
       </div>
 
-      {tagIndex.size > 0 && (
+      {!showTags && tagIndex.size > 0 && (
+        <p className="mb-3 text-sm text-muted">Pick a subject or topic to filter by tag.</p>
+      )}
+      {showTags && tagIndex.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
           <span className="text-sm text-muted">Tags</span>
           {Array.from(tagIndex.entries())

@@ -182,6 +182,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         correctChoiceId: comp ? comp.correctChoiceId : (correctId as string),
         template: comp?.template,
         tags: normalizeTags(tags),
+        // Left out when blank, so a question without a reference looks the same as before.
+        ...(reference.trim() ? { reference: reference.trim() } : {}),
         // Left out when it is 1, so a question that never repeats looks the same as before.
         ...(Number(repeatsText) > 1 ? { repeats: Number(repeatsText) } : {}),
         allowAi,

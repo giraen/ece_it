@@ -165,7 +165,7 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
   const xLabels = [0.06, 0.28, 0.5, 0.72, 0.94].map((f) => domain[0] + f * (domain[1] - domain[0]));
 
   // tooltip text
-  const tip = activeHit ? describe(activeHit.line, activeHit.p, axis, measure, bar) : null;
+  const tip = activeHit ? describe(activeHit.line, activeHit.p, axis, measure) : null;
 
   return (
     <div className="credit-chart space-y-3">
@@ -409,7 +409,9 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
       </div>
 
       <p className="sr-only" aria-live="polite">
-        {tip ? `${tip.name}: ${tip.value}. ${tip.when}. ${tip.status.text}` : ""}
+        {tip
+          ? `${tip.name}${tip.value ? `: ${tip.value}` : ""}. ${tip.when}. ${tip.items.map((q) => `${q.when} ${q.label} ${q.credit}`).join(". ")}`
+          : ""}
       </p>
     </div>
   );
@@ -428,57 +430,31 @@ function noteFor(axis: TimeAxis, measure: Measure): string {
 
 interface Tip {
   name: string;
+  /** The dot's value. Left out when it is just the one quiz listed below. */
   value: string;
+  /** "Week of Sep 7", "September 2026". Empty on the per-quiz axis. */
   when: string;
-  kind: string;
   items: { when: string; label: string; credit: string }[];
   more: number;
-  status: { text: string; className: string };
 }
 
-function describe(line: Line, p: ChartPoint, axis: TimeAxis, measure: Measure, bar: number): Tip {
-  const i = line.pts.indexOf(p);
-  const prev = i > 0 ? line.pts[i - 1] : null;
+const MAX_LISTED = 6;
+
+function describe(line: Line, p: ChartPoint, axis: TimeAxis, measure: Measure): Tip {
   const when =
-    axis === "quiz"
-      ? new Date(p.x).toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })
-      : axis === "week"
-        ? `Week of ${short(p.start)}`
-        : new Date(p.start).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const n = p.items.length;
-  const base =
-    measure === "result"
-      ? axis === "quiz"
-        ? "Quiz result"
-        : `Average of ${n} ${n === 1 ? "quiz" : "quizzes"}`
-      : line.s.key === ALL_KEY
-        ? "Average across every topic"
-        : "Category average";
-  const change = prev
-    ? ` · ${p.v - prev.v >= 0 ? "+" : "−"}${(Math.abs(p.v - prev.v) * 100).toFixed(1)} points vs the one before`
-    : " · first one";
-  const status =
-    p.v + 1e-9 >= bar
-      ? { text: "Reached the goal", className: "text-good" }
-      : p.v >= CONFIG.minimumPass
-        ? { text: `${((bar - p.v) * 100).toFixed(1)} points below the goal`, className: "text-muted" }
-        : { text: "Below the minimum", className: "text-danger" };
+    axis === "week"
+      ? `Week of ${short(p.start)}`
+      : axis === "month"
+        ? new Date(p.start).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+        : "";
   return {
     name: line.s.name,
-    value: formatPercent(p.v),
-    when: axis === "quiz" ? `${when} · ${p.items[0].label}` : when,
-    kind: base + change,
-    items:
-      axis === "quiz"
-        ? []
-        : p.items.slice(0, 4).map((q) => ({ when: short(q.at), label: q.label, credit: formatPercent(q.credit, 0) })),
-    more: axis === "quiz" ? 0 : Math.max(0, p.items.length - 4),
-    status,
+    value: p.items.length === 1 && measure === "result" ? "" : formatPercent(p.v),
+    when,
+    items: p.items
+      .slice(0, MAX_LISTED)
+      .map((q) => ({ when: short(q.at), label: q.label, credit: formatPercent(q.credit, 0) })),
+    more: Math.max(0, p.items.length - MAX_LISTED),
   };
 }
 
@@ -489,23 +465,19 @@ function TipBody({ tip, color }: { tip: Tip; color: string }) {
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
         {tip.name}
       </p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums">{tip.value}</p>
-      <p className="mt-0.5 text-xs text-muted">{tip.when}</p>
-      <p className="mt-0.5 text-xs text-muted">{tip.kind}</p>
-      {tip.items.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5 border-t border-line pt-1.5 text-xs">
-          {tip.items.map((q, i) => (
-            <li key={i} className="flex justify-between gap-3">
-              <span className="min-w-0 text-muted">
-                {q.when} · {q.label}
-              </span>
-              <span className="tabular-nums">{q.credit}</span>
-            </li>
-          ))}
-          {tip.more > 0 && <li className="text-muted">+{tip.more} more</li>}
-        </ul>
-      )}
-      <p className={`mt-1.5 border-t border-line pt-1.5 text-xs ${tip.status.className}`}>{tip.status.text}</p>
+      {tip.value && <p className="mt-0.5 text-lg font-semibold tabular-nums">{tip.value}</p>}
+      {tip.when && <p className="mt-0.5 text-xs text-muted">{tip.when}</p>}
+      <ul className="mt-1.5 space-y-0.5 border-t border-line pt-1.5 text-xs">
+        {tip.items.map((q, i) => (
+          <li key={i} className="flex justify-between gap-3">
+            <span className="min-w-0 text-muted">
+              {q.when} · {q.label}
+            </span>
+            <span className="tabular-nums">{q.credit}</span>
+          </li>
+        ))}
+        {tip.more > 0 && <li className="text-muted">+{tip.more} more</li>}
+      </ul>
     </div>
   );
 }

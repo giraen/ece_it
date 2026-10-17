@@ -260,12 +260,3 @@ html.theme-fade *::after {
   background: var(--color-accent);
   animation: loading-caret 1s steps(1) infinite;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .chart-line,
-  .chart-dot,
-  .loading-wave,
-  .loading-caret {
-    animation: none;
-  }
-}

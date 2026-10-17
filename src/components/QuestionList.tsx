@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
 import { addTag, deleteQuestions, removeTag, renameTag } from "@/lib/questions";
 import { pathOf, subtreeOf } from "@/lib/tree";
+import { usePagination } from "@/lib/usePagination";
+import Pagination from "./Pagination";
 import Reference from "./Reference";
 import RichText from "./RichText";
 
@@ -56,11 +58,24 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         (q.reference ?? "").toLowerCase().includes(needle) ||
         q.tags.some((t) => t.toLowerCase().includes(needle)),
     )
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    // Newest created first. Editing a question no longer moves it to the top.
+    .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
+
+  const top = useRef<HTMLElement>(null);
+  const { page, pages, setPage, pageItems, pageSize } = usePagination(
+    visible,
+    `q:${selected?.id ?? "all"}`,
+    `${needle}|${activeKey ?? ""}`,
+  );
+  const goTo = (n: number) => {
+    setPage(n);
+    top.current?.scrollIntoView({ block: "start" });
+  };
 
   // Only questions you can see count as selected, so a hidden one is never changed by accident.
   const pickedIds = visible.filter((q) => picked.has(q.id)).map((q) => q.id);
-  const allPicked = visible.length > 0 && pickedIds.length === visible.length;
+  const pagePicked = pageItems.filter((q) => picked.has(q.id)).length;
+  const allPicked = pageItems.length > 0 && pagePicked === pageItems.length;
 
   function toggle(id: string) {
     setPicked((prev) => {
@@ -83,7 +98,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const newHref = selected?.kind === "topic" ? `/editor?topic=${selected.id}` : "/editor";
 
   return (
-    <section aria-label="Questions">
+    <section aria-label="Questions" ref={top} className="scroll-mt-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold">{selected ? pathOf(nodes, selected.id) : "All questions"}</h1>
@@ -174,52 +189,77 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
             : "No questions match the search or tag filter."}
         </p>
       ) : (
-        <div className="rounded-md border border-line bg-surface">
-          <label className="flex items-center gap-3 border-b border-line px-3 py-2 text-sm text-muted">
-            <input
-              type="checkbox"
-              checked={allPicked}
-              onChange={() => setPicked(allPicked ? new Set() : new Set(visible.map((q) => q.id)))}
-            />
-            Select all shown
-          </label>
-          <ul className="divide-y divide-line">
-            {visible.map((q) => (
-              <li key={q.id} className="flex items-start gap-3 px-3 py-3">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  aria-label="Select question"
-                  checked={picked.has(q.id)}
-                  onChange={() => toggle(q.id)}
-                />
-                <div className="min-w-0 flex-1">
-                  <RichText text={listText(q.stem) || "(no text)"} className="line-clamp-2 text-[15px]" />
-                  <p className="mt-0.5 truncate text-xs text-muted">
-                    {q.type === "computation" && (
-                      <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink">
-                        Computation
-                      </span>
-                    )}
-                    {pathOf(nodes, q.topicId)}
-                  </p>
-                  <Reference text={q.reference} className="mt-0.5 truncate" />
-                  {q.tags.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {q.tags.map((t) => (
-                        <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
-                          {t}
+        <div>
+          <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
+          <div className="rounded-md border border-line bg-surface">
+            <label className="flex items-center gap-3 border-b border-line px-3 py-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                checked={allPicked}
+                onChange={() =>
+                  setPicked((prev) => {
+                    const next = new Set(prev);
+                    for (const q of pageItems) {
+                      if (allPicked) next.delete(q.id);
+                      else next.add(q.id);
+                    }
+                    return next;
+                  })
+                }
+              />
+              Select all on this page
+              {pages > 1 && (
+                <button
+                  type="button"
+                  className="ml-2 underline underline-offset-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPicked(new Set(visible.map((q) => q.id)));
+                  }}
+                >
+                  Select all {visible.length}
+                </button>
+              )}
+            </label>
+            <ul className="divide-y divide-line">
+              {pageItems.map((q) => (
+                <li key={q.id} className="flex items-start gap-3 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    aria-label="Select question"
+                    checked={picked.has(q.id)}
+                    onChange={() => toggle(q.id)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <RichText text={listText(q.stem) || "(no text)"} className="line-clamp-2 text-[15px]" />
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {q.type === "computation" && (
+                        <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink">
+                          Computation
                         </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Link href={`/editor?id=${q.id}`} className="btn">
-                  Edit
-                </Link>
-              </li>
-            ))}
-          </ul>
+                      )}
+                      {pathOf(nodes, q.topicId)}
+                    </p>
+                    <Reference text={q.reference} className="mt-0.5 truncate" />
+                    {q.tags.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {q.tags.map((t) => (
+                          <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Link href={`/editor?id=${q.id}`} className="btn">
+                    Edit
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
         </div>
       )}
     </section>

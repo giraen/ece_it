@@ -328,14 +328,25 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
           {shown.map((l) => {
             const c = colorOf(l.s.key);
             const dim = active !== null && active.key !== l.s.key;
+            // How far along the line each dot is, so each one appears just as the line reaches it.
+            const px = l.pts.map((p) => [x(p.x), y(p.v)]);
+            const cum = [0];
+            for (let i = 1; i < px.length; i++) {
+              cum.push(cum[i - 1] + Math.hypot(px[i][0] - px[i - 1][0], px[i][1] - px[i - 1][1]));
+            }
+            const total = cum[cum.length - 1] || 1;
+            // A new key replays the drawing when the axis, the measure, or the line itself changes.
+            const play = `${l.s.key}-${axis}-${measure}`;
             return (
-              <g key={l.s.key} opacity={dim ? 0.4 : 1}>
+              <g key={play} opacity={dim ? 0.4 : 1}>
                 {axis !== "quiz" &&
                   l.s.points.map((p) => (
                     <circle key={p.at} cx={x(p.at)} cy={y(measureValue(p, measure))} r="2.5" fill={c} opacity="0.35" />
                   ))}
                 {l.pts.length > 1 && (
                   <polyline
+                    className="chart-line"
+                    pathLength={1}
                     points={l.pts.map((p) => `${x(p.x)},${y(p.v)}`).join(" ")}
                     fill="none"
                     stroke={c}
@@ -344,11 +355,13 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
                     strokeLinecap="round"
                   />
                 )}
-                {l.pts.map((p) => {
+                {l.pts.map((p, i) => {
                   const isActive = activeHit?.line === l && activeHit.p === p;
                   return (
                     <circle
                       key={p.x}
+                      className="chart-dot"
+                      style={{ animationDelay: `${(cum[i] / total) * 1.1}s` }}
                       cx={x(p.x)}
                       cy={y(p.v)}
                       r={isActive ? 6 : axis === "quiz" ? 3.5 : 4.5}

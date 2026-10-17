@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConceptList from "@/components/ConceptList";
+import LoadingScreen from "@/components/LoadingScreen";
 import QuestionList from "@/components/QuestionList";
 import TreePanel from "@/components/TreePanel";
 import { useDrafts } from "@/lib/concepts";
@@ -21,7 +22,7 @@ function BankView() {
   const [selectedId, setSelectedId] = useState<string | null>(params.get("node"));
   const tab: Tab = params.get("tab") === "concepts" ? "concepts" : "questions";
 
-  if (!nodes || !questions || !concepts || !drafts) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !questions || !concepts || !drafts) return <LoadingScreen />;
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
   const go = (t: Tab) => {
@@ -73,7 +74,7 @@ function BankView() {
 
 export default function BankPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<LoadingScreen />}>
       <BankView />
     </Suspense>
   );

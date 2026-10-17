@@ -7,8 +7,9 @@ import type { TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { treeMastery, type TreeMastery } from "@/lib/mastery";
-import { childrenOf, KIND_LABEL } from "@/lib/tree";
+import { childrenOf } from "@/lib/tree";
 import InfoTip from "./InfoTip";
+import LoadingScreen from "./LoadingScreen";
 
 const DAY = 86_400_000;
 
@@ -78,7 +79,7 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
         <span className="min-w-0 flex-1 basis-40">
           <span className={`text-sm ${node.kind === "category" ? "font-semibold" : ""}`}>{node.name}</span>
           <span className="ml-2 text-xs text-muted">
-            {KIND_LABEL[node.kind].toLowerCase()} · {count} question{count === 1 ? "" : "s"}
+            {count} question{count === 1 ? "" : "s"}
             {childText ? ` · ${childText}` : ""}
           </span>
         </span>
@@ -146,7 +147,7 @@ export default function MasteryOverview() {
   const nowMs = useNow();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  if (!nodes || !attempts || !questions || !blueprints) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !attempts || !questions || !blueprints) return <LoadingScreen />;
 
   const roots = childrenOf(nodes, null);
   const ctx: Ctx = {

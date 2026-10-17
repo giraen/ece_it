@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import LoadingScreen from "./LoadingScreen";
 import { byTag, byTopic, calibration, categorySeries, observations, questionStats, summarize } from "@/lib/analytics";
 import { FIXED_CATEGORIES } from "@/lib/categories";
 import { CONFIG } from "@/lib/config";
-import { formatDuration, formatPercent, formatRatio } from "@/lib/format";
+import { formatPercent, formatRatio, formatSpent } from "@/lib/format";
 import { useAttempts } from "@/lib/hooks";
 import { useMasteryBar } from "@/lib/preferences";
 import { SURENESS_LABEL } from "@/lib/scoring";
@@ -24,7 +25,7 @@ function Tile({ value, label }: { value: string; label: string }) {
 export default function Analytics() {
   const attempts = useAttempts();
   const bar = useMasteryBar();
-  if (!attempts) return <p className="text-sm text-muted">Loading…</p>;
+  if (!attempts) return <LoadingScreen />;
 
   const obs = observations(attempts);
   if (obs.length === 0) {
@@ -57,7 +58,7 @@ export default function Analytics() {
         <Tile value={String(sum.questions)} label="Questions answered" />
         <Tile value={formatPercent(sum.accuracy, 0)} label="Accuracy" />
         <Tile value={formatPercent(sum.credit)} label="Average credit" />
-        <Tile value={formatDuration(sum.totalMs)} label="Time spent" />
+        <Tile value={formatSpent(sum.totalMs)} label="Time spent" />
       </section>
 
       <section aria-label="Credit over time">

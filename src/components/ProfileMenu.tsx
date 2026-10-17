@@ -21,12 +21,14 @@ export default function ProfileMenu() {
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  // Only a keyboard opening moves focus into the menu. Opening it with the mouse leaves the first item unhighlighted.
+  const byKeyboard = useRef(false);
   const inMenu = ITEMS.some((i) => i.match.some((m) => path.startsWith(m)));
 
   useEffect(() => {
     if (!open) return;
     // Move the keyboard focus into the menu, and close it on an outside click or Escape.
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    if (byKeyboard.current) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     const onDown = (e: MouseEvent) => {
       if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
     };
@@ -72,7 +74,10 @@ export default function ProfileMenu() {
         aria-expanded={open}
         aria-label="Account menu"
         title="Account menu"
-        onClick={() => setOpen((o) => !o)}
+        onClick={(e) => {
+          byKeyboard.current = e.detail === 0;
+          setOpen((o) => !o);
+        }}
         className={`rounded-full border p-1.5 ${
           inMenu || open ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-paper hover:text-ink"
         }`}

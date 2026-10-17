@@ -339,10 +339,6 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
             const play = `${l.s.key}-${axis}-${measure}`;
             return (
               <g key={play} opacity={dim ? 0.4 : 1}>
-                {axis !== "quiz" &&
-                  l.s.points.map((p) => (
-                    <circle key={p.at} cx={x(p.at)} cy={y(measureValue(p, measure))} r="2.5" fill={c} opacity="0.35" />
-                  ))}
                 {l.pts.length > 1 && (
                   <polyline
                     className="chart-line"

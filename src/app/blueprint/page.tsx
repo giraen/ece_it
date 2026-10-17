@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import BlueprintEditor from "@/components/BlueprintEditor";
 import { useBlueprint, useNodes, useQuestions } from "@/lib/hooks";
+import LoadingScreen from "@/components/LoadingScreen";
 
 function Loader() {
   const id = useSearchParams().get("category");
@@ -12,7 +13,7 @@ function Loader() {
   const questions = useQuestions();
   const blueprint = useBlueprint(id);
 
-  if (!nodes || !questions || blueprint === undefined) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !questions || blueprint === undefined) return <LoadingScreen />;
   const category = nodes.find((n) => n.id === id && n.kind === "category");
   if (!category) {
     return (
@@ -31,7 +32,7 @@ function Loader() {
 
 export default function BlueprintPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<LoadingScreen />}>
       <Loader />
     </Suspense>
   );

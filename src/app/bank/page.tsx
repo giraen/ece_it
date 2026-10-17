@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConceptList from "@/components/ConceptList";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -18,20 +18,22 @@ function BankView() {
   const questions = useQuestions();
   const concepts = useConcepts();
   const drafts = useDrafts();
-  // The address can name a node to open and a tab, such as /bank?node=<topic id>&tab=concepts.
-  const [selectedId, setSelectedId] = useState<string | null>(params.get("node"));
+  // The address holds the node, the tab, and the page, such as /bank?node=<id>&tab=concepts&page=3, so a refresh keeps your place.
+  const selectedId = params.get("node");
   const tab: Tab = params.get("tab") === "concepts" ? "concepts" : "questions";
 
   if (!nodes || !questions || !concepts || !drafts) return <LoadingScreen />;
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
-  const go = (t: Tab) => {
+  const open = (nodeId: string | null, t: Tab) => {
     const q = new URLSearchParams();
-    if (selected) q.set("node", selected.id);
+    if (nodeId) q.set("node", nodeId);
     if (t === "concepts") q.set("tab", "concepts");
     const text = q.toString();
-    router.replace(`/bank${text ? `?${text}` : ""}`);
+    router.replace(`/bank${text ? `?${text}` : ""}`, { scroll: false });
   };
+  const go = (t: Tab) => open(selected?.id ?? null, t);
+  const select = (id: string | null) => open(id, tab);
   const tabs: { id: Tab; label: string }[] = [
     { id: "questions", label: `Questions (${questions.length})` },
     { id: "concepts", label: `Concepts (${concepts.length})` },
@@ -55,7 +57,7 @@ function BankView() {
         ))}
       </div>
       <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
+        <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={select} />
         {tab === "questions" ? (
           <QuestionList key={selected?.id ?? "all"} nodes={nodes} questions={questions} selected={selected} />
         ) : (

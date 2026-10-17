@@ -7,6 +7,7 @@ import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/li
 import { abandonAttempt, isComplete } from "@/lib/quiz";
 import InfoTip from "@/components/InfoTip";
 import PracticeTag from "@/components/PracticeTag";
+import LoadingScreen from "@/components/LoadingScreen";
 
 export default function QuizPage() {
   const nodes = useNodes();
@@ -69,7 +70,7 @@ export default function QuizPage() {
         {nodes && questions && attempts && blueprints ? (
           <QuizPicker nodes={nodes} questions={questions} attempts={attempts} blueprints={blueprints} nowMs={nowMs} />
         ) : (
-          <p className="text-sm text-muted">Loading…</p>
+          <LoadingScreen />
         )}
       </section>
     </div>

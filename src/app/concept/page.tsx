@@ -7,6 +7,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import ConceptEditor from "@/components/ConceptEditor";
 import { db } from "@/lib/db";
 import { useNodes } from "@/lib/hooks";
+import LoadingScreen from "@/components/LoadingScreen";
 
 function Loader() {
   const params = useSearchParams();
@@ -15,7 +16,7 @@ function Loader() {
   const nodes = useNodes();
   const concept = useLiveQuery(async () => (id ? ((await db.concepts.get(id)) ?? null) : null), [id]);
 
-  if (!nodes || concept === undefined) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || concept === undefined) return <LoadingScreen />;
   if (id && (!concept || concept.deletedAt)) {
     return (
       <p className="text-sm">
@@ -31,7 +32,7 @@ function Loader() {
 
 export default function ConceptPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<LoadingScreen />}>
       <Loader />
     </Suspense>
   );

@@ -62,11 +62,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
     .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
 
   const top = useRef<HTMLElement>(null);
-  const { page, pages, setPage, pageItems, pageSize } = usePagination(
-    visible,
-    `q:${selected?.id ?? "all"}`,
-    `${needle}|${activeKey ?? ""}`,
-  );
+  const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(visible);
   const goTo = (n: number) => {
     setPage(n);
     top.current?.scrollIntoView({ block: "start" });
@@ -93,6 +89,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
     if (!to || !to.trim() || to.trim() === from) return;
     await renameTag(Array.from(topicIds), from, to);
     setTagFilter(to.trim().toLowerCase());
+    reset();
   }
 
   const newHref = selected?.kind === "topic" ? `/editor?topic=${selected.id}` : "/editor";
@@ -112,7 +109,10 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           placeholder="Search questions, tags and references"
           aria-label="Search questions, tags and references"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            reset();
+          }}
         />
         <Link href={selected ? `/settings?scope=${selected.id}#backup` : "/settings#backup"} className="btn">
           Share pack
@@ -134,7 +134,10 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
               <button
                 key={key}
                 aria-pressed={activeKey === key}
-                onClick={() => setTagFilter(activeKey === key ? null : key)}
+                onClick={() => {
+                  setTagFilter(activeKey === key ? null : key);
+                  reset();
+                }}
                 className={`rounded px-2 py-0.5 text-sm ${
                   activeKey === key ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
                 }`}

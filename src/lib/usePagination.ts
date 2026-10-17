@@ -1,40 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 12;
 
 /**
- * Splits a list into pages. The page is remembered for this scope for the browser session, so coming back from
- * the editor lands on the same page. `resetKey` sends you back to page 1 when the search or tag filter changes.
+ * Splits a list into pages. The current page lives in the address (?page=3), so a refresh, the Back button, and
+ * a copied link all land on the same page. Page 1 is left out of the address to keep it clean.
+ * Call `reset` when a search or filter changes so you start again at page 1.
  */
-export function usePagination<T>(items: T[], scopeKey: string, resetKey: string) {
-  const storeKey = `ece:page:${scopeKey}`;
-  const [state, setState] = useState<{ page: number; resetKey: string }>(() => {
-    let saved = 1;
-    try {
-      saved = Number(sessionStorage.getItem(storeKey)) || 1;
-    } catch {
-      /* storage can be blocked, page 1 is fine */
-    }
-    return { page: saved, resetKey };
-  });
+export function usePagination<T>(items: T[]) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
 
-  // A changed search or filter starts over at page 1.
-  const current = state.resetKey === resetKey ? state.page : 1;
   const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const page = Math.min(Math.max(1, current), pages);
+  const wanted = Math.floor(Number(params.get("page"))) || 1;
+  const page = Math.min(Math.max(1, wanted), pages);
 
   const setPage = (n: number) => {
-    const next = Math.min(Math.max(1, n), pages);
-    setState({ page: next, resetKey });
-    try {
-      sessionStorage.setItem(storeKey, String(next));
-    } catch {
-      /* ignore */
-    }
+    const target = Math.min(Math.max(1, n), pages);
+    const next = new URLSearchParams(params.toString());
+    if (target <= 1) next.delete("page");
+    else next.set("page", String(target));
+    const text = next.toString();
+    router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
+  };
+
+  const reset = () => {
+    if (params.has("page")) setPage(1);
   };
 
   const start = (page - 1) * PAGE_SIZE;
-  return { page, pages, setPage, pageItems: items.slice(start, start + PAGE_SIZE), pageSize: PAGE_SIZE };
+  return { page, pages, setPage, reset, pageItems: items.slice(start, start + PAGE_SIZE), pageSize: PAGE_SIZE };
 }

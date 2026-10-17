@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import NewMockForm from "@/components/NewMockForm";
 import NewQuizForm from "@/components/NewQuizForm";
 import { useAttempts, useBlueprint, useNodes, useNow, useQuestions } from "@/lib/hooks";
+import LoadingScreen from "@/components/LoadingScreen";
 
 function Loader() {
   const id = useSearchParams().get("node");
@@ -15,8 +16,7 @@ function Loader() {
   const nowMs = useNow();
   const blueprint = useBlueprint(id);
 
-  if (!nodes || !questions || !attempts || blueprint === undefined)
-    return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || !questions || !attempts || blueprint === undefined) return <LoadingScreen />;
   const node = id ? nodes.find((n) => n.id === id) : undefined;
 
   if (!node) {
@@ -49,7 +49,7 @@ function Loader() {
 
 export default function NewQuizPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<LoadingScreen />}>
       <Loader />
     </Suspense>
   );

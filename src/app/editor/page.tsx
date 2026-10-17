@@ -7,6 +7,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import QuestionEditor from "@/components/QuestionEditor";
 import { db } from "@/lib/db";
 import { useNodes } from "@/lib/hooks";
+import LoadingScreen from "@/components/LoadingScreen";
 
 function EditorLoader() {
   const params = useSearchParams();
@@ -15,7 +16,7 @@ function EditorLoader() {
   const nodes = useNodes();
   const question = useLiveQuery(async () => (id ? ((await db.questions.get(id)) ?? null) : null), [id]);
 
-  if (!nodes || question === undefined) return <p className="text-sm text-muted">Loading…</p>;
+  if (!nodes || question === undefined) return <LoadingScreen />;
 
   if (id && (!question || question.deletedAt)) {
     return (
@@ -33,7 +34,7 @@ function EditorLoader() {
 
 export default function EditorPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<LoadingScreen />}>
       <EditorLoader />
     </Suspense>
   );

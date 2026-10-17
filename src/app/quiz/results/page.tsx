@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ResultsView from "@/components/ResultsView";
+import LoadingScreen from "@/components/LoadingScreen";
 
 function Loader() {
   const id = useSearchParams().get("id");
@@ -12,7 +13,7 @@ function Loader() {
 
 export default function ResultsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<LoadingScreen />}>
       <Loader />
     </Suspense>
   );

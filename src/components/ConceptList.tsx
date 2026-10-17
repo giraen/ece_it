@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Concept, DraftQuestion, TreeNode } from "@/lib/db";
 import { pathOf, subtreeOf } from "@/lib/tree";
+import { usePagination } from "@/lib/usePagination";
+import Pagination from "./Pagination";
 import { useKeyIds } from "@/lib/aiKeys";
 import { useProviders } from "@/lib/aiStore";
 import { draftCounts } from "@/lib/concepts";
@@ -74,7 +76,14 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
         c.tags.some((t) => t.toLowerCase().includes(needle)),
     )
     .filter((c) => filter === "all" || (filter === "drafted") === isDrafted(c.id))
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    // Newest created first. Editing a concept no longer moves it to the top.
+    .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
+  const top = useRef<HTMLElement>(null);
+  const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(visible);
+  const goTo = (n: number) => {
+    setPage(n);
+    top.current?.scrollIntoView({ block: "start" });
+  };
   const newHref = selected?.kind === "topic" ? `/concept?topic=${selected.id}` : "/concept";
 
   // Picks only mean something for concepts that still exist.
@@ -159,7 +168,7 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
   }
 
   return (
-    <section aria-label="Concepts">
+    <section aria-label="Concepts" ref={top} className="scroll-mt-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold">{selected ? pathOf(nodes, selected.id) : "All concepts"}</h1>
@@ -171,7 +180,10 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
           className="input w-44"
           aria-label="Show concepts"
           value={filter}
-          onChange={(e) => setFilter(e.target.value as Filter)}
+          onChange={(e) => {
+            setFilter(e.target.value as Filter);
+            reset();
+          }}
         >
           <option value="all">All concepts</option>
           <option value="new">Not drafted yet</option>
@@ -182,7 +194,10 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
           placeholder="Search concepts"
           aria-label="Search concepts"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            reset();
+          }}
         />
         <Link href={newHref} className="btn btn-primary">
           New concept
@@ -312,68 +327,72 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
             : "No concepts match here."}
         </p>
       ) : (
-        <ul className="divide-y divide-line rounded-md border border-line bg-surface">
-          {visible.map((c) => {
-            const open = reading.has(c.id);
-            const made = counts.get(c.id);
-            return (
-              <li key={c.id} className="px-3 py-3">
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1.5"
-                    aria-label={`Select ${c.title}`}
-                    checked={picked.has(c.id)}
-                    disabled={running}
-                    onChange={() => pick(c.id)}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">
-                      <RichText text={c.title} className="inline" />
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-muted">{pathOf(nodes, c.topicId)}</p>
-                    {!open && <p className="mt-1 line-clamp-2 text-sm text-muted">{excerpt(c.body)}</p>}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      {c.tags.map((t) => (
-                        <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
-                          {t}
-                        </span>
-                      ))}
-                      {made && made.pending + made.accepted > 0 ? (
-                        <span className="text-xs">
-                          <span className="font-medium text-muted">Drafted</span>
-                          {made.pending > 0 && (
-                            <span className="font-medium text-accent"> · {made.pending} to review</span>
-                          )}
-                          {made.accepted > 0 && <span className="text-muted"> · {made.accepted} accepted</span>}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted">Not drafted yet</span>
-                      )}
+        <div>
+          <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
+          <ul className="divide-y divide-line rounded-md border border-line bg-surface">
+            {pageItems.map((c) => {
+              const open = reading.has(c.id);
+              const made = counts.get(c.id);
+              return (
+                <li key={c.id} className="px-3 py-3">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="mt-1.5"
+                      aria-label={`Select ${c.title}`}
+                      checked={picked.has(c.id)}
+                      disabled={running}
+                      onChange={() => pick(c.id)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">
+                        <RichText text={c.title} className="inline" />
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted">{pathOf(nodes, c.topicId)}</p>
+                      {!open && <p className="mt-1 line-clamp-2 text-sm text-muted">{excerpt(c.body)}</p>}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        {c.tags.map((t) => (
+                          <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                            {t}
+                          </span>
+                        ))}
+                        {made && made.pending + made.accepted > 0 ? (
+                          <span className="text-xs">
+                            <span className="font-medium text-muted">Drafted</span>
+                            {made.pending > 0 && (
+                              <span className="font-medium text-accent"> · {made.pending} to review</span>
+                            )}
+                            {made.accepted > 0 && <span className="text-muted"> · {made.accepted} accepted</span>}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted">Not drafted yet</span>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      className="btn"
+                      aria-expanded={open}
+                      aria-label={`${open ? "Hide" : "Read"} ${c.title}`}
+                      onClick={() => toggle(c.id)}
+                    >
+                      {open ? "Hide" : "Read"}
+                    </button>
+                    <Link href={`/concept?id=${c.id}`} className="btn" aria-label={`Edit ${c.title}`}>
+                      Edit
+                    </Link>
                   </div>
-                  <button
-                    className="btn"
-                    aria-expanded={open}
-                    aria-label={`${open ? "Hide" : "Read"} ${c.title}`}
-                    onClick={() => toggle(c.id)}
-                  >
-                    {open ? "Hide" : "Read"}
-                  </button>
-                  <Link href={`/concept?id=${c.id}`} className="btn" aria-label={`Edit ${c.title}`}>
-                    Edit
-                  </Link>
-                </div>
-                {open && (
-                  <div className="mt-3 rounded-md border border-line border-l-4 border-l-accent bg-paper p-4">
-                    <RichText text={c.body} className="text-[15px] leading-relaxed" />
-                    <Reference text={c.reference} className="mt-3" />
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                  {open && (
+                    <div className="mt-3 rounded-md border border-line border-l-4 border-l-accent bg-paper p-4">
+                      <RichText text={c.body} className="text-[15px] leading-relaxed" />
+                      <Reference text={c.reference} className="mt-3" />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
+        </div>
       )}
     </section>
   );

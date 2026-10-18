@@ -3,13 +3,13 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
-import { setPriority } from "@/lib/priority";
-import { addTag, deleteQuestions, removeTag, renameTag } from "@/lib/questions";
+import { renameTag } from "@/lib/questions";
 import { pathOf, subtreeOf } from "@/lib/tree";
 import { usePagination } from "@/lib/usePagination";
 import Pagination from "./Pagination";
 import Reference from "./Reference";
 import RichText from "./RichText";
+import SelectionBar from "./SelectionBar";
 
 /** Pictures become a short marker, so a row stays compact. */
 function listText(stem: string): string {
@@ -26,7 +26,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [bulkTag, setBulkTag] = useState("");
   const [priorityOnly, setPriorityOnly] = useState(false);
 
   // Everything under the selected node, or the whole bank when nothing is selected.
@@ -180,44 +179,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         <p className="mb-3 text-sm text-muted">Pick a subject or topic to filter by tag.</p>
       )}
 
-      {pickedIds.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface p-2">
-          <span className="text-sm font-medium">{pickedIds.length} selected</span>
-          <input
-            className="input w-44"
-            placeholder="Tag name"
-            aria-label="Tag name for selected questions"
-            value={bulkTag}
-            onChange={(e) => setBulkTag(e.target.value)}
-          />
-          <button className="btn" disabled={!bulkTag.trim()} onClick={() => void addTag(pickedIds, bulkTag)}>
-            Add tag
-          </button>
-          <button className="btn" disabled={!bulkTag.trim()} onClick={() => void removeTag(pickedIds, bulkTag)}>
-            Remove tag
-          </button>
-          <button className="btn" onClick={() => void setPriority(pickedIds, true)}>
-            Mark priority
-          </button>
-          <button className="btn" onClick={() => void setPriority(pickedIds, false)}>
-            Clear priority
-          </button>
-          <button
-            className="btn btn-danger"
-            onClick={async () => {
-              if (!window.confirm(`Delete ${pickedIds.length} question${pickedIds.length === 1 ? "" : "s"}?`)) return;
-              await deleteQuestions(pickedIds);
-              setPicked(new Set());
-            }}
-          >
-            Delete
-          </button>
-          <button className="btn ml-auto" onClick={() => setPicked(new Set())}>
-            Clear selection
-          </button>
-        </div>
-      )}
-
       {visible.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">
           {inScope.length === 0
@@ -303,6 +264,14 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
         </div>
       )}
+
+      <SelectionBar
+        ids={pickedIds}
+        questions={questions}
+        visibleCount={visible.length}
+        onSelectAll={() => setPicked(new Set(visible.map((q) => q.id)))}
+        onClear={() => setPicked(new Set())}
+      />
     </section>
   );
 }

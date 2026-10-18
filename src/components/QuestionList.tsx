@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
 import { renameTag } from "@/lib/questions";
 import { pathOf, subtreeOf } from "@/lib/tree";
+import { hasAllTags, narrowedCounts, toggleTag } from "@/lib/tagFilter";
 import { usePagination } from "@/lib/usePagination";
 import Pagination from "./Pagination";
 import Reference from "./Reference";
@@ -24,7 +25,7 @@ interface Props {
 
 export default function QuestionList({ nodes, questions, selected }: Props) {
   const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [priorityOnly, setPriorityOnly] = useState(false);
 
@@ -46,8 +47,10 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   }
   // The tag row is only shown inside a subject or a topic, where the list of tags is short enough to use.
   const showTags = selected?.kind === "subject" || selected?.kind === "topic";
-  // A filter on a tag that is not in this view is ignored, so changing the selection cannot leave you with an empty list.
-  const activeKey = showTags && tagFilter && tagIndex.has(tagFilter) ? tagFilter : null;
+  // Tags that are not in this view are ignored, so changing the selection cannot leave you with an empty list.
+  const activeKeys = showTags ? tagFilter.filter((k) => tagIndex.has(k)) : [];
+  // With tags chosen, each tag shows how many questions you would get by adding it.
+  const narrowed = narrowedCounts(inScope, activeKeys);
 
   // The priority filter is ignored when nothing in view is a priority, so it can never leave you with an empty list.
   const priorityCount = inScope.filter((q) => q.priority).length;
@@ -56,7 +59,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const needle = search.trim().toLowerCase();
   const visible = inScope
     .filter((q) => !activePriority || q.priority)
-    .filter((q) => !activeKey || q.tags.some((t) => t.toLowerCase() === activeKey))
+    .filter((q) => hasAllTags(q.tags, activeKeys))
     .filter(
       (q) =>
         !needle ||
@@ -89,12 +92,12 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   }
 
   async function rename() {
-    if (!activeKey) return;
-    const from = tagIndex.get(activeKey)!.label;
+    if (activeKeys.length !== 1) return;
+    const from = tagIndex.get(activeKeys[0])!.label;
     const to = window.prompt(`Rename the tag "${from}" in this view to:`, from);
     if (!to || !to.trim() || to.trim() === from) return;
     await renameTag(Array.from(topicIds), from, to);
-    setTagFilter(to.trim().toLowerCase());
+    setTagFilter([to.trim().toLowerCase()]);
     reset();
   }
 
@@ -151,25 +154,45 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
               <span className={`text-sm text-muted ${priorityCount > 0 ? "ml-2" : ""}`}>Tags</span>
               {Array.from(tagIndex.entries())
                 .sort((a, b) => a[1].label.localeCompare(b[1].label))
-                .map(([key, v]) => (
-                  <button
-                    key={key}
-                    aria-pressed={activeKey === key}
-                    onClick={() => {
-                      setTagFilter(activeKey === key ? null : key);
-                      reset();
-                    }}
-                    className={`rounded px-2 py-0.5 text-sm ${
-                      activeKey === key ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
-                    }`}
-                  >
-                    {v.label} <span className="opacity-70">{v.count}</span>
-                  </button>
-                ))}
-              {activeKey && (
-                <button className="ml-1 text-sm underline underline-offset-2" onClick={() => void rename()}>
+                // Once a tag is chosen, tags that can no longer match anything are hidden, so the row gets shorter.
+                .filter(([key]) => activeKeys.length === 0 || activeKeys.includes(key) || narrowed.counts.has(key))
+                .map(([key, v]) => {
+                  const on = activeKeys.includes(key);
+                  const n = narrowed.counts.get(key) ?? 0;
+                  return (
+                    <button
+                      key={key}
+                      aria-pressed={on}
+                      onClick={() => {
+                        setTagFilter(toggleTag(activeKeys, key));
+                        reset();
+                      }}
+                      className={`rounded px-2 py-0.5 text-sm ${
+                        on ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
+                      }`}
+                    >
+                      {v.label} <span className="opacity-70">{on ? narrowed.shown : n}</span>
+                    </button>
+                  );
+                })}
+              {activeKeys.length > 0 && (
+                <button
+                  className="ml-1 text-sm underline underline-offset-2"
+                  onClick={() => {
+                    setTagFilter([]);
+                    reset();
+                  }}
+                >
+                  Clear tags
+                </button>
+              )}
+              {activeKeys.length === 1 && (
+                <button className="text-sm underline underline-offset-2" onClick={() => void rename()}>
                   Rename tag
                 </button>
+              )}
+              {activeKeys.length > 1 && (
+                <span className="text-xs text-muted">Questions with all {activeKeys.length}</span>
               )}
             </>
           )}

@@ -75,7 +75,7 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
       .sort((a, b) => (usage.counts.get(b[0]) ?? 0) - (usage.counts.get(a[0]) ?? 0) || a[1].localeCompare(b[1]))
       .map(([, label]) => label);
     const onAll = onSelected.filter((t) => t.count === n).map((t) => t.label);
-    return tagSections({ suggestions, value: onAll, draft, usage, topicScoped: false });
+    return tagSections({ suggestions, value: onAll, draft, usage, topicScoped: false, limit: 8, emptyLimit: 3 });
   }, [questions, usage, onSelected, n, draft]);
   const rows = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
 
@@ -347,6 +347,7 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
                         <span>
                           <Kbd>Esc</Kbd> close
                         </span>
+                        {!draft.trim() && <span className="ml-auto">Type to search all.</span>}
                       </p>
                     </div>
                   )}

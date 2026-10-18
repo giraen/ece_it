@@ -22,10 +22,15 @@
   --color-ink: #e7ecf2;
   --color-muted: #9aa7b6;
   --color-line: #2a3440;
-  --color-accent: #4c82e0;
+  --color-accent: #6b9be8;
   --color-accent-soft: #1a2a45;
   --color-danger: #f0877f;
   --color-good: #52c48f;
+}
+
+/* In dark mode the accent is a light blue, so the text on top of an accent fill has to be dark to stay readable. */
+:root[data-theme="dark"] .text-white {
+  color: var(--color-paper);
 }
 
 html {
@@ -202,7 +207,6 @@ html.theme-fade *::after {
     stroke 500ms ease-in-out !important;
 }
 
-
 /* ---------- Chart: the line draws itself from left to right, and each dot pops in as the line reaches it ---------- */
 @keyframes chart-draw {
   0% {
@@ -259,4 +263,15 @@ html.theme-fade *::after {
   vertical-align: text-bottom;
   background: var(--color-accent);
   animation: loading-caret 1s steps(1) infinite;
+}
+
+/* ---------- For people who turn animation off in their system settings ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

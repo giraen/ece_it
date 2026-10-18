@@ -220,7 +220,8 @@ export function planPackImport(
     const orders = siblingsOf(mappedParent);
     const order = orders.get(mappedParent) ?? 0;
     orders.set(mappedParent, order + 1);
-    putNodes.push({ ...p, parentId: mappedParent, order, deletedAt: undefined });
+    const parentIds = p.parentIds?.map((id) => idMap.get(id) ?? id);
+    putNodes.push({ ...p, parentId: mappedParent, ...(parentIds ? { parentIds } : {}), order, deletedAt: undefined });
     idMap.set(p.id, p.id);
     nodeCounts[p.kind].added++;
   }

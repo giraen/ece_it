@@ -107,7 +107,7 @@ function Row({
         )}
         {node.kind === "category" ? (
           <span className="flex gap-1.5">
-            <Link href={`/blueprint?category=${node.id}`} className="btn" aria-label={`Blueprint for ${node.name}`}>
+            <Link href={`/blueprint?category=${node.id}`} className="btn" aria-label={`${hasBlueprint ? "Blueprint" : "Set up blueprint"} for ${node.name}`}>
               {hasBlueprint ? "Blueprint" : "Set up blueprint"}
             </Link>
             {hasBlueprint && (

@@ -103,6 +103,7 @@ export async function POST(req: Request) {
       body: JSON.stringify(chat),
       signal: ctl.signal,
       cache: "no-store",
+      redirect: "manual",
     });
     // Pass the provider's answer straight through, with the key blanked out in case it was echoed back.
     const out = (await upstream.text()).split(key).join("***");

@@ -25,11 +25,12 @@ function buildItem(
   targetSec: number,
   shown: Shown,
   entry?: { id: string; name: string },
+  categoryId?: string,
 ): AttemptItem {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const topic = byId.get(q.topicId);
   const subject = topic?.parentId ? byId.get(topic.parentId) : undefined;
-  const category = subject?.parentId ? byId.get(subject.parentId) : undefined;
+  const category = (categoryId ? byId.get(categoryId) : undefined) ?? (subject?.parentId ? byId.get(subject.parentId) : undefined);
   return {
     questionId: q.id,
     type: q.type,
@@ -188,6 +189,7 @@ export async function startAttempt(
         targetSec,
         shownFor(p.question, comp, variantsOf.get(p.question.id) ?? [], counts.get(p.question.id), taken),
         p.entry,
+        scope.kind === "category" ? scope.id : undefined,
       ),
     ),
     createdAt: t,

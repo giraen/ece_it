@@ -11,6 +11,11 @@
   --color-accent-soft: #e4ecf7;
   --color-danger: #b3261e;
   --color-good: #1b7f4b;
+  /* Priority: a warm amber, so it stands out from the blue tags. */
+  --color-priority: #92400e;
+  --color-priority-soft: #fde68a;
+  --color-priority-solid: #fbbf24;
+  --color-on-priority: #1f1300;
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
 }
 
@@ -26,6 +31,8 @@
   --color-accent-soft: #1a2a45;
   --color-danger: #f0877f;
   --color-good: #52c48f;
+  --color-priority: #fcd34d;
+  --color-priority-soft: #3a2a08;
 }
 
 /* In dark mode the accent is a light blue, so the text on top of an accent fill has to be dark to stay readable. */

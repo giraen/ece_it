@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
-import { PRIORITY_REASONS, priorityShort, setPriority, type PriorityReason } from "@/lib/priority";
+import { setPriority } from "@/lib/priority";
 import { addTag, deleteQuestions, removeTag, renameTag } from "@/lib/questions";
 import { pathOf, subtreeOf } from "@/lib/tree";
 import { usePagination } from "@/lib/usePagination";
@@ -28,7 +28,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkTag, setBulkTag] = useState("");
   const [priorityOnly, setPriorityOnly] = useState(false);
-  const [bulkReason, setBulkReason] = useState<PriorityReason>("rc");
 
   // Everything under the selected node, or the whole bank when nothing is selected.
   const topicIds = new Set(
@@ -130,52 +129,55 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </Link>
       </div>
 
-      {priorityCount > 0 && (
+      {(priorityCount > 0 || (showTags && tagIndex.size > 0)) && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <button
-            aria-pressed={activePriority}
-            onClick={() => {
-              setPriorityOnly(!activePriority);
-              reset();
-            }}
-            className={`rounded px-2 py-0.5 text-sm ${
-              activePriority ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
-            }`}
-          >
-            Priority only <span className="opacity-70">{priorityCount}</span>
-          </button>
-        </div>
-      )}
-
-      {!showTags && tagIndex.size > 0 && (
-        <p className="mb-3 text-sm text-muted">Pick a subject or topic to filter by tag.</p>
-      )}
-      {showTags && tagIndex.size > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-sm text-muted">Tags</span>
-          {Array.from(tagIndex.entries())
-            .sort((a, b) => a[1].label.localeCompare(b[1].label))
-            .map(([key, v]) => (
-              <button
-                key={key}
-                aria-pressed={activeKey === key}
-                onClick={() => {
-                  setTagFilter(activeKey === key ? null : key);
-                  reset();
-                }}
-                className={`rounded px-2 py-0.5 text-sm ${
-                  activeKey === key ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
-                }`}
-              >
-                {v.label} <span className="opacity-70">{v.count}</span>
-              </button>
-            ))}
-          {activeKey && (
-            <button className="ml-1 text-sm underline underline-offset-2" onClick={() => void rename()}>
-              Rename tag
+          {priorityCount > 0 && (
+            <button
+              aria-pressed={activePriority}
+              onClick={() => {
+                setPriorityOnly(!activePriority);
+                reset();
+              }}
+              className={`rounded px-2 py-0.5 text-sm font-medium ${
+                activePriority
+                  ? "bg-priority-solid text-on-priority"
+                  : "bg-priority-soft text-priority hover:bg-priority-solid/60"
+              }`}
+            >
+              Priority <span className="opacity-70">{priorityCount}</span>
             </button>
           )}
+          {showTags && tagIndex.size > 0 && (
+            <>
+              <span className={`text-sm text-muted ${priorityCount > 0 ? "ml-2" : ""}`}>Tags</span>
+              {Array.from(tagIndex.entries())
+                .sort((a, b) => a[1].label.localeCompare(b[1].label))
+                .map(([key, v]) => (
+                  <button
+                    key={key}
+                    aria-pressed={activeKey === key}
+                    onClick={() => {
+                      setTagFilter(activeKey === key ? null : key);
+                      reset();
+                    }}
+                    className={`rounded px-2 py-0.5 text-sm ${
+                      activeKey === key ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
+                    }`}
+                  >
+                    {v.label} <span className="opacity-70">{v.count}</span>
+                  </button>
+                ))}
+              {activeKey && (
+                <button className="ml-1 text-sm underline underline-offset-2" onClick={() => void rename()}>
+                  Rename tag
+                </button>
+              )}
+            </>
+          )}
         </div>
+      )}
+      {!showTags && tagIndex.size > 0 && (
+        <p className="mb-3 text-sm text-muted">Pick a subject or topic to filter by tag.</p>
       )}
 
       {pickedIds.length > 0 && (
@@ -194,22 +196,10 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           <button className="btn" disabled={!bulkTag.trim()} onClick={() => void removeTag(pickedIds, bulkTag)}>
             Remove tag
           </button>
-          <select
-            className="input w-48"
-            aria-label="Priority reason for selected questions"
-            value={bulkReason}
-            onChange={(e) => setBulkReason(e.target.value as PriorityReason)}
-          >
-            {PRIORITY_REASONS.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-          <button className="btn" onClick={() => void setPriority(pickedIds, bulkReason)}>
+          <button className="btn" onClick={() => void setPriority(pickedIds, true)}>
             Mark priority
           </button>
-          <button className="btn" onClick={() => void setPriority(pickedIds, null)}>
+          <button className="btn" onClick={() => void setPriority(pickedIds, false)}>
             Clear priority
           </button>
           <button
@@ -286,8 +276,8 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                         </span>
                       )}
                       {q.priority && (
-                        <span className="mr-2 rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
-                          Priority · {priorityShort(q.priority)}
+                        <span className="mr-2 rounded bg-priority-soft px-1.5 py-0.5 text-[11px] font-medium text-priority">
+                          Priority
                         </span>
                       )}
                       {pathOf(nodes, q.topicId)}

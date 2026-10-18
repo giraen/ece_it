@@ -49,7 +49,7 @@ function buildItem(
     variantId: shown.variantId,
     entryId: entry?.id,
     entryName: entry?.name,
-    ...(q.priority ? { priority: q.priority } : {}),
+    ...(q.priority ? { priority: true } : {}),
     targetSec,
     confirmed: false,
     activeMs: 0,

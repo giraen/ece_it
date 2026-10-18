@@ -35,7 +35,6 @@ import {
 } from "@/lib/extractStore";
 import { childrenOf, pathOf } from "@/lib/tree";
 import { keepSourceOnly, useSources } from "@/lib/sources";
-import { PRIORITY_REASONS, type PriorityReason } from "@/lib/priority";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ImageTextarea from "./ImageTextarea";
 import InfoTip from "./InfoTip";
@@ -266,7 +265,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const [moveTo, setMoveTo] = useState<string | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
   const [reference, setReference] = useState("");
-  const [priority, setPriority] = useState<PriorityReason | "">("");
+  const [priority, setPriority] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [filter, setFilter] = useState<ExtractStatus | "all">("all");
@@ -468,22 +467,10 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
           <ReferenceInput id="extract-reference" value={reference} onChange={setReference} />
         </div>
         <div>
-          <label htmlFor="extract-priority" className="mb-1 block text-sm font-medium">
-            Priority (optional)
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} />
+            Priority
           </label>
-          <select
-            id="extract-priority"
-            className="input w-64"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as PriorityReason | "")}
-          >
-            <option value="">Not a priority</option>
-            {PRIORITY_REASONS.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
           <p className="mt-1 text-xs text-muted">
             Marks every question you read now, so quizzes pick them first. You can change it for any question later in
             the Bank.

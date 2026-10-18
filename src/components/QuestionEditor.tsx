@@ -15,7 +15,6 @@ import {
 } from "@/lib/computation";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
-import { PRIORITY_REASONS, type PriorityReason } from "@/lib/priority";
 import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
@@ -85,7 +84,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [reference, setReference] = useState(initial?.reference ?? "");
   const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
-  const [priority, setPriority] = useState<PriorityReason | "">(initial?.priority ?? "");
+  const [priority, setPriority] = useState(Boolean(initial?.priority));
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -401,30 +400,16 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
           />
         </div>
 
-        <div>
-          <div className="mb-1 flex items-center gap-1">
-            <label className="text-sm font-medium" htmlFor="question-priority">
-              Priority
-            </label>
-            <InfoTip>
-              Mark a question you want to see sooner, such as one from a review center quiz or a book. Quizzes pick
-              priority questions first within each topic. One you already got right waits behind new and missed
-              questions, so the same few do not fill every quiz. You can turn this off in Settings.
-            </InfoTip>
-          </div>
-          <select
-            id="question-priority"
-            className="input w-64"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as PriorityReason | "")}
-          >
-            <option value="">Not a priority</option>
-            {PRIORITY_REASONS.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-1">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} />
+            Priority
+          </label>
+          <InfoTip>
+            Mark a question you want to see sooner, such as one from a review center quiz or a book. Quizzes pick
+            priority questions first within each topic. One you already got right waits behind new and missed
+            questions, so the same few do not fill every quiz. You can turn this off in Settings.
+          </InfoTip>
         </div>
 
         <div className="flex items-center gap-1">

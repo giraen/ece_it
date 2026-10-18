@@ -1,5 +1,4 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { PriorityReason } from "./priority";
 
 /** How sure the user was when answering. */
 export type Sureness = "sure" | "not_sure" | "wise_guess" | "just_guessed";
@@ -78,8 +77,8 @@ export interface DraftQuestion {
   proposedTopic?: string;
   /** For pasted questions: tags to put on the question when it is added. */
   tags?: string[];
-  /** For pasted questions: the priority to give the question when it is added. */
-  priority?: PriorityReason;
+  /** For pasted questions: whether the question is a priority when it is added. */
+  priority?: boolean;
   provider: string;
   model: string;
   status: "pending" | "accepted" | "discarded";
@@ -175,8 +174,8 @@ export interface Question {
   repeats?: number;
   /** Whether AI-reworded versions of this question may be shown in quizzes. Missing means no. */
   allowAi?: boolean;
-  /** Marked to come up first in quizzes, and why. Missing means it is not a priority. */
-  priority?: PriorityReason;
+  /** Marked to come up first in quizzes. Missing means it is not a priority. */
+  priority?: boolean;
   difficulty?: number;
   targetSec?: number;
   createdAt: number;
@@ -235,7 +234,7 @@ export interface AttemptItem {
   entryId?: string;
   entryName?: string;
   /** Whether the question was a priority when the quiz started. */
-  priority?: PriorityReason;
+  priority?: boolean;
   targetSec: number;
   selectedChoiceId?: string;
   sureness?: Sureness;

@@ -8,7 +8,6 @@ import type { AttemptItem } from "@/lib/db";
 import { formatCountdown, formatDate, formatDateTime, formatDuration, formatPercent, formatRatio } from "@/lib/format";
 import { useAttempt, useAttempts, useConcepts, useNow } from "@/lib/hooks";
 import { expiryFor, masteryFor } from "@/lib/mastery";
-import { priorityShort } from "@/lib/priority";
 import { groupKeysFor } from "@/lib/quizPlan";
 import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/scoring";
 import RichText from "./RichText";
@@ -105,9 +104,7 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="font-medium">Question {number}</span>
         {item.priority && (
-          <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
-            Priority · {priorityShort(item.priority)}
-          </span>
+          <span className="rounded bg-priority-soft px-1.5 py-0.5 text-[11px] font-medium text-priority">Priority</span>
         )}
         <span className={`font-medium ${tone}`}>
           {item.answered ? (item.correct ? "Correct" : "Wrong") : "Not answered"}

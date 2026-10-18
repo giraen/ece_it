@@ -13,6 +13,12 @@ interface Props {
   suggestions: string[];
   /** The topic being edited. When given, the empty panel splits into "Used on this topic" and "Everything else". */
   topicId?: string | null;
+  /** Tag counts worked out once by the page, so many fields do not each read the whole bank. */
+  usage?: TagUsage;
+  /** The most suggestions to show while typing. */
+  limit?: number;
+  /** The most suggestions to show before anything is typed. */
+  emptyLimit?: number;
 }
 
 const EMPTY: TagUsage = { counts: new Map(), here: new Set() };
@@ -34,22 +40,23 @@ function Kbd({ children }: { children: string }) {
   return <kbd className="rounded border border-b-2 border-line bg-surface px-1 font-sans">{children}</kbd>;
 }
 
-export default function TagInput({ value, onChange, suggestions, topicId }: Props) {
+export default function TagInput({ value, onChange, suggestions, topicId, usage: given, limit, emptyLimit }: Props) {
   const [draft, setDraft] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
 
-  const usage =
+  const own =
     useLiveQuery(
-      async () => tagUsage(await db.questions.filter((q) => !q.deletedAt).toArray(), topicId ?? null),
-      [topicId],
+      async () => (given ? EMPTY : tagUsage(await db.questions.filter((q) => !q.deletedAt).toArray(), topicId ?? null)),
+      [topicId, !!given],
     ) ?? EMPTY;
+  const usage = given ?? own;
 
   const sections = useMemo(
-    () => tagSections({ suggestions, value, draft, usage, topicScoped: topicId !== undefined }),
-    [suggestions, value, draft, usage, topicId],
+    () => tagSections({ suggestions, value, draft, usage, topicScoped: topicId !== undefined, limit, emptyLimit }),
+    [suggestions, value, draft, usage, topicId, limit, emptyLimit],
   );
   const rows = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
   const showPanel = open && rows.length > 0;
@@ -221,6 +228,9 @@ export default function TagInput({ value, onChange, suggestions, topicId }: Prop
             <span>
               <Kbd>Esc</Kbd> close
             </span>
+            {emptyLimit !== undefined && !query && (
+              <span className="ml-auto">Top {emptyLimit}. Type to search all.</span>
+            )}
           </div>
         </div>
       )}

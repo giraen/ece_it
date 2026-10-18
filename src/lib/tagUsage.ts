@@ -46,6 +46,8 @@ interface SectionArgs {
   topicScoped: boolean;
   /** The most tag rows to show, so a very large bank stays quick. */
   limit?: number;
+  /** The most rows to show before anything is typed. Defaults to `limit`. */
+  emptyLimit?: number;
 }
 
 /**
@@ -53,7 +55,15 @@ interface SectionArgs {
  * With nothing typed: the topic's tags (most used first), then everything else. When typing: tags containing the
  * text, the ones that start with it first, and a "create" row unless the text is already a tag.
  */
-export function tagSections({ suggestions, value, draft, usage, topicScoped, limit = 40 }: SectionArgs): TagSection[] {
+export function tagSections({
+  suggestions,
+  value,
+  draft,
+  usage,
+  topicScoped,
+  limit = 40,
+  emptyLimit,
+}: SectionArgs): TagSection[] {
   const chosen = new Set(value.map(key));
   const seen = new Set<string>();
   const candidates: string[] = [];
@@ -79,17 +89,19 @@ export function tagSections({ suggestions, value, draft, usage, topicScoped, lim
     return sections;
   }
 
+  // With nothing typed, only the first few are shown. Typing searches all of them.
+  const cap = emptyLimit ?? limit;
   const here = topicScoped ? candidates.filter((t) => usage.here.has(key(t))) : [];
   if (here.length === 0) {
-    const all = candidates.slice(0, limit).map(row);
+    const all = candidates.slice(0, cap).map(row);
     return all.length ? [{ title: "Suggestions", rows: all }] : [];
   }
   const sorted = [...here].sort(
     (a, b) => (usage.counts.get(key(b)) ?? 0) - (usage.counts.get(key(a)) ?? 0) || a.localeCompare(b),
   );
   const others = candidates.filter((t) => !usage.here.has(key(t)));
-  const sections: TagSection[] = [{ title: "Used on this topic", rows: sorted.slice(0, limit).map(row) }];
-  const room = Math.max(0, limit - sections[0].rows.length);
+  const sections: TagSection[] = [{ title: "Used on this topic", rows: sorted.slice(0, cap).map(row) }];
+  const room = Math.max(0, cap - sections[0].rows.length);
   if (others.length && room > 0) sections.push({ title: "Everything else", rows: others.slice(0, room).map(row) });
   return sections;
 }

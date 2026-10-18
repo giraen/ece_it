@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DraftQuestion, TreeNode } from "@/lib/db";
 import { patchPasted, setPastedTopic } from "@/lib/extractStore";
 import { joinReference, sourceLabel, splitReference, type Source } from "@/lib/sources";
-import { bumpWhere } from "@/lib/where";
+import { bumpWhere, whereFromInput } from "@/lib/where";
 import TopicPicker from "./TopicPicker";
 
 export interface Toast {
@@ -121,7 +121,9 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
     if (!text || withSource.length === 0) return;
     const items = withSource.map(({ d, source }, k) => ({
       id: d.id,
-      patch: { reference: joinReference(sourceLabel(source), countUp ? bumpWhere(text, k) : text) },
+      patch: {
+        reference: joinReference(sourceLabel(source), whereFromInput(source.kind, countUp ? bumpWhere(text, k) : text)),
+      },
     }));
     setOpen(null);
     setWhere("");
@@ -229,7 +231,7 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
                       ref={field}
                       className="input"
                       aria-label="Where in the source, for the selected questions"
-                      placeholder="p. 143, Problem 5"
+                      placeholder="143"
                       value={where}
                       onChange={(e) => setWhere(e.target.value)}
                       onKeyDown={(e) => {

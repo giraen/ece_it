@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { Choice, DraftQuestion, TreeNode } from "@/lib/db";
+import type { Choice, DraftQuestion, Question, TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { useNodes, useQuestions, useTagSuggestions } from "@/lib/hooks";
+import { suggestTags } from "@/lib/questions";
+import { tagUsage, type TagUsage } from "@/lib/tagUsage";
 import { updateDraft } from "@/lib/concepts";
 import {
   STATUS_LABEL,
@@ -36,7 +38,7 @@ import {
 } from "@/lib/extractStore";
 import { childrenOf, pathOf } from "@/lib/tree";
 import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/sources";
-import { WHERE_LABEL } from "@/lib/where";
+import { WHERE_LABEL, whereForInput, whereFromInput } from "@/lib/where";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ExtractBar, { type Toast } from "./ExtractBar";
 import ImageTextarea from "./ImageTextarea";
@@ -51,7 +53,7 @@ import TopicPicker from "./TopicPicker";
 const MAX_CHOICES = 8;
 const letter = (i: number) => String.fromCharCode(65 + i);
 const SOURCE_HINT: Record<Source["kind"], string> = {
-  book: "p. 143, Problem 5",
+  book: "34",
   website: "section or heading",
   notes: "slide 12, week 3",
   other: "page, number, or section",
@@ -189,8 +191,11 @@ function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; wher
   const [focused, setFocused] = useState(false);
   const label = WHERE_LABEL[source.kind];
 
+  const shownWhere = whereForInput(source.kind, where);
+
   function commit() {
-    const next = text.trim();
+    // A bare number in a book's box is a page, so "34" is saved as "p. 34".
+    const next = whereFromInput(source.kind, text);
     if (next === where.trim()) return;
     void updateDraft(d.id, { reference: joinReference(sourceLabel(source), next) });
   }
@@ -203,9 +208,9 @@ function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; wher
         className="w-44 bg-transparent px-2 py-1 text-sm outline-none"
         aria-label={label}
         placeholder={SOURCE_HINT[source.kind]}
-        value={focused ? text : where}
+        value={focused ? text : shownWhere}
         onFocus={() => {
-          setText(where);
+          setText(shownWhere);
           setFocused(true);
         }}
         onChange={(e) => setText(e.target.value)}
@@ -264,9 +269,29 @@ function QuickRow({ d, sources }: { d: DraftQuestion; sources: Source[] }) {
   );
 }
 
-/** The tags a waiting question will get, edited the same way as in the question editor. */
-function CardTags({ d }: { d: DraftQuestion }) {
-  const suggestions = useTagSuggestions(d.topicId || null);
+/** What the tag boxes need for one topic, worked out once for the whole page instead of once per card. */
+type TagHelp = (topicId: string | null) => { suggestions: string[]; usage: TagUsage };
+
+function useTagHelp(questions: Question[] | undefined, topicIds: string[]): TagHelp {
+  const wanted = Array.from(new Set(topicIds)).sort().join("|");
+  return useMemo(() => {
+    const all = questions ?? [];
+    const build = (topicId: string | null) => ({
+      suggestions: suggestTags(all, topicId),
+      usage: tagUsage(all, topicId),
+    });
+    // One entry per topic that has a waiting question, so adding more cards of the same topic costs nothing.
+    const byTopic = new Map(wanted.split("|").map((t) => [t, build(t || null)] as const));
+    return (topicId) => byTopic.get(topicId ?? "") ?? build(topicId);
+  }, [questions, wanted]);
+}
+
+/**
+ * The tags a waiting question will get. Before anything is typed it offers only the top three, and typing
+ * searches them all, so a big bank of tags does not slow the page down.
+ */
+function CardTags({ d, help }: { d: DraftQuestion; help: TagHelp }) {
+  const { suggestions, usage } = help(d.topicId || null);
   return (
     <div className="space-y-1 text-xs">
       <p className="text-muted">Tags</p>
@@ -275,6 +300,9 @@ function CardTags({ d }: { d: DraftQuestion }) {
         onChange={(tags) => void setPastedTags(d.id, tags)}
         suggestions={suggestions}
         topicId={d.topicId || null}
+        usage={usage}
+        limit={8}
+        emptyLimit={3}
       />
     </div>
   );
@@ -352,6 +380,10 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const sources = useSources();
   const questions = useQuestions();
   const allTags = useTagSuggestions(null);
+  const tagHelp = useTagHelp(
+    questions,
+    pasted.map((d) => d.topicId),
+  );
   const [text, setText] = useState("");
   const [defaultTopic, setDefaultTopic] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -754,7 +786,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                         />
                       )}
                     </div>
-                    <CardTags d={d} />
+                    <CardTags d={d} help={tagHelp} />
                     {editing === d.id ? (
                       <Edit d={d} onDone={() => setEditing(null)} />
                     ) : (

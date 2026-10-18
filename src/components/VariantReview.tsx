@@ -178,7 +178,7 @@ export default function VariantReview({ question }: { question: Question }) {
           <h2 className="font-medium">AI variants of this question</h2>
           <InfoTip>
             {question.type === "computation"
-              ? "For a computation question the AI writes new wordings. The numbers and answers always come from your formulas."
+              ? "For a dynamic question the AI writes new wordings. The numbers and answers always come from your formulas."
               : "Each reworded version is checked by a second, blind answer before it can be used in a quiz."}{" "}
             Editing the question itself discards its variants, since they were written for the old version.
           </InfoTip>

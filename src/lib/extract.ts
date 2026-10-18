@@ -1,4 +1,5 @@
 import type { Choice, DraftQuestion, TreeNode } from "./db";
+import type { PriorityReason } from "./priority";
 import { newId } from "./ids";
 import { childrenOf } from "./tree";
 
@@ -251,6 +252,8 @@ export function toDrafts(
     /** Finds the topic a "Topic:" line names. */
     findTopic: (text: string) => string | null;
     reference: (own: string | null) => string;
+    /** Priority to give every question in the batch. */
+    priority?: PriorityReason;
     at: number;
   },
 ): DraftQuestion[] {
@@ -278,6 +281,7 @@ export function toDrafts(
       // A recommended topic that is not in the bank yet waits for you to check it.
       ...(p.topic && !named ? { proposedTopic: p.topic } : {}),
       ...(p.tags.length ? { tags: p.tags } : {}),
+      ...(opts.priority ? { priority: opts.priority } : {}),
       provider: "pasted",
       model: "",
       status: "pending" as const,

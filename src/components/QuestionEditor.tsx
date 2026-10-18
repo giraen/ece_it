@@ -15,6 +15,7 @@ import {
 } from "@/lib/computation";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
+import { PRIORITY_REASONS, type PriorityReason } from "@/lib/priority";
 import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
@@ -84,6 +85,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [reference, setReference] = useState(initial?.reference ?? "");
   const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
+  const [priority, setPriority] = useState<PriorityReason | "">(initial?.priority ?? "");
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -187,6 +189,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         // Left out when it is 1, so a question that never repeats looks the same as before.
         ...(Number(repeatsText) > 1 ? { repeats: Number(repeatsText) } : {}),
         allowAi,
+        priority: priority || undefined,
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
@@ -243,7 +246,10 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
                   <input type="radio" name="qtype" checked={type === "standard"} onChange={() => setType("standard")} />
                   Standard
                 </label>
-                <InfoTip>Fixed question and choices.</InfoTip>
+                <InfoTip>
+                  Fixed question and choices. Nothing changes. You can still write a calculation problem this way,
+                  because you type the numbers yourself.
+                </InfoTip>
               </div>
               <div className="flex items-center gap-1">
                 <label className="flex items-center gap-2">
@@ -253,7 +259,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
                     checked={type === "computation"}
                     onChange={() => setType("computation")}
                   />
-                  Computation
+                  Dynamic
                 </label>
                 <InfoTip>{COMPUTATION_TIP}</InfoTip>
               </div>
@@ -261,7 +267,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
           </fieldset>
         ) : (
           <div className="flex items-center gap-1 text-sm text-muted">
-            {type === "computation" ? "Computation question" : "Standard question"}
+            {type === "computation" ? "Dynamic question" : "Standard question"}
             <InfoTip>{type === "computation" ? COMPUTATION_TIP : "Fixed question and choices."}</InfoTip>
           </div>
         )}
@@ -333,7 +339,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               >
                 Add choice
               </button>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <SuggestWrong blocked={suggestBlock} count={emptyChoices.length} onSuggest={suggestChoices} />
               </div>
             </fieldset>
@@ -358,7 +364,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               circuits&rdquo;, and show up in your results. Press Enter or a comma to add one.
             </InfoTip>
           </div>
-          <TagInput value={tags} onChange={setTags} suggestions={suggestions} />
+          <TagInput value={tags} onChange={setTags} suggestions={suggestions} topicId={topicId} />
         </div>
 
         <div>
@@ -380,10 +386,10 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               Times it can appear in one quiz
             </label>
             <InfoTip>
-              Usually 1. Set it higher when a question should come up more than once in a quiz, such as a computation
+              Usually 1. Set it higher when a question should come up more than once in a quiz, such as a dynamic
               question you want to practise with different numbers each time. Each time it appears counts as its own
               question, so it adds to the quiz length and to the number of questions available. Copies are spread apart,
-              and a computation question gets different numbers every time. Mock boards always show a question once.
+              and a dynamic question gets different numbers every time. Mock boards always show a question once.
             </InfoTip>
           </div>
           <input
@@ -393,6 +399,32 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             value={repeatsText}
             onChange={(e) => setRepeatsText(e.target.value)}
           />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium" htmlFor="question-priority">
+              Priority
+            </label>
+            <InfoTip>
+              Mark a question you want to see sooner, such as one from a review center quiz or a book. Quizzes pick
+              priority questions first within each topic. One you already got right waits behind new and missed
+              questions, so the same few do not fill every quiz. You can turn this off in Settings.
+            </InfoTip>
+          </div>
+          <select
+            id="question-priority"
+            className="input w-64"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as PriorityReason | "")}
+          >
+            <option value="">Not a priority</option>
+            {PRIORITY_REASONS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex items-center gap-1">

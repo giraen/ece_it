@@ -27,12 +27,19 @@ type KeyFn = (q: Question) => string;
  * then the rest with the longest-unseen first. The input order (already shuffled) breaks ties.
  */
 function prefer(pool: Question[], history?: Map<string, History>): Question[] {
-  if (!history || history.size === 0) return pool;
+  const hasPriority = pool.some((q) => q.priority);
+  if ((!history || history.size === 0) && !hasPriority) return pool;
+  // Priority questions come first, but one you already got right waits behind anything new or missed,
+  // so the same few do not fill every quiz.
   const cls = (q: Question) => {
-    const h = history.get(q.id);
-    return h ? (h.wrong ? 0 : 2) : 1;
+    const h = history?.get(q.id);
+    const state = h ? (h.wrong ? "wrong" : "right") : "new";
+    if (q.priority && state !== "right") return state === "wrong" ? 0 : 1;
+    if (state === "wrong") return 2;
+    if (state === "new") return 3;
+    return q.priority ? 4 : 5;
   };
-  const seen = (q: Question) => history.get(q.id)?.lastSeen ?? 0;
+  const seen = (q: Question) => history?.get(q.id)?.lastSeen ?? 0;
   return [...pool].sort((a, b) => cls(a) - cls(b) || seen(a) - seen(b));
 }
 

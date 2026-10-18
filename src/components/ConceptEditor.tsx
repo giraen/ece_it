@@ -117,6 +117,7 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
               edited();
             }}
             suggestions={suggestions}
+            topicId={topicId}
           />
         </div>
 

@@ -4,6 +4,7 @@ import { db } from "./db";
 import { now } from "./ids";
 
 const KEY = "masteryBar";
+const PRIORITY_KEY = "priorityFirst";
 
 /** The lowest mastery bar that can be set, in whole percent. It has to be above the fixed minimum to pass. */
 export const MASTERY_BAR_MIN = Math.round(CONFIG.minimumPass * 100) + 1;
@@ -35,4 +36,19 @@ export async function saveMasteryBar(percent: number | string): Promise<boolean>
   if (pct === null) return false;
   await db.settings.put({ id: KEY, value: pct, updatedAt: now() });
   return true;
+}
+
+/** Whether quizzes put priority questions first. On unless it was turned off. */
+export async function loadPriorityFirst(): Promise<boolean> {
+  const row = await db.settings.get(PRIORITY_KEY);
+  return !(row && !row.deletedAt && row.value === false);
+}
+
+/** Whether quizzes put priority questions first, kept up to date. */
+export function usePriorityFirst(): boolean {
+  return useLiveQuery(() => loadPriorityFirst(), []) ?? true;
+}
+
+export async function savePriorityFirst(on: boolean): Promise<void> {
+  await db.settings.put({ id: PRIORITY_KEY, value: on, updatedAt: now() });
 }

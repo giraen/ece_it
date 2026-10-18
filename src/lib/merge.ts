@@ -143,10 +143,12 @@ export function contentKey(q: Question, topicId: string): string {
     topicId: _t,
     allowAi: _a,
     repeats: _r,
+    priority: _p,
     ...rest
   } = q as Question & Record<string, unknown>;
   void _a;
   void _r;
+  void _p;
   void _id;
   void _c;
   void _u;

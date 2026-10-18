@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
+import { PRIORITY_REASONS, priorityShort, setPriority, type PriorityReason } from "@/lib/priority";
 import { addTag, deleteQuestions, removeTag, renameTag } from "@/lib/questions";
 import { pathOf, subtreeOf } from "@/lib/tree";
 import { usePagination } from "@/lib/usePagination";
@@ -26,6 +27,8 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkTag, setBulkTag] = useState("");
+  const [priorityOnly, setPriorityOnly] = useState(false);
+  const [bulkReason, setBulkReason] = useState<PriorityReason>("rc");
 
   // Everything under the selected node, or the whole bank when nothing is selected.
   const topicIds = new Set(
@@ -48,8 +51,13 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   // A filter on a tag that is not in this view is ignored, so changing the selection cannot leave you with an empty list.
   const activeKey = showTags && tagFilter && tagIndex.has(tagFilter) ? tagFilter : null;
 
+  // The priority filter is ignored when nothing in view is a priority, so it can never leave you with an empty list.
+  const priorityCount = inScope.filter((q) => q.priority).length;
+  const activePriority = priorityOnly && priorityCount > 0;
+
   const needle = search.trim().toLowerCase();
   const visible = inScope
+    .filter((q) => !activePriority || q.priority)
     .filter((q) => !activeKey || q.tags.some((t) => t.toLowerCase() === activeKey))
     .filter(
       (q) =>
@@ -122,6 +130,23 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </Link>
       </div>
 
+      {priorityCount > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <button
+            aria-pressed={activePriority}
+            onClick={() => {
+              setPriorityOnly(!activePriority);
+              reset();
+            }}
+            className={`rounded px-2 py-0.5 text-sm ${
+              activePriority ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
+            }`}
+          >
+            Priority only <span className="opacity-70">{priorityCount}</span>
+          </button>
+        </div>
+      )}
+
       {!showTags && tagIndex.size > 0 && (
         <p className="mb-3 text-sm text-muted">Pick a subject or topic to filter by tag.</p>
       )}
@@ -169,6 +194,24 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           <button className="btn" disabled={!bulkTag.trim()} onClick={() => void removeTag(pickedIds, bulkTag)}>
             Remove tag
           </button>
+          <select
+            className="input w-48"
+            aria-label="Priority reason for selected questions"
+            value={bulkReason}
+            onChange={(e) => setBulkReason(e.target.value as PriorityReason)}
+          >
+            {PRIORITY_REASONS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <button className="btn" onClick={() => void setPriority(pickedIds, bulkReason)}>
+            Mark priority
+          </button>
+          <button className="btn" onClick={() => void setPriority(pickedIds, null)}>
+            Clear priority
+          </button>
           <button
             className="btn btn-danger"
             onClick={async () => {
@@ -189,7 +232,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">
           {inScope.length === 0
             ? "No questions here yet. Choose New question to write the first one."
-            : "No questions match the search or tag filter."}
+            : "No questions match the search or filters."}
         </p>
       ) : (
         <div>
@@ -239,7 +282,12 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {q.type === "computation" && (
                         <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink">
-                          Computation
+                          Dynamic
+                        </span>
+                      )}
+                      {q.priority && (
+                        <span className="mr-2 rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+                          Priority · {priorityShort(q.priority)}
                         </span>
                       )}
                       {pathOf(nodes, q.topicId)}

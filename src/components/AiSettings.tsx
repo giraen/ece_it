@@ -287,7 +287,7 @@ function Providers({ initial }: { initial: ProviderConfig[] }) {
                     checked={p.computationOnly}
                     onChange={(e) => patch(p.id, { computationOnly: e.target.checked })}
                   />
-                  Only for computation wordings
+                  Only for wordings of dynamic questions
                 </label>
                 {until > nowMs && (
                   <span className="text-danger">

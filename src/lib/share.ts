@@ -78,7 +78,12 @@ export function selectPackContent(
   );
   return {
     nodes: packNodes,
-    questions: packQuestions,
+    // Priority is a personal mark, so it stays out of a pack.
+    questions: packQuestions.map((q) => {
+      const { priority, ...rest } = q;
+      void priority;
+      return rest;
+    }),
     blueprints: packBlueprints,
     variants: packVariants,
     concepts: packConcepts,

@@ -25,7 +25,7 @@ const SECTIONS = [
   { id: "bank", label: "The Bank" },
   { id: "writing", label: "Writing questions" },
   { id: "maths", label: "Maths and formatting" },
-  { id: "computation", label: "Computation questions" },
+  { id: "computation", label: "Dynamic questions" },
   { id: "choices", label: "Choices and wrong answers" },
   { id: "sources", label: "References and sources" },
   { id: "concepts", label: "Concepts and AI drafts" },
@@ -167,11 +167,17 @@ export default function HelpPage() {
             <li>
               <strong>Times it can appear in one quiz</strong> is 1 unless you change it, and can go up to{" "}
               {CONFIG.maxRepeats}. Each appearance counts as its own question. Copies are spread apart in the quiz, and
-              a computation question gets different numbers every time. Mock boards always show a question once.
+              a dynamic question gets different numbers every time. Mock boards always show a question once.
             </li>
             <li>
               <strong>Allow AI to reword</strong> lets the AI helper write alternative wordings of the question. Nothing
               it writes is shown until it passes a check.
+            </li>
+            <li>
+              <strong>Priority</strong> marks a question you want to see sooner, such as one from a review center (RC)
+              quiz or a book. Quizzes pick priority questions first within each topic. A priority question you already
+              got right waits behind new and missed ones, so the same few do not fill every quiz. In the Bank, tick
+              several questions to mark them together. Turn the behaviour off in Settings under Preferences.
             </li>
             <li>
               <Btn>Save and add another</Btn> keeps the topic, the type, the tags, and the source, so a run of questions
@@ -204,11 +210,13 @@ export default function HelpPage() {
           </Points>
         </Section>
 
-        <Section id="computation" title="Computation questions">
+        <Section id="computation" title="Dynamic questions">
           <P>
-            A computation question is a recipe. Instead of one fixed question, you describe how to make many, and every
+            A dynamic question is a recipe. Instead of one fixed question, you describe how to make many, and every
             quiz rolls fresh numbers. The formula stays the same while the numbers change, which is what you want for
-            problem solving. Choose <Btn>Computation</Btn> as the type of question.
+            problem solving. Choose <Btn>Dynamic</Btn> as the type of question. A <Btn>Standard</Btn> question never
+            changes: you type the question and the choices yourself, and it can still be a calculation problem because
+            you type the numbers.
           </P>
           <Steps>
             <li>
@@ -257,7 +265,7 @@ export default function HelpPage() {
               <strong>Suggest wrong choices.</strong> Writing the question and the right answer is easy. Coming up with
               convincing wrong ones is not. Write the question, mark and fill in the correct choice, leave some choices
               empty, and press <Btn>Suggest wrong choices</Btn>. The AI fills the empty boxes with confusing, similar,
-              or wrong-method answers, which you can edit. For a computation question, it suggests formulas, and every
+              or wrong-method answers, which you can edit. For a dynamic question, it suggests formulas, and every
               one is checked to be a real, different answer before you see it. It needs the AI helper (see below).
             </li>
           </Points>
@@ -452,7 +460,7 @@ export default function HelpPage() {
           <Points>
             <li>
               In <Btn>Settings</Btn>, add a key for a provider. The page shows how to get a free key from Groq. You can
-              also use an in-browser model that needs no key, for computation work.
+              also use an in-browser model that needs no key, for dynamic questions.
             </li>
             <li>
               By default, keys are forgotten when you close the tab. Turn on “Remember my keys on this device” to keep
@@ -491,7 +499,7 @@ export default function HelpPage() {
               award mastery. Add questions, or ask for more.
             </li>
             <li>
-              <strong>A computation recipe will not save.</strong> Read the list above <Btn>Roll a preview</Btn>. It
+              <strong>A dynamic recipe will not save.</strong> Read the list above <Btn>Roll a preview</Btn>. It
               names the exact box that has a problem.
             </li>
             <li>

@@ -35,6 +35,7 @@ import {
 } from "@/lib/extractStore";
 import { childrenOf, pathOf } from "@/lib/tree";
 import { keepSourceOnly, useSources } from "@/lib/sources";
+import { PRIORITY_REASONS, type PriorityReason } from "@/lib/priority";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ImageTextarea from "./ImageTextarea";
 import InfoTip from "./InfoTip";
@@ -153,7 +154,7 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
         >
           Add choice
         </button>
-        <SuggestWrong blocked={block} count={emptyWrong.length} onSuggest={suggest} />
+        <SuggestWrong compact blocked={block} count={emptyWrong.length} onSuggest={suggest} />
       </div>
       <label className="block text-xs font-medium">
         Source
@@ -177,7 +178,12 @@ function CardTags({ d }: { d: DraftQuestion }) {
   return (
     <div className="space-y-1 text-xs">
       <p className="text-muted">Tags</p>
-      <TagInput value={d.tags ?? []} onChange={(tags) => void setPastedTags(d.id, tags)} suggestions={suggestions} />
+      <TagInput
+        value={d.tags ?? []}
+        onChange={(tags) => void setPastedTags(d.id, tags)}
+        suggestions={suggestions}
+        topicId={d.topicId || null}
+      />
     </div>
   );
 }
@@ -260,6 +266,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const [moveTo, setMoveTo] = useState<string | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
   const [reference, setReference] = useState("");
+  const [priority, setPriority] = useState<PriorityReason | "">("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [filter, setFilter] = useState<ExtractStatus | "all">("all");
@@ -297,6 +304,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       defaultTopicId: defaultTopic ?? "",
       findTopic: (t) => findTopic(entries, t),
       reference: (own) => combineReference(own, reference, sourceOnly),
+      priority: priority || undefined,
       at: now(),
     });
     await savePasted(drafts);
@@ -458,6 +466,28 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             Source
           </label>
           <ReferenceInput id="extract-reference" value={reference} onChange={setReference} />
+        </div>
+        <div>
+          <label htmlFor="extract-priority" className="mb-1 block text-sm font-medium">
+            Priority (optional)
+          </label>
+          <select
+            id="extract-priority"
+            className="input w-64"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as PriorityReason | "")}
+          >
+            <option value="">Not a priority</option>
+            {PRIORITY_REASONS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted">
+            Marks every question you read now, so quizzes pick them first. You can change it for any question later in
+            the Bank.
+          </p>
         </div>
         <button className="btn btn-primary" disabled={!text.trim()} onClick={() => void read()}>
           Read it

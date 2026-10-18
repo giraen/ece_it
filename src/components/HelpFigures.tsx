@@ -233,7 +233,7 @@ export function RollDemo() {
   }, [n]);
   return (
     <Figure
-      title="A computation question, rolled"
+      title="A dynamic question, rolled"
       live
       caption="This is one recipe. Each press makes a new question with new numbers, and the choices follow the numbers."
     >

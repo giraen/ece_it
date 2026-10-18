@@ -51,6 +51,7 @@ export async function acceptPasted(draftId: string): Promise<boolean> {
       correctChoiceId: d.correctChoiceId,
       tags: normalizeTags(d.tags ?? []),
       ...(d.reference?.trim() ? { reference: d.reference.trim() } : {}),
+      ...(d.priority ? { priority: d.priority } : {}),
       createdAt: t,
       updatedAt: t,
     });

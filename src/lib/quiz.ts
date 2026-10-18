@@ -4,7 +4,7 @@ import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, t
 import { formatCountdown } from "./format";
 import { newId, now } from "./ids";
 import { masteryFor } from "./mastery";
-import { loadMasteryBar } from "./preferences";
+import { loadMasteryBar, loadPriorityFirst } from "./preferences";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
 import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
 import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
@@ -49,6 +49,7 @@ function buildItem(
     variantId: shown.variantId,
     entryId: entry?.id,
     entryName: entry?.name,
+    ...(q.priority ? { priority: q.priority } : {}),
     targetSec,
     confirmed: false,
     activeMs: 0,
@@ -88,7 +89,7 @@ function shownFor(
   for (let again = 0; again < 30 && r.ok && taken?.has(`${q.id}|${JSON.stringify(r.rolled.values)}`); again++) {
     r = comp.rollQuestion(withFrames);
   }
-  if (!r.ok) throw new Error(`A computation question could not be generated. ${r.reason}`);
+  if (!r.ok) throw new Error(`A dynamic question could not be generated. ${r.reason}`);
   taken?.add(`${q.id}|${JSON.stringify(r.rolled.values)}`);
   return r.rolled;
 }
@@ -130,7 +131,16 @@ export async function startAttempt(
   // The formula engine is only loaded when there is a computation question to roll.
   const comp = everyQuestion.some((q) => q.type === "computation") ? await import("./computation") : null;
   // A computation recipe that cannot produce a question is left out rather than breaking the quiz.
-  const usable = comp ? everyQuestion.filter((q) => q.type !== "computation" || comp.isUsable(q)) : everyQuestion;
+  const playable = comp ? everyQuestion.filter((q) => q.type !== "computation" || comp.isUsable(q)) : everyQuestion;
+  // With "Priority questions first" turned off in Settings, every question is treated the same.
+  const priorityFirst = await loadPriorityFirst();
+  const usable = priorityFirst
+    ? playable
+    : playable.map((q) => {
+        const { priority, ...rest } = q;
+        void priority;
+        return rest;
+      });
 
   let picked: { question: Question; entry?: { id: string; name: string } }[];
   let eligibility: { eligible: boolean; reason?: string };

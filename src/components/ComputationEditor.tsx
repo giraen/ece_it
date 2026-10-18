@@ -548,7 +548,9 @@ export default function ComputationEditor({
         >
           Add choice
         </button>
-        <SuggestWrong blocked={suggestBlock} count={emptyChoices.length} onSuggest={suggestChoices} />
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <SuggestWrong blocked={suggestBlock} count={emptyChoices.length} onSuggest={suggestChoices} />
+        </div>
       </Block>
 
       <Block

@@ -14,10 +14,16 @@ interface Props {
   count: number;
   /** Asks the AI and puts what it wrote into the empty choices. Returns how many it filled. */
   onSuggest: (ask: Ask, count: number) => Promise<number>;
+  /** A shorter button, to sit level with other short buttons such as "Add choice" on the extract page. */
+  compact?: boolean;
 }
 
-/** A button under the choices that fills the empty ones with plausible wrong answers written by the AI. */
-export default function SuggestWrong({ blocked, count, onSuggest }: Props) {
+/**
+ * A button that fills the empty choices with plausible wrong answers written by the AI.
+ * Put it inside a wrapping flex row. The button and its hint share the first line, and the result message
+ * takes a full line of its own underneath, so it never pushes the buttons out of line.
+ */
+export default function SuggestWrong({ blocked, count, onSuggest, compact = false }: Props) {
   const providers = useProviders();
   const keyIds = useKeyIds();
   const [busy, setBusy] = useState(false);
@@ -46,38 +52,36 @@ export default function SuggestWrong({ blocked, count, onSuggest }: Props) {
   }
 
   return (
-    <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="btn"
-          disabled={busy || !canRun || blocked !== null}
-          onClick={() => void go()}
-          title={!canRun ? "Add an AI key first" : (blocked ?? undefined)}
-        >
-          {busy ? "Thinking…" : "Suggest wrong choices"}
-        </button>
-        {!canRun ? (
-          <span className="text-xs text-muted">
-            Add an AI key under{" "}
-            <Link href="/settings" className="underline">
-              Settings
-            </Link>{" "}
-            to use this.
-          </span>
-        ) : blocked ? (
-          <span className="text-xs text-muted">{blocked}</span>
-        ) : (
-          <span className="text-xs text-muted">
-            Fills the {count} empty choice{count === 1 ? "" : "s"} with plausible wrong answers.
-          </span>
-        )}
-      </div>
+    <>
+      <button
+        type="button"
+        className={compact ? "btn py-1" : "btn"}
+        disabled={busy || !canRun || blocked !== null}
+        onClick={() => void go()}
+        title={!canRun ? "Add an AI key first" : (blocked ?? undefined)}
+      >
+        {busy ? "Thinking…" : "Suggest wrong choices"}
+      </button>
+      {!canRun ? (
+        <span className="text-xs text-muted">
+          Add an AI key under{" "}
+          <Link href="/settings" className="underline">
+            Settings
+          </Link>{" "}
+          to use this.
+        </span>
+      ) : blocked ? (
+        <span className="text-xs text-muted">{blocked}</span>
+      ) : (
+        <span className="text-xs text-muted">
+          Fills the {count} empty choice{count === 1 ? "" : "s"} with plausible wrong answers.
+        </span>
+      )}
       {result && (result.ok || blocked === null) && (
-        <p role="status" className={`text-xs ${result.ok ? "text-muted" : "text-danger"}`}>
+        <p role="status" className={`basis-full text-xs ${result.ok ? "text-muted" : "text-danger"}`}>
           {result.text}
         </p>
       )}
-    </div>
+    </>
   );
 }

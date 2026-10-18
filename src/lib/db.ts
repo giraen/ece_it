@@ -79,6 +79,8 @@ export interface DraftQuestion {
   tags?: string[];
   /** For pasted questions: whether the question is a priority when it is added. */
   priority?: boolean;
+  /** For pasted questions: whether AI-reworded versions may be shown once the question is added. */
+  allowAi?: boolean;
   provider: string;
   model: string;
   status: "pending" | "accepted" | "discarded";

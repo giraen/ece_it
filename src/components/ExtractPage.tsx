@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Choice, DraftQuestion, TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
@@ -27,6 +27,7 @@ import {
   applyTopicToProposals,
   createTopicPath,
   discardPasted,
+  restorePasted,
   savePasted,
   setPastedTags,
   setPastedTopic,
@@ -34,8 +35,10 @@ import {
   usePasted,
 } from "@/lib/extractStore";
 import { childrenOf, pathOf } from "@/lib/tree";
-import { keepSourceOnly, useSources } from "@/lib/sources";
+import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/sources";
+import { WHERE_LABEL } from "@/lib/where";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
+import ExtractBar, { type Toast } from "./ExtractBar";
 import ImageTextarea from "./ImageTextarea";
 import InfoTip from "./InfoTip";
 import ReferenceInput from "./ReferenceInput";
@@ -47,6 +50,13 @@ import TopicPicker from "./TopicPicker";
 
 const MAX_CHOICES = 8;
 const letter = (i: number) => String.fromCharCode(65 + i);
+const SOURCE_HINT: Record<Source["kind"], string> = {
+  book: "p. 143, Problem 5",
+  website: "section or heading",
+  notes: "slide 12, week 3",
+  other: "page, number, or section",
+};
+const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 
 const SAMPLE = `Q: Which of the following lines is parallel to $3x - 2y + 6 = 0$?
 A. $3x + 2y - 12 = 0$
@@ -155,10 +165,12 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
         </button>
         <SuggestWrong compact blocked={block} count={emptyWrong.length} onSuggest={suggest} />
       </div>
-      <label className="block text-xs font-medium">
-        Source
-        <input className="input mt-1 w-full" value={reference} onChange={(e) => setReference(e.target.value)} />
-      </label>
+      <div>
+        <label htmlFor={`edit-ref-${d.id}`} className="mb-1 block text-xs font-medium">
+          Source
+        </label>
+        <ReferenceInput id={`edit-ref-${d.id}`} value={reference} onChange={setReference} />
+      </div>
       <div className="flex gap-2">
         <button className="btn btn-primary" onClick={() => void save()}>
           Save changes
@@ -167,6 +179,87 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/** The "where in it" box on a card. It saves when you leave the box or press Enter, and Enter moves to the next card. */
+function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; where: string }) {
+  const [text, setText] = useState(where);
+  const [focused, setFocused] = useState(false);
+  const label = WHERE_LABEL[source.kind];
+
+  function commit() {
+    const next = text.trim();
+    if (next === where.trim()) return;
+    void updateDraft(d.id, { reference: joinReference(sourceLabel(source), next) });
+  }
+
+  return (
+    <div className="flex items-center overflow-hidden rounded-md border border-line bg-surface focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
+      <span className="border-r border-line bg-paper px-2 py-1 text-xs whitespace-nowrap text-muted">{label}</span>
+      <input
+        data-where
+        className="w-44 bg-transparent px-2 py-1 text-sm outline-none"
+        aria-label={label}
+        placeholder={SOURCE_HINT[source.kind]}
+        value={focused ? text : where}
+        onFocus={() => {
+          setText(where);
+          setFocused(true);
+        }}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          commit();
+          setFocused(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const all = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-where]"));
+          const next = all[all.indexOf(e.currentTarget) + 1];
+          if (next) {
+            next.focus();
+            next.select();
+            next.scrollIntoView({ block: "center", behavior: "smooth" });
+          } else {
+            e.currentTarget.blur();
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+/** Where it came from, Priority, and AI reword, on the card itself so Edit is not needed. */
+function QuickRow({ d, sources }: { d: DraftQuestion; sources: Source[] }) {
+  const { source, where } = splitReference(d.reference ?? "", sources);
+  const chip = "rounded-full border px-3 py-0.5 text-[13px]";
+  return (
+    <div className="flex flex-wrap items-center gap-2.5 border-t border-dashed border-line pt-2.5">
+      {source ? (
+        <WhereBox d={d} source={source} where={where} />
+      ) : (
+        <span className="text-xs text-muted">No saved source, so no box for where. Pick one under Edit.</span>
+      )}
+      <button
+        type="button"
+        aria-pressed={!!d.priority}
+        className={`${chip} ${d.priority ? "border-transparent bg-priority-soft font-semibold text-priority" : "border-line text-muted hover:bg-paper"}`}
+        onClick={() => void updateDraft(d.id, { priority: d.priority ? undefined : true })}
+      >
+        {d.priority ? "★" : "☆"} Priority
+      </button>
+      <button
+        type="button"
+        aria-pressed={!!d.allowAi}
+        title="Lets quizzes show checked, AI-reworded versions of this question"
+        className={`${chip} ${d.allowAi ? "border-transparent bg-accent-soft font-semibold text-accent" : "border-line text-muted hover:bg-paper"}`}
+        onClick={() => void updateDraft(d.id, { allowAi: d.allowAi ? undefined : true })}
+      >
+        ✦ AI reword
+      </button>
+      {source && <span className="ml-auto text-xs text-muted">Enter goes to the next card</span>}
     </div>
   );
 }
@@ -262,17 +355,57 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const [text, setText] = useState("");
   const [defaultTopic, setDefaultTopic] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [moveTo, setMoveTo] = useState<string | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
   const [reference, setReference] = useState("");
   const [priority, setPriority] = useState(false);
+  const [allowAi, setAllowAi] = useState(false);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+  // Cards on their way out: first they slide to the right, then the ones below move up.
+  const [leaving, setLeaving] = useState<Record<string, { h: number; phase: "out" | "collapse" }>>({});
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [filter, setFilter] = useState<ExtractStatus | "all">("all");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
   if (!sources || !questions) return null;
+
+  function say(message: string, undo: () => Promise<void>) {
+    window.clearTimeout(toastTimer.current);
+    setToast({ message, undo });
+    toastTimer.current = window.setTimeout(() => setToast(null), 7000);
+  }
+
+  /** Slides the cards away, lets the rest move up, and only then makes the change. */
+  async function leave(ids: string[], run: () => Promise<void>) {
+    const start: Record<string, { h: number; phase: "out" | "collapse" }> = {};
+    for (const id of ids) {
+      const el = document.getElementById(`pasted-${id}`);
+      if (el) start[id] = { h: el.offsetHeight, phase: "out" };
+    }
+    if (Object.keys(start).length === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      await run();
+      return;
+    }
+    setLeaving(start);
+    await sleep(170);
+    setLeaving((cur) => Object.fromEntries(Object.entries(cur).map(([k, v]) => [k, { ...v, phase: "collapse" }])));
+    await sleep(260);
+    await run();
+    // The list updates a moment after the change, so the cards stay hidden until they are gone.
+    window.setTimeout(() => setLeaving({}), 300);
+  }
+
+  function discardWithUndo(ids: string[]) {
+    void leave(ids, async () => {
+      await discardPasted(ids);
+      setSelected((cur) => cur.filter((x) => !ids.includes(x)));
+      say(`${ids.length} question${ids.length === 1 ? "" : "s"} discarded`, () => restorePasted(ids));
+    });
+  }
 
   const entries = topicEntries(nodes);
   const instructions = instructionsWithTopics(nodes, allTags);
@@ -304,6 +437,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       findTopic: (t) => findTopic(entries, t),
       reference: (own) => combineReference(own, reference, sourceOnly),
       priority: priority || undefined,
+      allowAi: allowAi || undefined,
       at: now(),
     });
     await savePasted(drafts);
@@ -318,16 +452,6 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
 
   async function addOne(d: DraftQuestion) {
     await acceptPasted(d.id);
-  }
-
-  async function moveSelected() {
-    if (!moveTo || chosen.length === 0) return;
-    await setPastedTopic(chosen, moveTo);
-    setMessage({
-      ok: true,
-      text: `Moved ${chosen.length} question${chosen.length === 1 ? "" : "s"} to ${pathOf(nodes, moveTo)}.`,
-    });
-    setSelected([]);
   }
 
   const creatable = Array.from(
@@ -424,7 +548,10 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               <li>The Answer line is optional. You can mark the answer here instead.</li>
               <li>The choices are optional. If you give only an answer, you add the wrong choices here.</li>
               <li>An answer key at the end, such as “Answers: 1.B 2.C 3.A”, is matched by number.</li>
-              <li>There is no source unless you pick one below. A Ref line, if you add one, is added to it.</li>
+              <li>
+                There is no source unless you pick one below. A Ref line, such as “Ref: p. 143”, is added to it. Claude
+                adds one only when the page shows where the question is.
+              </li>
               <li>
                 The Topic line, such as “Topic: ELEX &gt; Circuits &gt; Basics”, puts that question in its own topic.
                 Claude recommends one for each question. If it is not in your bank yet, you can edit it and create it,
@@ -474,6 +601,16 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
           <p className="mt-1 text-xs text-muted">
             Marks every question you read now, so quizzes pick them first. You can change it for any question later in
             the Bank.
+          </p>
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={allowAi} onChange={(e) => setAllowAi(e.target.checked)} />
+            Allow AI to reword
+          </label>
+          <p className="mt-1 text-xs text-muted">
+            Lets quizzes show checked, AI-reworded versions of every question you read now. You can change it for any
+            question below or in the Bank.
           </p>
         </div>
         <button className="btn btn-primary" disabled={!text.trim()} onClick={() => void read()}>
@@ -543,25 +680,36 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               </label>
               {chosen.length > 0 && <span className="text-muted">{chosen.length} selected</span>}
             </div>
-            {chosen.length > 0 && (
-              <div
-                className="space-y-2 rounded-md border border-line bg-paper p-3"
-                role="group"
-                aria-label="Move selected"
-              >
-                <p className="text-sm font-medium">Move the selected questions to</p>
-                <TopicPicker nodes={nodes} value={moveTo} onChange={setMoveTo} />
-                <button className="btn btn-primary py-1" disabled={!moveTo} onClick={() => void moveSelected()}>
-                  Move {chosen.length}
-                </button>
-              </div>
-            )}
-            <ul className="space-y-2">
+            <ul>
               {shown.map(({ d, status }, i) => {
                 const warnings = extractWarnings(d);
                 const dup = isDuplicate(d);
+                const lv = leaving[d.id];
+                const collapsing = lv?.phase === "collapse";
                 return (
-                  <li key={d.id} className="space-y-2 rounded-md border border-line bg-surface p-3">
+                  <li
+                    key={d.id}
+                    id={`pasted-${d.id}`}
+                    style={
+                      lv
+                        ? {
+                            height: collapsing ? 0 : lv.h,
+                            ...(collapsing
+                              ? {
+                                  marginBottom: 0,
+                                  paddingTop: 0,
+                                  paddingBottom: 0,
+                                  borderTopWidth: 0,
+                                  borderBottomWidth: 0,
+                                }
+                              : {}),
+                          }
+                        : undefined
+                    }
+                    className={`mb-2 space-y-2 rounded-md border bg-surface p-3 transition-[transform,opacity,height,margin,padding,border-width] duration-200 motion-reduce:transition-none ${
+                      chosen.includes(d.id) ? "border-accent ring-2 ring-accent/25" : "border-line"
+                    } ${lv ? "translate-x-16 overflow-hidden opacity-0" : ""}`}
+                  >
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <input
                         type="checkbox"
@@ -649,19 +797,20 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                           </p>
                         ))}
                         {d.note && <p className="text-xs text-muted">{d.note}</p>}
+                        <QuickRow d={d} sources={sources} />
                         <div className="flex gap-2">
                           <button
                             className="btn btn-primary py-1"
                             disabled={status !== "ready"}
                             title={status !== "ready" ? "Finish this question first" : undefined}
-                            onClick={() => void addOne(d)}
+                            onClick={() => void leave([d.id], () => addOne(d))}
                           >
                             Add to the question bank
                           </button>
                           <button className="btn py-1" onClick={() => setEditing(d.id)}>
                             Edit
                           </button>
-                          <button className="btn btn-danger py-1" onClick={() => void discardPasted([d.id])}>
+                          <button className="btn btn-danger py-1" onClick={() => discardWithUndo([d.id])}>
                             Discard
                           </button>
                         </div>
@@ -673,6 +822,16 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             </ul>
           </>
         )}
+        <ExtractBar
+          chosen={rows.filter((r) => chosen.includes(r.d.id)).map((r) => r.d)}
+          sources={sources}
+          nodes={nodes}
+          onDiscard={discardWithUndo}
+          onClear={() => setSelected([])}
+          say={say}
+          toast={toast}
+          onToastDone={() => setToast(null)}
+        />
         <p className="text-xs text-muted">
           Added questions are in the{" "}
           <Link href="/bank" className="underline">

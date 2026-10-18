@@ -52,6 +52,7 @@ export async function acceptPasted(draftId: string): Promise<boolean> {
       tags: normalizeTags(d.tags ?? []),
       ...(d.reference?.trim() ? { reference: d.reference.trim() } : {}),
       ...(d.priority ? { priority: d.priority } : {}),
+      ...(d.allowAi ? { allowAi: true } : {}),
       createdAt: t,
       updatedAt: t,
     });
@@ -121,5 +122,25 @@ export async function applyTopicToProposals(text: string, topicId: string): Prom
       .toArray();
     for (const d of hit) await db.drafts.update(d.id, { topicId, proposedTopic: undefined, updatedAt: t });
     return hit.length;
+  });
+}
+
+/** Puts discarded pasted questions back among the waiting ones. */
+export async function restorePasted(ids: string[]): Promise<void> {
+  const t = now();
+  await db.transaction("rw", db.drafts, async () => {
+    for (const id of ids) {
+      const d = await db.drafts.get(id);
+      if (d && d.status === "discarded")
+        await db.drafts.update(id, { status: "pending", note: undefined, updatedAt: t });
+    }
+  });
+}
+
+/** Changes fields on several waiting questions at once. A field set to undefined is taken off. */
+export async function patchPasted(items: { id: string; patch: Partial<DraftQuestion> }[]): Promise<void> {
+  const t = now();
+  await db.transaction("rw", db.drafts, async () => {
+    for (const { id, patch } of items) await db.drafts.update(id, { ...patch, updatedAt: t });
   });
 }

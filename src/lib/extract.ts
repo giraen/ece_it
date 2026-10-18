@@ -253,6 +253,8 @@ export function toDrafts(
     reference: (own: string | null) => string;
     /** Whether every question in the batch is a priority. */
     priority?: boolean;
+    /** Whether AI-reworded versions of every question in the batch may be shown. */
+    allowAi?: boolean;
     at: number;
   },
 ): DraftQuestion[] {
@@ -281,6 +283,7 @@ export function toDrafts(
       ...(p.topic && !named ? { proposedTopic: p.topic } : {}),
       ...(p.tags.length ? { tags: p.tags } : {}),
       ...(opts.priority ? { priority: opts.priority } : {}),
+      ...(opts.allowAi ? { allowAi: true } : {}),
       provider: "pasted",
       model: "",
       status: "pending" as const,
@@ -415,7 +418,7 @@ Rules:
 - Keep the choices in the order given and keep their letters.
 - If the file has an answer key, put "Answer: " and the letter after each question. If it has no key, leave the Answer line out. Do not guess the answers unless I ask you to.
 - If a question has no choices, leave the choice lines out, and give "Answer: " followed by the answer itself.
-- Do not add a Ref line. I add the source myself.
+- Add a Ref line only when the page itself shows where the question is, such as "Ref: p. 143". Use the page or problem number printed on the page, not the position in the file. If nothing is printed, leave the Ref line out and never guess. Do not put the book's title in it, because I add the source myself.
 - Add a Topic line to every question, written as Category > Subject > Topic. Use one of my categories. If a topic from my list fits, copy it exactly. If none fits, recommend a new Subject and Topic yourself. I will check your recommendation and can change it. A file can cover several topics, so choose for each question on its own.
 - Add a Tags line to a question only when a tag would help me find it later, such as the kind of problem or the method it needs. Give one to three short tags separated by commas. Reuse a tag from my list when one fits, and leave the line out otherwise.
 - If a question depends on a figure or picture, end its text with [figure].

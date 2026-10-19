@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { ensureCategories } from "@/lib/categories";
 import { usePathname } from "next/navigation";
+import DialogHost from "./DialogHost";
 import Logo from "./Logo";
 import ProfileMenu from "./ProfileMenu";
 import ThemeToggle from "./ThemeToggle";
@@ -69,6 +70,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6 max-lg:hidden">{children}</main>
+      <DialogHost />
     </>
   );
 }

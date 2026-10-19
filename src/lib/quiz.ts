@@ -1,10 +1,12 @@
 import { composeBlueprintQuiz } from "./blueprint";
-import { composeQuiz, historyFrom, separateCopies, shuffle } from "./compose";
+import { composeQuiz, historyFrom, separateCopies, shuffle, type SourceMix } from "./compose";
 import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
 import { formatCountdown } from "./format";
 import { newId, now } from "./ids";
 import { masteryFor } from "./mastery";
 import { loadMasteryBar, loadPriorityFirst } from "./preferences";
+import { loadSourceMix, tierOfReference } from "./sourceMix";
+import { loadSources } from "./sources";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
 import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
 import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
@@ -142,6 +144,11 @@ export async function startAttempt(
         return rest;
       });
 
+  // The kinds of source are mixed by the weights set in Settings. A question's kind comes from its reference.
+  const sourceList = await loadSources();
+  const tiers = new Map(usable.map((q) => [q.id, tierOfReference(q.reference, sourceList)] as const));
+  const mix: SourceMix = { tierOf: (q) => tiers.get(q.id) ?? "other", weights: await loadSourceMix() };
+
   let picked: { question: Question; entry?: { id: string; name: string } }[];
   let eligibility: { eligible: boolean; reason?: string };
   let minutes: number;
@@ -150,7 +157,7 @@ export async function startAttempt(
   if (scope.kind === "category") {
     const blueprint = await db.blueprints.get(scope.id);
     if (!blueprint || blueprint.deletedAt) throw new Error("Set up a blueprint for this category first.");
-    const bq = composeBlueprintQuiz({ nodes, questions: usable, blueprint, history });
+    const bq = composeBlueprintQuiz({ nodes, questions: usable, blueprint, history, mix })
     if (bq.picks.length === 0) throw new Error("There are no questions to quiz on here yet.");
     picked = bq.picks.map((p) => ({ question: p.question, entry: { id: p.entryId, name: p.entryName } }));
     eligibility = { eligible: bq.eligible, reason: bq.reason };
@@ -166,7 +173,7 @@ export async function startAttempt(
     const plan = planFor(scope.kind, pool.length);
     const problem = itemsProblem(plan, items);
     if (problem) throw new Error(problem);
-    const chosen = separateCopies(composeQuiz({ nodes, questions: pool, scope, length: items, history }));
+    const chosen = separateCopies(composeQuiz({ nodes, questions: pool, scope, length: items, history, mix }));
     if (chosen.length === 0) throw new Error("There are no questions to quiz on here yet.");
     picked = chosen.map((question) => ({ question }));
     eligibility = masteryEligibility(plan, chosen, pool);

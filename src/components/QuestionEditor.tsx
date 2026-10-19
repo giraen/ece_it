@@ -363,7 +363,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               circuits&rdquo;, and show up in your results. Press Enter or a comma to add one.
             </InfoTip>
           </div>
-          <TagInput value={tags} onChange={setTags} suggestions={suggestions} topicId={topicId} />
+          <TagInput value={tags} onChange={setTags} suggestions={suggestions} topicId={topicId} limit={8} emptyLimit={3} />
         </div>
 
         <div>

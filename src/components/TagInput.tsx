@@ -228,9 +228,6 @@ export default function TagInput({ value, onChange, suggestions, topicId, usage:
             <span>
               <Kbd>Esc</Kbd> close
             </span>
-            {emptyLimit !== undefined && !query && (
-              <span className="ml-auto">Top {emptyLimit}. Type to search all.</span>
-            )}
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { CONFIG } from "./config";
-import { composeQuiz, shuffle, type History, type Rand } from "./compose";
+import { composeQuiz, shuffle, type History, type Rand, type SourceMix } from "./compose";
 import type { Blueprint, Question, TreeNode } from "./db";
 import { pathOf, subtreeOf } from "./tree";
 
@@ -71,12 +71,14 @@ export function composeBlueprintQuiz({
   blueprint,
   rand = Math.random,
   history,
+  mix,
 }: {
   nodes: TreeNode[];
   questions: Question[];
   blueprint: Blueprint;
   rand?: Rand;
   history?: Map<string, History>;
+  mix?: SourceMix;
 }): BlueprintQuiz {
   const wanted = allocate(
     blueprint.totalItems,
@@ -99,7 +101,7 @@ export function composeBlueprintQuiz({
         .map((n) => n.id),
     );
     const pool = questions.filter((q) => !q.deletedAt && topicIds.has(q.topicId) && !used.has(q.id));
-    const chosen = composeQuiz({ nodes, questions: pool, scope: node, length: wanted[i], rand, history });
+    const chosen = composeQuiz({ nodes, questions: pool, scope: node, length: wanted[i], rand, history, mix });
     for (const q of chosen) {
       used.add(q.id);
       picks.push({ question: q, entryId: entry.id, entryName: label });

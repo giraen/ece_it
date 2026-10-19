@@ -1,12 +1,7 @@
 import type { Source } from "./sources";
 
-/** What the "where in it" box is called for each kind of source. */
-export const WHERE_LABEL: Record<Source["kind"], string> = {
-  book: "Page",
-  website: "Section",
-  notes: "Slide / week",
-  other: "Where",
-};
+/** Only a book has a "where in it" to type, which is its page. Past quizzes, websites and videos have none. */
+export const hasWhere = (kind: Source["kind"]): boolean => kind === "book";
 
 /**
  * Counts up the first number in a "where" text, so one start such as "p. 143" can run through a row of questions:

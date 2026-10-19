@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Options } from "react-markdown";
 import remarkMath from "remark-math";
 import remarkGfm from "remark-gfm";
@@ -89,7 +89,7 @@ const IMAGE = /!\[([^\]]*)\]\(img:([0-9a-f]+)\)/g;
  * Markdown with LaTeX ($...$ and $$...$$) and bank images (![](img:id)).
  * Pictures are always shown under the text, wherever they were placed in the box.
  */
-export default function RichText({ text, className = "" }: { text: string; className?: string }) {
+function RichTextBody({ text, className = "" }: { text: string; className?: string }) {
   const pictures = Array.from(text.matchAll(IMAGE), (m) => ({ alt: m[1], id: m[2] }));
   const body = text.replace(IMAGE, "").trim();
 
@@ -115,3 +115,6 @@ export default function RichText({ text, className = "" }: { text: string; class
     </div>
   );
 }
+
+/** Remembered by its text, so a page with many questions does not redraw all their math on every click. */
+export default memo(RichTextBody);

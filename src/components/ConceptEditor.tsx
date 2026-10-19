@@ -118,6 +118,8 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
             }}
             suggestions={suggestions}
             topicId={topicId}
+            limit={8}
+            emptyLimit={3}
           />
         </div>
 

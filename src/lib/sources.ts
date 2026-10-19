@@ -2,10 +2,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "./db";
 import { newId, now } from "./ids";
 
-/** A book, website or set of notes that questions and concepts come from. Kept once, picked many times. */
+/**
+ * A past quiz, book, website or video that questions and concepts come from. Kept once, picked many times.
+ * "other" is only for sources saved before the kinds were narrowed. It cannot be chosen for a new one.
+ */
 export interface Source {
   id: string;
-  kind: "book" | "website" | "notes" | "other";
+  kind: "quiz" | "book" | "website" | "video" | "other";
   title: string;
   authors: string;
   edition: string;
@@ -15,12 +18,24 @@ export interface Source {
   createdAt: number;
 }
 
-export const SOURCE_KINDS: { kind: Source["kind"]; label: string; where: string }[] = [
-  { kind: "book", label: "Book", where: "p. 143, Problem 5" },
-  { kind: "website", label: "Website", where: "section or heading" },
-  { kind: "notes", label: "Notes or lecture", where: "slide 12, week 3" },
-  { kind: "other", label: "Other", where: "page, number, or section" },
+/** The kinds a source can be made as, in the order they are listed. */
+export const SOURCE_KINDS: { kind: Exclude<Source["kind"], "other">; label: string; plural: string }[] = [
+  { kind: "quiz", label: "Past quiz", plural: "Past quizzes" },
+  { kind: "book", label: "Book", plural: "Books" },
+  { kind: "website", label: "Website", plural: "Websites" },
+  { kind: "video", label: "Video", plural: "Videos" },
 ];
+
+/** Every kind with its names, including the old "other", so a saved source always has a heading. */
+export const KIND_NAMES: Record<Source["kind"], { label: string; plural: string }> = {
+  quiz: { label: "Past quiz", plural: "Past quizzes" },
+  book: { label: "Book", plural: "Books" },
+  website: { label: "Website", plural: "Websites" },
+  video: { label: "Video", plural: "Videos" },
+  other: { label: "Other", plural: "Other" },
+};
+
+const KINDS: Source["kind"][] = ["quiz", "book", "website", "video", "other"];
 
 const KEY = "sources";
 
@@ -31,9 +46,8 @@ function clean(v: unknown): Source[] {
     .filter((s): s is Record<string, unknown> => !!s && typeof s === "object" && typeof (s as Source).id === "string")
     .map((s) => ({
       id: String(s.id),
-      kind: (["book", "website", "notes", "other"] as const).includes(s.kind as Source["kind"])
-        ? (s.kind as Source["kind"])
-        : "other",
+      // Notes and anything unknown from before become "other".
+      kind: KINDS.includes(s.kind as Source["kind"]) ? (s.kind as Source["kind"]) : "other",
       title: str(s.title),
       authors: str(s.authors),
       edition: str(s.edition),
@@ -118,4 +132,96 @@ export function splitReference(reference: string, sources: Source[]): { source: 
 export function keepSourceOnly(reference: string, sources: Source[]): string {
   const { source } = splitReference(reference, sources);
   return source ? sourceLabel(source) : reference;
+}
+
+/** True when a stored reference belongs to this source, using the longest matching label so similar names stay apart. */
+function usesSource(reference: string | undefined, source: Source, all: Source[]): boolean {
+  return !!reference && splitReference(reference, all).source?.id === source.id;
+}
+
+/** How many questions use each saved source, by its id. */
+export function countSourceUse(references: (string | undefined)[], sources: Source[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of references) {
+    if (!r) continue;
+    const id = splitReference(r, sources).source?.id;
+    if (id) out.set(id, (out.get(id) ?? 0) + 1);
+  }
+  return out;
+}
+
+/** How many questions use each saved source, kept up to date. Undefined while the first read happens. */
+export function useSourceUse(): Map<string, number> | undefined {
+  return useLiveQuery(async () => {
+    const [sources, questions] = await Promise.all([loadSources(), db.questions.filter((q) => !q.deletedAt).toArray()]);
+    return countSourceUse(
+      questions.map((q) => q.reference),
+      sources,
+    );
+  }, []);
+}
+
+/** Swaps the start of a reference, keeping the page or problem that follows it. */
+function swapLabel(reference: string, from: string, to: string): string {
+  const text = reference.replace(/^\s+/, "");
+  return to + text.slice(from.length);
+}
+
+/**
+ * Gives every question, note and waiting question that uses `source` the new label, keeping the page or problem.
+ * Returns how many were changed. Quizzes already taken keep the text they were shown with.
+ */
+async function relabel(source: Source, all: Source[], to: string): Promise<number> {
+  const from = sourceLabel(source);
+  if (from === to) return 0;
+  const stamp = now();
+  let changed = 0;
+  const questions = await db.questions.filter((q) => !q.deletedAt && usesSource(q.reference, source, all)).toArray();
+  for (const q of questions) {
+    await db.questions.update(q.id, { reference: swapLabel(q.reference!, from, to), updatedAt: stamp });
+    changed += 1;
+  }
+  const concepts = await db.concepts.filter((c) => !c.deletedAt && usesSource(c.reference, source, all)).toArray();
+  for (const c of concepts) {
+    await db.concepts.update(c.id, { reference: swapLabel(c.reference!, from, to), updatedAt: stamp });
+    changed += 1;
+  }
+  const drafts = await db.drafts
+    .filter((d) => !d.deletedAt && d.status === "pending" && usesSource(d.reference, source, all))
+    .toArray();
+  for (const d of drafts) {
+    await db.drafts.update(d.id, { reference: swapLabel(d.reference!, from, to), updatedAt: stamp });
+    changed += 1;
+  }
+  return changed;
+}
+
+/**
+ * Saves a source. When an existing source gets a new label, everything that used the old one follows it,
+ * so a question never loses its source because the title was fixed. Returns the saved source and how many changed.
+ */
+export async function saveSourceEverywhere(
+  input: Omit<Source, "id" | "createdAt"> & { id?: string },
+): Promise<{ saved: Source; changed: number }> {
+  return db.transaction("rw", [db.settings, db.questions, db.concepts, db.drafts], async () => {
+    const list = await loadSources();
+    const existing = input.id ? list.find((s) => s.id === input.id) : undefined;
+    const saved: Source = { ...input, id: existing?.id ?? newId(), createdAt: existing?.createdAt ?? now() };
+    const changed = existing ? await relabel(existing, list, sourceLabel(saved)) : 0;
+    await write(existing ? list.map((s) => (s.id === saved.id ? saved : s)) : [...list, saved]);
+    return { saved, changed };
+  });
+}
+
+/** Removes a source and gives everything that used it to another source. Returns how many changed. */
+export async function mergeSource(fromId: string, intoId: string): Promise<number> {
+  return db.transaction("rw", [db.settings, db.questions, db.concepts, db.drafts], async () => {
+    const list = await loadSources();
+    const from = list.find((s) => s.id === fromId);
+    const into = list.find((s) => s.id === intoId);
+    if (!from || !into || from.id === into.id) return 0;
+    const changed = await relabel(from, list, sourceLabel(into));
+    await write(list.filter((s) => s.id !== fromId));
+    return changed;
+  });
 }

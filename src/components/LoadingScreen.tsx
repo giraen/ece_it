@@ -92,14 +92,27 @@ function useTypewriter() {
 }
 
 /** A centred loading screen: a moving sine wave with an ECE phrase being typed and deleted below it. */
-export default function LoadingScreen({ fullscreen = false }: { fullscreen?: boolean }) {
+export default function LoadingScreen({
+  fullscreen = false,
+  compact = false,
+  progress,
+  note,
+}: {
+  fullscreen?: boolean;
+  /** A shorter block, for loading one part of a page. */
+  compact?: boolean;
+  /** How far along it is, from 0 to 1. Shows a thin bar. */
+  progress?: number;
+  /** A line under the phrase, such as "36 of 120". */
+  note?: string;
+}) {
   const text = useTypewriter();
   return (
     <div
       role="status"
       aria-live="polite"
       className={`flex flex-col items-center justify-center gap-5 text-center ${
-        fullscreen ? "fixed inset-0 z-50 bg-paper" : "min-h-[55vh]"
+        fullscreen ? "fixed inset-0 z-50 bg-paper" : compact ? "min-h-[30vh]" : "min-h-[55vh]"
       }`}
     >
       <span className="sr-only">Loading</span>
@@ -120,6 +133,17 @@ export default function LoadingScreen({ fullscreen = false }: { fullscreen?: boo
         {text}
         <span className="loading-caret" />
       </p>
+      {progress !== undefined && (
+        <div className="w-56 space-y-1.5">
+          <div className="h-1.5 overflow-hidden rounded-full bg-line">
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-150"
+              style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }}
+            />
+          </div>
+          {note && <p className="text-xs text-muted tabular-nums">{note}</p>}
+        </div>
+      )}
     </div>
   );
 }

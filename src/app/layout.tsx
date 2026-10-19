@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           // Runs before the page paints, so the saved theme is applied with no white flash.
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('ece:theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})()",
+              "(function(){try{var t=localStorage.getItem('ece:theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t);if(localStorage.getItem('ece:motion')==='full')document.documentElement.setAttribute('data-motion','full')}catch(e){}})()",
           }}
         />
       </head>

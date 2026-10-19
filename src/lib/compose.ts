@@ -1,4 +1,5 @@
 import type { NodeKind, Question, QuizAttempt, TreeNode } from "./db";
+import { quotas, type Mix, type Tier } from "./sourceMix";
 import { subtreeOf } from "./tree";
 
 export type Rand = () => number;
@@ -109,6 +110,12 @@ export function separateCopies<T extends { id: string }>(list: readonly T[], ran
   return out;
 }
 
+/** How to mix the kinds of source in a quiz. `tierOf` says which kind of source a question comes from. */
+export interface SourceMix {
+  tierOf: (q: Question) => Tier;
+  weights: Mix;
+}
+
 export interface ComposeInput {
   nodes: TreeNode[];
   questions: Question[];
@@ -116,6 +123,27 @@ export interface ComposeInput {
   length: number;
   rand?: Rand;
   history?: Map<string, History>;
+  mix?: SourceMix;
+}
+
+/**
+ * Takes `take` questions from an already ordered list so each kind of source gets its share.
+ * The order is kept, so the spread across topics and tags and the "missed and new first" order still decide
+ * which questions of a kind are taken.
+ */
+function applyMix(ordered: Question[], take: number, mix: SourceMix, rand: Rand): Question[] {
+  const avail: Mix = { quiz: 0, book: 0, online: 0, other: 0 };
+  for (const q of ordered) avail[mix.tierOf(q)] += 1;
+  const left = quotas(avail, mix.weights, take, rand);
+  const out: Question[] = [];
+  for (const q of ordered) {
+    const t = mix.tierOf(q);
+    if (left[t] > 0) {
+      left[t] -= 1;
+      out.push(q);
+    }
+  }
+  return out;
 }
 
 const tagKey: KeyFn = (q) => q.tags[0]?.toLowerCase() ?? "";
@@ -133,6 +161,7 @@ export function composeQuiz({
   length,
   rand = Math.random,
   history,
+  mix,
 }: ComposeInput): Question[] {
   const topicIds = new Set(
     subtreeOf(nodes, scope.id)
@@ -149,7 +178,8 @@ export function composeQuiz({
     category: [subjectKey, topicKey, tagKey],
   };
   const take = Math.max(0, Math.min(length, pool.length));
-  return shuffle(spread(pool, levels[scope.kind], rand, history).slice(0, take), rand);
+  const ordered = spread(pool, levels[scope.kind], rand, history);
+  return shuffle(mix ? applyMix(ordered, take, mix, rand) : ordered.slice(0, take), rand);
 }
 
 /** How many questions a scope could draw on. */

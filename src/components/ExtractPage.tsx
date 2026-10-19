@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Choice, DraftQuestion, Question, TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
@@ -38,11 +38,13 @@ import {
 } from "@/lib/extractStore";
 import { childrenOf, pathOf } from "@/lib/tree";
 import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/sources";
-import { WHERE_LABEL, whereForInput, whereFromInput } from "@/lib/where";
+import { motionReduced } from "@/lib/motion";
+import { hasWhere, whereForInput, whereFromInput } from "@/lib/where";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ExtractBar, { type Toast } from "./ExtractBar";
 import ImageTextarea from "./ImageTextarea";
 import InfoTip from "./InfoTip";
+import LoadingScreen from "./LoadingScreen";
 import ReferenceInput from "./ReferenceInput";
 import RichText from "./RichText";
 import SuggestWrong from "./SuggestWrong";
@@ -52,12 +54,9 @@ import TopicPicker from "./TopicPicker";
 
 const MAX_CHOICES = 8;
 const letter = (i: number) => String.fromCharCode(65 + i);
-const SOURCE_HINT: Record<Source["kind"], string> = {
-  book: "34",
-  website: "section or heading",
-  notes: "slide 12, week 3",
-  other: "page, number, or section",
-};
+/** Cards are put on the page this many at a time, and a long list waits behind a loading screen until all are there. */
+const CHUNK = 4;
+const BIG_LIST = 24;
 const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 
 const SAMPLE = `Q: Which of the following lines is parallel to $3x - 2y + 6 = 0$?
@@ -185,11 +184,11 @@ function Edit({ d, onDone }: { d: DraftQuestion; onDone: () => void }) {
   );
 }
 
-/** The "where in it" box on a card. It saves when you leave the box or press Enter, and Enter moves to the next card. */
+/** The page box on a card from a book. It saves when you leave the box or press Enter, and Enter moves to the next card. */
 function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; where: string }) {
   const [text, setText] = useState(where);
   const [focused, setFocused] = useState(false);
-  const label = WHERE_LABEL[source.kind];
+  const label = "Page";
 
   const shownWhere = whereForInput(source.kind, where);
 
@@ -207,7 +206,7 @@ function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; wher
         data-where
         className="w-44 bg-transparent px-2 py-1 text-sm outline-none"
         aria-label={label}
-        placeholder={SOURCE_HINT[source.kind]}
+        placeholder="34"
         value={focused ? text : shownWhere}
         onFocus={() => {
           setText(shownWhere);
@@ -236,16 +235,16 @@ function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; wher
   );
 }
 
-/** Where it came from, Priority, and AI reword, on the card itself so Edit is not needed. */
-function QuickRow({ d, sources }: { d: DraftQuestion; sources: Source[] }) {
+/** The page of a book, Priority, and AI reword, on the card itself so Edit is not needed. */
+const QuickRow = memo(function QuickRow({ d, sources }: { d: DraftQuestion; sources: Source[] }) {
   const { source, where } = splitReference(d.reference ?? "", sources);
   const chip = "rounded-full border px-3 py-0.5 text-[13px]";
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-t border-dashed border-line pt-2.5">
       {source ? (
-        <WhereBox d={d} source={source} where={where} />
+        hasWhere(source.kind) && <WhereBox d={d} source={source} where={where} />
       ) : (
-        <span className="text-xs text-muted">No saved source, so no box for where. Pick one under Edit.</span>
+        <span className="text-xs text-muted">No saved source. Pick one under Edit.</span>
       )}
       <button
         type="button"
@@ -264,10 +263,12 @@ function QuickRow({ d, sources }: { d: DraftQuestion; sources: Source[] }) {
       >
         ✦ AI reword
       </button>
-      {source && <span className="ml-auto text-xs text-muted">Enter goes to the next card</span>}
+      {source && hasWhere(source.kind) && (
+        <span className="ml-auto text-xs text-muted">Enter goes to the next card</span>
+      )}
     </div>
   );
-}
+});
 
 /** What the tag boxes need for one topic, worked out once for the whole page instead of once per card. */
 type TagHelp = (topicId: string | null) => { suggestions: string[]; usage: TagUsage };
@@ -290,7 +291,7 @@ function useTagHelp(questions: Question[] | undefined, topicIds: string[]): TagH
  * The tags a waiting question will get. Before anything is typed it offers only the top three, and typing
  * searches them all, so a big bank of tags does not slow the page down.
  */
-function CardTags({ d, help }: { d: DraftQuestion; help: TagHelp }) {
+const CardTags = memo(function CardTags({ d, help }: { d: DraftQuestion; help: TagHelp }) {
   const { suggestions, usage } = help(d.topicId || null);
   return (
     <div className="space-y-1 text-xs">
@@ -306,7 +307,7 @@ function CardTags({ d, help }: { d: DraftQuestion; help: TagHelp }) {
       />
     </div>
   );
-}
+});
 
 /** The topic Claude recommended when it is not in the bank. It can be edited, created, or swapped for an existing topic. */
 function Recommended({ d, nodes, entries }: { d: DraftQuestion; nodes: TreeNode[]; entries: TopicEntry[] }) {
@@ -384,7 +385,9 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
     questions,
     pasted.map((d) => d.topicId),
   );
-  const [text, setText] = useState("");
+  // The pasted text lives in the box itself, so typing in a long text never redraws the cards below it.
+  const pasteBox = useRef<HTMLTextAreaElement>(null);
+  const [hasText, setHasText] = useState(false);
   const [defaultTopic, setDefaultTopic] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [changing, setChanging] = useState<string | null>(null);
@@ -403,6 +406,20 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
+  // A long list is put on the page a few cards at a time, out of sight, so the page never freezes. Until every card
+  // is there a loading screen is shown, and then all of them appear at once.
+  const total = pasted.length;
+  const [mounted, setMounted] = useState(total <= BIG_LIST ? total : CHUNK);
+  // A short list is always fully there, so the count follows it.
+  if (total <= BIG_LIST && mounted !== total) setMounted(total);
+  const loading = total > BIG_LIST && mounted < total;
+  const cards = total <= BIG_LIST ? total : Math.min(mounted, total);
+  useEffect(() => {
+    if (!loading) return;
+    const id = window.requestAnimationFrame(() => setMounted((m) => Math.min(total, m + CHUNK)));
+    return () => window.cancelAnimationFrame(id);
+  }, [loading, mounted, total]);
+
   if (!sources || !questions) return null;
 
   function say(message: string, undo: () => Promise<void>) {
@@ -418,7 +435,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       const el = document.getElementById(`pasted-${id}`);
       if (el) start[id] = { h: el.offsetHeight, phase: "out" };
     }
-    if (Object.keys(start).length === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (Object.keys(start).length === 0 || motionReduced()) {
       await run();
       return;
     }
@@ -460,6 +477,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   }
 
   async function read() {
+    const text = pasteBox.current?.value ?? "";
     const parsed = parseExtract(text);
     if (parsed.length === 0)
       return setMessage({ ok: false, text: "No questions were found. Check that the text follows the format." });
@@ -474,7 +492,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
     });
     await savePasted(drafts);
     const ready = drafts.filter((d) => extractStatus(d) === "ready").length;
-    setText("");
+    if (pasteBox.current) pasteBox.current.value = "";
+    setHasText(false);
     setFilter("all");
     setMessage({
       ok: true,
@@ -606,11 +625,11 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       <section aria-label="Paste the text" className="space-y-3 rounded-md border border-line bg-paper p-4">
         <h2 className="font-medium">2. Paste it here</h2>
         <textarea
+          ref={pasteBox}
           aria-label="Pasted questions"
           className="input h-56 w-full font-mono text-sm"
           placeholder={SAMPLE}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setHasText(e.target.value.trim() !== "")}
         />
         <div>
           <p className="text-sm font-medium">Default topic (optional)</p>
@@ -645,7 +664,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             question below or in the Bank.
           </p>
         </div>
-        <button className="btn btn-primary" disabled={!text.trim()} onClick={() => void read()}>
+        <button className="btn btn-primary" disabled={!hasText} onClick={() => void read()}>
           Read it
         </button>
         {message && (
@@ -712,8 +731,15 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               </label>
               {chosen.length > 0 && <span className="text-muted">{chosen.length} selected</span>}
             </div>
-            <ul>
-              {shown.map(({ d, status }, i) => {
+            {loading && (
+              <LoadingScreen
+                compact
+                progress={total ? mounted / total : 1}
+                note={`Getting your questions ready: ${Math.min(mounted, total)} of ${total}`}
+              />
+            )}
+            <ul hidden={loading}>
+              {shown.slice(0, cards).map(({ d, status }, i) => {
                 const warnings = extractWarnings(d);
                 const dup = isDuplicate(d);
                 const lv = leaving[d.id];

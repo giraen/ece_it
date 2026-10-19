@@ -5,6 +5,9 @@ import AiSettings from "./AiSettings";
 import BackupPage from "./BackupPage";
 import DangerZone from "./DangerZone";
 import PreferencesPanel from "./PreferencesPanel";
+import QuizMixPanel from "./QuizMixPanel";
+import SourcesManager from "./SourcesManager";
+import TagManager from "./TagManager";
 import StorageStatus from "./StorageStatus";
 import InfoTip from "./InfoTip";
 
@@ -18,6 +21,18 @@ export default function SettingsPage() {
           Jump to:{" "}
           <a href="#preferences" className="underline">
             Preferences
+          </a>
+          {" · "}
+          <a href="#mix" className="underline">
+            Quiz mix
+          </a>
+          {" · "}
+          <a href="#sources" className="underline">
+            Sources
+          </a>
+          {" · "}
+          <a href="#tags" className="underline">
+            Tags
           </a>
           {" · "}
           <a href="#ai" className="underline">
@@ -43,6 +58,39 @@ export default function SettingsPage() {
           Preferences
         </h2>
         <PreferencesPanel />
+      </section>
+
+      <section id="mix" aria-labelledby="mix-title" className="scroll-mt-4 space-y-4">
+        <h2 id="mix-title" className="text-lg font-semibold">
+          Quiz mix
+        </h2>
+        <QuizMixPanel />
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title" className="scroll-mt-4 space-y-4">
+        <div className="flex items-center gap-1">
+          <h2 id="sources-title" className="text-lg font-semibold">
+            Sources
+          </h2>
+          <InfoTip>
+            The past quizzes, books, websites and videos your questions come from. Make one here, then pick it from the
+            list when you add questions. Changing a name here changes it on every question that uses it.
+          </InfoTip>
+        </div>
+        <SourcesManager />
+      </section>
+
+      <section id="tags" aria-labelledby="tags-title" className="scroll-mt-4 space-y-4">
+        <div className="flex items-center gap-1">
+          <h2 id="tags-title" className="text-lg font-semibold">
+            Tags
+          </h2>
+          <InfoTip>
+            Every tag in your bank. Rename one to change it on all questions and notes, rename it to an existing tag to
+            merge the two, or delete it to take it off everything. You can undo right after.
+          </InfoTip>
+        </div>
+        <TagManager />
       </section>
 
       <section id="ai" aria-labelledby="ai-title" className="scroll-mt-4 space-y-4">

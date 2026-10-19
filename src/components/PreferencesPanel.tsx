@@ -11,10 +11,12 @@ import {
   useMasteryBar,
   usePriorityFirst,
 } from "@/lib/preferences";
+import { setFullMotion, useFullMotion } from "@/lib/motion";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
   const priorityFirst = usePriorityFirst();
+  const fullMotion = useFullMotion();
   const saved = Math.round(bar * 100);
   const [text, setText] = useState<string | null>(null);
   const shown = text ?? String(saved);
@@ -75,6 +77,17 @@ export default function PreferencesPanel() {
           Questions you marked as priority, such as ones from a review center quiz or a book, are picked before the
           others in each topic. A priority question you already got right waits behind new and missed questions, so the
           same few do not fill every quiz. Turn this off to treat every question the same.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={fullMotion} onChange={(e) => setFullMotion(e.target.checked)} />
+          Always play animations
+        </label>
+        <p className="text-sm text-muted">
+          If your computer is set to reduce motion, this app plays no animation, so the chart lines and sliding cards
+          do not move. Turn this on to play them anyway. It is saved in this browser.
         </p>
       </div>
     </div>

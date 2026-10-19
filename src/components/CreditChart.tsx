@@ -328,13 +328,10 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
           {shown.map((l) => {
             const c = colorOf(l.s.key);
             const dim = active !== null && active.key !== l.s.key;
-            // How far along the line each dot is, so each one appears just as the line reaches it.
-            const px = l.pts.map((p) => [x(p.x), y(p.v)]);
-            const cum = [0];
-            for (let i = 1; i < px.length; i++) {
-              cum.push(cum[i - 1] + Math.hypot(px[i][0] - px[i - 1][0], px[i][1] - px[i - 1][1]));
-            }
-            const total = cum[cum.length - 1] || 1;
+            // The dots pop in one after another, left to right. Then the line draws through them.
+            const n = l.pts.length;
+            const gap = n > 1 ? Math.min(0.12, 0.9 / (n - 1)) : 0;
+            const lineAt = 0.3 + gap * (n - 1);
             // A new key replays the drawing when the axis, the measure, or the line itself changes.
             const play = `${l.s.key}-${axis}-${measure}`;
             return (
@@ -342,6 +339,7 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
                 {l.pts.length > 1 && (
                   <polyline
                     className="chart-line"
+                    style={{ animationDelay: `${lineAt}s` }}
                     pathLength={1}
                     points={l.pts.map((p) => `${x(p.x)},${y(p.v)}`).join(" ")}
                     fill="none"
@@ -357,7 +355,7 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
                     <circle
                       key={p.x}
                       className="chart-dot"
-                      style={{ animationDelay: `${(cum[i] / total) * 1.1}s` }}
+                      style={{ animationDelay: `${i * gap}s` }}
                       cx={x(p.x)}
                       cy={y(p.v)}
                       r={isActive ? 6 : axis === "quiz" ? 3.5 : 4.5}

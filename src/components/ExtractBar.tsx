@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DraftQuestion, TreeNode } from "@/lib/db";
 import { patchPasted, setPastedTopic } from "@/lib/extractStore";
 import { joinReference, sourceLabel, splitReference, type Source } from "@/lib/sources";
-import { bumpWhere, whereFromInput } from "@/lib/where";
+import { bumpWhere, hasWhere, whereFromInput } from "@/lib/where";
 import TopicPicker from "./TopicPicker";
 
 export interface Toast {
@@ -30,7 +30,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
  * The bar that floats at the bottom of the review list while questions are selected.
- * It moves them, sets where in the source they came from, marks priority and AI reword, or discards them.
+ * It moves them, sets the page they came from in a book, marks priority and AI reword, or discards them.
  */
 export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear, say, toast, onToastDone }: Props) {
   const [open, setOpen] = useState<"move" | "where" | null>(null);
@@ -45,10 +45,10 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
   const allPriority = shown && chosen.every((d) => d.priority);
   const allAi = shown && chosen.every((d) => d.allowAi);
 
-  // Only a question with a saved source has a "where" to set.
+  // Only a question from a saved book has a page to set.
   const withSource = chosen.flatMap((d) => {
     const { source } = splitReference(d.reference ?? "", sources);
-    return source ? [{ d, source }] : [];
+    return source && hasWhere(source.kind) ? [{ d, source }] : [];
   });
   const text = where.trim();
   const preview = countUp
@@ -127,7 +127,7 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
     }));
     setOpen(null);
     setWhere("");
-    await change(`Set where on ${plural(items.length, "question")}`, items, ["reference"]);
+    await change(`Set the page on ${plural(items.length, "question")}`, items, ["reference"]);
   }
 
   async function move() {
@@ -219,18 +219,18 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
                   window.setTimeout(() => field.current?.focus(), 0);
                 }}
               >
-                Where <span aria-hidden>▾</span>
+                Page <span aria-hidden>▾</span>
               </button>
               {open === "where" && (
-                <div role="dialog" aria-label="Where, for the selected questions" className={`${pop} w-80`}>
+                <div role="dialog" aria-label="Page, for the selected questions" className={`${pop} w-80`}>
                   <p className="mb-2 text-[11px] tracking-wide text-muted uppercase">
-                    Where, for {withSource.length === n ? `the ${n}` : `${withSource.length} of the ${n}`} selected
+                    Page, for {withSource.length === n ? `the ${n}` : `${withSource.length} of the ${n}`} selected
                   </p>
                   <div className="flex gap-2">
                     <input
                       ref={field}
                       className="input"
-                      aria-label="Where in the source, for the selected questions"
+                      aria-label="Page, for the selected questions"
                       placeholder="143"
                       value={where}
                       onChange={(e) => setWhere(e.target.value)}
@@ -255,10 +255,10 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
                   </label>
                   <p className="mt-1.5 text-xs text-muted">
                     {withSource.length === 0
-                      ? "None of these has a saved source, so there is nowhere to put it."
+                      ? "None of these is from a saved book, so there is no page to set."
                       : text
                         ? preview
-                        : "Questions with no saved source are skipped."}
+                        : "Questions that are not from a saved book are skipped."}
                   </p>
                 </div>
               )}

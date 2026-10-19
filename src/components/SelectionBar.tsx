@@ -347,7 +347,6 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
                         <span>
                           <Kbd>Esc</Kbd> close
                         </span>
-                        {!draft.trim() && <span className="ml-auto">Type to search all.</span>}
                       </p>
                     </div>
                   )}

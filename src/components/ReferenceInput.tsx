@@ -80,7 +80,7 @@ export default function ReferenceInput({ value, onChange, id }: Props) {
     return (
       <p id={id} className="rounded-md border border-dashed border-line px-3 py-2 text-sm text-muted">
         No sources saved yet.{" "}
-        <Link href="/settings#sources" className="underline">
+        <Link href="/settings/sources" className="underline">
           Add one in Settings
         </Link>
         .

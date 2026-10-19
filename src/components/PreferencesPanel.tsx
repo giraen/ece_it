@@ -12,6 +12,7 @@ import {
   usePriorityFirst,
 } from "@/lib/preferences";
 import { setFullMotion, useFullMotion } from "@/lib/motion";
+import InfoTip from "./InfoTip";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
@@ -31,12 +32,20 @@ export default function PreferencesPanel() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
+    <div className="space-y-5">
+      <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="mastery-bar" className="text-sm font-medium">
-            Mastery bar
-          </label>
+          <span className="flex items-center gap-1">
+            <label htmlFor="mastery-bar" className="text-sm font-medium">
+              Mastery bar
+            </label>
+            <InfoTip>
+              A quiz passes, and can award mastery, when its average credit reaches this bar. It applies to quizzes you
+              take from now on. Quizzes you already took keep the bar they were scored with. The graph on the Analytics
+              tab shows this bar as a dashed green line, and the {Math.round(CONFIG.minimumPass * 100)}% minimum to pass
+              as a fixed red line.
+            </InfoTip>
+          </span>
           <input
             id="mastery-bar"
             type="number"
@@ -60,35 +69,29 @@ export default function PreferencesPanel() {
             {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
           </p>
         )}
-        <p className="text-sm text-muted">
-          A quiz passes, and can award mastery, when its average credit reaches this bar. It applies to quizzes you take
-          from now on. Quizzes you already took keep the bar they were scored with. The graph on the Analytics tab shows
-          this bar as a dashed green line, and the {Math.round(CONFIG.minimumPass * 100)}% minimum to pass as a fixed
-          red line.
-        </p>
       </div>
 
-      <div className="space-y-1">
+      <div className="flex items-center gap-1">
         <label className="flex items-center gap-2 text-sm font-medium">
           <input type="checkbox" checked={priorityFirst} onChange={(e) => void savePriorityFirst(e.target.checked)} />
           Priority questions first
         </label>
-        <p className="text-sm text-muted">
+        <InfoTip>
           Questions you marked as priority, such as ones from a review center quiz or a book, are picked before the
           others in each topic. A priority question you already got right waits behind new and missed questions, so the
           same few do not fill every quiz. Turn this off to treat every question the same.
-        </p>
+        </InfoTip>
       </div>
 
-      <div className="space-y-1">
+      <div className="flex items-center gap-1">
         <label className="flex items-center gap-2 text-sm font-medium">
           <input type="checkbox" checked={fullMotion} onChange={(e) => setFullMotion(e.target.checked)} />
           Always play animations
         </label>
-        <p className="text-sm text-muted">
-          If your computer is set to reduce motion, this app plays no animation, so the chart lines and sliding cards
-          do not move. Turn this on to play them anyway. It is saved in this browser.
-        </p>
+        <InfoTip>
+          If your computer is set to reduce motion, this app plays no animation, so the chart lines and sliding cards do
+          not move. Turn this on to play them anyway. It is saved in this browser.
+        </InfoTip>
       </div>
     </div>
   );

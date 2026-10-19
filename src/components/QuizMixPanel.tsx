@@ -3,7 +3,6 @@
 import {
   DEFAULT_MIX,
   EQUAL_MIX,
-  EVERY_TIER_FROM,
   MIX_MAX,
   MIX_MIN,
   TIERS,
@@ -15,24 +14,18 @@ import {
 
 const same = (a: Mix, b: Mix) => TIERS.every((t) => a[t.id] === b[t.id]);
 
-/** How much of a quiz each kind of source gets. Each kind with questions is still included in a quiz. */
+/** How much of a quiz each kind of source gets. The explanation is in the tip beside the section title. */
 export default function QuizMixPanel() {
   const mix = useSourceMix();
   const share = sharesOf(mix);
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">
-        Quizzes draw more from the kinds higher up, but every kind that has questions still appears, so none is left
-        out. A quiz of {EVERY_TIER_FROM} or more questions always includes at least one from each. Inside each kind,
-        questions you missed and ones you have not seen yet still come first.
-      </p>
       <ul className="space-y-3">
         {TIERS.map((t) => (
-          <li key={t.id} className="grid grid-cols-[9rem_1fr_3rem] items-center gap-3">
-            <label htmlFor={`mix-${t.id}`} className="text-sm">
-              <span className="font-medium">{t.label}</span>
-              <span className="block text-xs text-muted">{t.about}</span>
+          <li key={t.id} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3">
+            <label htmlFor={`mix-${t.id}`} title={t.about} className="text-sm font-medium">
+              {t.label}
             </label>
             <input
               id={`mix-${t.id}`}

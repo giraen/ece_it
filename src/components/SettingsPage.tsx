@@ -1,15 +1,25 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { EVERY_TIER_FROM } from "@/lib/sourceMix";
 import AiSettings from "./AiSettings";
 import BackupPage from "./BackupPage";
 import DangerZone from "./DangerZone";
+import InfoTip from "./InfoTip";
+import LibraryLinks from "./LibraryLinks";
 import PreferencesPanel from "./PreferencesPanel";
 import QuizMixPanel from "./QuizMixPanel";
-import SourcesManager from "./SourcesManager";
-import TagManager from "./TagManager";
 import StorageStatus from "./StorageStatus";
-import InfoTip from "./InfoTip";
+
+const JUMPS = [
+  { id: "preferences", label: "Preferences" },
+  { id: "mix", label: "Quiz mix" },
+  { id: "library", label: "Sources and tags" },
+  { id: "ai", label: "AI helper" },
+  { id: "backup", label: "Backup and sharing" },
+  { id: "storage", label: "Storage" },
+  { id: "danger", label: "Danger zone" },
+];
 
 export default function SettingsPage() {
   const scope = useSearchParams().get("scope") ?? "";
@@ -19,37 +29,14 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="mt-1 text-sm text-muted">
           Jump to:{" "}
-          <a href="#preferences" className="underline">
-            Preferences
-          </a>
-          {" · "}
-          <a href="#mix" className="underline">
-            Quiz mix
-          </a>
-          {" · "}
-          <a href="#sources" className="underline">
-            Sources
-          </a>
-          {" · "}
-          <a href="#tags" className="underline">
-            Tags
-          </a>
-          {" · "}
-          <a href="#ai" className="underline">
-            AI helper
-          </a>
-          {" · "}
-          <a href="#backup" className="underline">
-            Backup and sharing
-          </a>
-          {" · "}
-          <a href="#storage" className="underline">
-            Storage
-          </a>
-          {" · "}
-          <a href="#danger" className="underline">
-            Danger zone
-          </a>
+          {JUMPS.map((j, i) => (
+            <span key={j.id}>
+              {i > 0 && " · "}
+              <a href={`#${j.id}`} className="underline">
+                {j.label}
+              </a>
+            </span>
+          ))}
         </p>
       </div>
 
@@ -61,36 +48,28 @@ export default function SettingsPage() {
       </section>
 
       <section id="mix" aria-labelledby="mix-title" className="scroll-mt-4 space-y-4">
-        <h2 id="mix-title" className="text-lg font-semibold">
-          Quiz mix
-        </h2>
+        <div className="flex items-center gap-1">
+          <h2 id="mix-title" className="text-lg font-semibold">
+            Quiz mix
+          </h2>
+          <InfoTip>
+            How much of a quiz comes from each kind of source. Quizzes draw more from the kinds higher up, but every
+            kind that has questions still appears. A quiz of {EVERY_TIER_FROM} or more questions always has at least one
+            from each. Inside a kind, questions you missed and ones you have not seen yet still come first.
+            <br />
+            <br />
+            Past quizzes: questions from quizzes you took before. Books: questions from a book. Online: websites and
+            videos. Others: no source, or one that is not saved.
+          </InfoTip>
+        </div>
         <QuizMixPanel />
       </section>
 
-      <section id="sources" aria-labelledby="sources-title" className="scroll-mt-4 space-y-4">
-        <div className="flex items-center gap-1">
-          <h2 id="sources-title" className="text-lg font-semibold">
-            Sources
-          </h2>
-          <InfoTip>
-            The past quizzes, books, websites and videos your questions come from. Make one here, then pick it from the
-            list when you add questions. Changing a name here changes it on every question that uses it.
-          </InfoTip>
-        </div>
-        <SourcesManager />
-      </section>
-
-      <section id="tags" aria-labelledby="tags-title" className="scroll-mt-4 space-y-4">
-        <div className="flex items-center gap-1">
-          <h2 id="tags-title" className="text-lg font-semibold">
-            Tags
-          </h2>
-          <InfoTip>
-            Every tag in your bank. Rename one to change it on all questions and notes, rename it to an existing tag to
-            merge the two, or delete it to take it off everything. You can undo right after.
-          </InfoTip>
-        </div>
-        <TagManager />
+      <section id="library" aria-labelledby="library-title" className="scroll-mt-4 space-y-4">
+        <h2 id="library-title" className="text-lg font-semibold">
+          Sources and tags
+        </h2>
+        <LibraryLinks />
       </section>
 
       <section id="ai" aria-labelledby="ai-title" className="scroll-mt-4 space-y-4">

@@ -20,7 +20,7 @@ const blank = (): Draft => ({ kind: "book", title: "", authors: "", edition: "",
 
 /** What each kind asks for. The stored record is the same for all of them. */
 const FIELDS: Record<
-  Exclude<Kind, "other">,
+  Kind,
   { key: "title" | "authors" | "edition" | "url"; label: string; placeholder: string; required?: boolean }[]
 > = {
   quiz: [{ key: "title", label: "Quiz name", placeholder: "Calculus 1, Quiz 2", required: true }],
@@ -38,6 +38,11 @@ const FIELDS: Record<
     { key: "authors", label: "YouTube channel", placeholder: "Organic Chemistry Tutor" },
     { key: "url", label: "Link", placeholder: "https://", required: true },
   ],
+  other: [
+    { key: "title", label: "Name", placeholder: "Review notes, lecture handout", required: true },
+    { key: "authors", label: "Made by", placeholder: "Prof. Reyes" },
+    { key: "url", label: "Link (optional)", placeholder: "https://" },
+  ],
 };
 
 function SourceForm({
@@ -52,12 +57,9 @@ function SourceForm({
   const [d, setD] = useState<Draft>(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // An old "other" source has to be given one of the four kinds before it can be saved.
-  const kind = d.kind === "other" ? null : d.kind;
-  const fields = kind ? FIELDS[kind] : [];
+  const fields = FIELDS[d.kind];
 
   async function save() {
-    if (!kind) return setError("Choose what kind of source this is.");
     const missing = fields.find((f) => f.required && !d[f.key].trim());
     if (missing) return setError(`Fill in the ${missing.label.toLowerCase()}.`);
     setBusy(true);
@@ -97,26 +99,22 @@ function SourceForm({
           </button>
         ))}
       </div>
-      {kind && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {fields.map((f) => (
-            <label key={f.key} className={`text-xs font-medium ${f.key === "url" ? "sm:col-span-2" : ""}`}>
-              {f.label}
-              <input
-                className="input mt-1 w-full"
-                value={d[f.key]}
-                placeholder={f.placeholder}
-                onChange={(e) => setD((cur) => ({ ...cur, [f.key]: e.target.value }))}
-              />
-            </label>
-          ))}
-        </div>
-      )}
-      {kind && (
-        <p className="text-xs text-muted">
-          Shows as: <span className="text-ink">{sourceLabel(d) || "…"}</span>
-        </p>
-      )}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {fields.map((f) => (
+          <label key={f.key} className={`text-xs font-medium ${f.key === "url" ? "sm:col-span-2" : ""}`}>
+            {f.label}
+            <input
+              className="input mt-1 w-full"
+              value={d[f.key]}
+              placeholder={f.placeholder}
+              onChange={(e) => setD((cur) => ({ ...cur, [f.key]: e.target.value }))}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-muted">
+        Shows as: <span className="text-ink">{sourceLabel(d) || "…"}</span>
+      </p>
       {error && (
         <p role="alert" className="text-xs text-danger">
           {error}
@@ -156,7 +154,7 @@ export default function SourcesManager() {
   }, [sources, q, kindFilter]);
 
   if (!sources || !use) return null;
-  const kindsPresent = (["all", ...SOURCE_KINDS.map((k) => k.kind), "other"] as const).filter(
+  const kindsPresent = (["all", ...SOURCE_KINDS.map((k) => k.kind)] as const).filter(
     (k) => k === "all" || sources.some((s) => s.kind === k),
   );
 
@@ -219,7 +217,8 @@ export default function SourcesManager() {
 
       {sources.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
-          No sources yet. Add a past quiz, a book, a website, or a video, then pick it when you add questions.
+          No sources yet. Add a past quiz, a book, a website, a video, or anything else like notes, then pick it when
+          you add questions.
         </p>
       ) : list.length === 0 ? (
         <p className="text-sm text-muted">No source matches.</p>

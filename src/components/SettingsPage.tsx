@@ -59,7 +59,8 @@ export default function SettingsPage() {
             <br />
             <br />
             Past quizzes: questions from quizzes you took before. Books: questions from a book. Online: websites and
-            videos. Others: no source, or one that is not saved.
+            videos. Others: anything that is not one of these, such as notes or a handout, and questions with no
+            source.
           </InfoTip>
         </div>
         <QuizMixPanel />

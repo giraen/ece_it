@@ -5,7 +5,8 @@ import { splitReference, type Source } from "./sources";
 
 /**
  * The four groups quizzes are mixed from, from the most to the least wanted:
- * past quizzes you took, books, online sources (websites and videos), and everything else.
+ * past quizzes you took, books, online sources (websites and videos), and everything else (notes, handouts, or no
+ * source at all).
  */
 export type Tier = "quiz" | "book" | "online" | "other";
 
@@ -13,7 +14,7 @@ export const TIERS: { id: Tier; label: string; about: string }[] = [
   { id: "quiz", label: "Past quizzes", about: "Questions from quizzes you took before" },
   { id: "book", label: "Books", about: "Questions from a book" },
   { id: "online", label: "Online", about: "Websites and videos" },
-  { id: "other", label: "Others", about: "No source, or one that is not saved" },
+  { id: "other", label: "Others", about: "Anything else: notes, handouts, or no source" },
 ];
 
 export type Mix = Record<Tier, number>;
@@ -39,7 +40,8 @@ export function tierOfReference(reference: string | undefined, sources: Source[]
     if (source.kind === "quiz") return "quiz";
     if (source.kind === "book") return "book";
     if (source.kind === "website" || source.kind === "video") return "online";
-    return WEB.test(source.url) ? "online" : "other";
+    // A source made as "Other" stays in Others, whatever its link is.
+    return "other";
   }
   // A reference typed by hand that holds a web address still counts as online.
   return WEB.test(ref) ? "online" : "other";

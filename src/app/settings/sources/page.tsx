@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <SettingsSubpage
       title="Sources"
-      tip="The past quizzes, books, websites and videos your questions come from. Make one here, then pick it from the list when you add questions. Changing a name here changes it on every question that uses it."
+      tip="The past quizzes, books, websites, videos and other sources, such as notes or a handout, that your questions come from. Make one here, then pick it from the list when you add questions. Changing a name here changes it on every question that uses it."
     >
       <SourcesManager />
     </SettingsSubpage>

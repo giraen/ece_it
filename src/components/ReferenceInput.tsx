@@ -26,7 +26,7 @@ const PER_KIND = 3;
 /** The most sources shown while typing. */
 const MOST_SHOWN = 8;
 
-const KIND_ORDER: Source["kind"][] = [...SOURCE_KINDS.map((k) => k.kind), "other"];
+const KIND_ORDER: Source["kind"][] = SOURCE_KINDS.map((k) => k.kind);
 
 interface Row {
   source: Source;

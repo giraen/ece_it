@@ -3,8 +3,8 @@ import { db } from "./db";
 import { newId, now } from "./ids";
 
 /**
- * A past quiz, book, website or video that questions and concepts come from. Kept once, picked many times.
- * "other" is only for sources saved before the kinds were narrowed. It cannot be chosen for a new one.
+ * A past quiz, book, website or video that questions and concepts come from, or any other kind of source, such as
+ * notes or a handout. Kept once, picked many times.
  */
 export interface Source {
   id: string;
@@ -19,20 +19,21 @@ export interface Source {
 }
 
 /** The kinds a source can be made as, in the order they are listed. */
-export const SOURCE_KINDS: { kind: Exclude<Source["kind"], "other">; label: string; plural: string }[] = [
+export const SOURCE_KINDS: { kind: Source["kind"]; label: string; plural: string }[] = [
   { kind: "quiz", label: "Past quiz", plural: "Past quizzes" },
   { kind: "book", label: "Book", plural: "Books" },
   { kind: "website", label: "Website", plural: "Websites" },
   { kind: "video", label: "Video", plural: "Videos" },
+  { kind: "other", label: "Other", plural: "Others" },
 ];
 
-/** Every kind with its names, including the old "other", so a saved source always has a heading. */
+/** Every kind with its names, so a saved source always has a heading. */
 export const KIND_NAMES: Record<Source["kind"], { label: string; plural: string }> = {
   quiz: { label: "Past quiz", plural: "Past quizzes" },
   book: { label: "Book", plural: "Books" },
   website: { label: "Website", plural: "Websites" },
   video: { label: "Video", plural: "Videos" },
-  other: { label: "Other", plural: "Other" },
+  other: { label: "Other", plural: "Others" },
 };
 
 const KINDS: Source["kind"][] = ["quiz", "book", "website", "video", "other"];

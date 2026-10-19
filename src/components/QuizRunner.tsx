@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/format";
 import { useAttempt } from "@/lib/hooks";
 import { abandonAttempt, isComplete, saveTime, setCurrentIndex, submitAttempt } from "@/lib/quiz";
+import { confirmAction } from "@/lib/dialog";
 import QuestionPane from "./QuestionPane";
 import PracticeTag from "./PracticeTag";
 
@@ -47,9 +48,11 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
     if (submitting) return;
     const unanswered = items.length - items.filter(isComplete).length;
     if (unanswered > 0) {
-      const ok = window.confirm(
-        `${unanswered} question${unanswered === 1 ? " is" : "s are"} not fully answered and will score 0. Submit anyway?`,
-      );
+      const ok = await confirmAction({
+        title: "Submit with unanswered questions?",
+        message: `${unanswered} question${unanswered === 1 ? " is" : "s are"} not fully answered and will score 0.`,
+        confirmLabel: "Submit anyway",
+      });
       if (!ok) return;
     }
     setSubmitting(true);
@@ -59,7 +62,13 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
   }
 
   async function discard() {
-    if (!window.confirm("Discard this quiz? Your answers so far will not be scored.")) return;
+    const ok = await confirmAction({
+      title: "Discard this quiz?",
+      message: "Your answers so far will not be scored.",
+      confirmLabel: "Discard",
+      danger: true,
+    });
+    if (!ok) return;
     await abandonAttempt(attemptId);
     router.push("/quiz");
   }

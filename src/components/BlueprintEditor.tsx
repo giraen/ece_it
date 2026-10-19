@@ -8,6 +8,7 @@ import { countAvailable } from "@/lib/compose";
 import type { Blueprint, Question, TreeNode } from "@/lib/db";
 import { deleteBlueprint, saveBlueprint } from "@/lib/blueprints";
 import { newId } from "@/lib/ids";
+import { confirmAction } from "@/lib/dialog";
 import { childrenOf, pathOf } from "@/lib/tree";
 import InfoTip from "./InfoTip";
 
@@ -82,8 +83,13 @@ export default function BlueprintEditor({ category, nodes, questions, initial }:
   }
 
   async function remove() {
-    if (!window.confirm("Delete this blueprint? The category's mock board stays unavailable until you make a new one."))
-      return;
+    const ok = await confirmAction({
+      title: "Delete this blueprint?",
+      message: "The category's mock board stays unavailable until you make a new one.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     await deleteBlueprint(category.id);
     router.push("/quiz");
   }

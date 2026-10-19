@@ -14,6 +14,7 @@ import {
   countConceptsUnder,
 } from "@/lib/nodes";
 import { categoriesOf, childrenOf, KIND_LABEL, subtreeOf } from "@/lib/tree";
+import { confirmAction } from "@/lib/dialog";
 
 // `at` identifies one place in the tree. A shared subject appears under several categories, so its id alone is not enough.
 type Editing =
@@ -371,20 +372,26 @@ export default function TreePanel({ nodes, questions, selectedId, onSelect }: Pr
           .map((id) => byId.get(id)?.name)
           .filter(Boolean)
           .join(", ");
-        const ok = window.confirm(
-          `Remove the subject "${node.name}" from ${parent.name}? It stays in ${others}, with its topics and questions.`,
-        );
+        const ok = await confirmAction({
+          title: `Remove the subject "${node.name}" from ${parent.name}?`,
+          message: `It stays in ${others}, with its topics and questions.`,
+          confirmLabel: "Remove",
+          danger: true,
+        });
         if (ok) await unlinkSubject(node.id, parent.id);
         return;
       }
       const n = await countQuestionsUnder(node.id);
       const c = await countConceptsUnder(node.id);
       const what = KIND_LABEL[node.kind].toLowerCase();
-      const ok = window.confirm(
-        `Delete the ${what} "${node.name}" and everything inside it? ` +
+      const ok = await confirmAction({
+        title: `Delete the ${what} "${node.name}" and everything inside it?`,
+        message:
           `This also deletes ${n} question${n === 1 ? "" : "s"}` +
           `${c > 0 ? ` and ${c} concept${c === 1 ? "" : "s"}` : ""}.`,
-      );
+        confirmLabel: "Delete",
+        danger: true,
+      });
       if (!ok) return;
       const hitsSelection =
         selectedId !== null && subtreeOf(nodes, node.id).some((x) => x.id === selectedId);

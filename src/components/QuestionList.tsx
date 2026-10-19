@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Question, TreeNode } from "@/lib/db";
 import { renameTag } from "@/lib/questions";
+import { askText } from "@/lib/dialog";
 import { pathOf, subtreeOf } from "@/lib/tree";
 import { hasAllTags, narrowedCounts, toggleTag } from "@/lib/tagFilter";
 import { usePagination } from "@/lib/usePagination";
@@ -94,7 +95,13 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   async function rename() {
     if (activeKeys.length !== 1) return;
     const from = tagIndex.get(activeKeys[0])!.label;
-    const to = window.prompt(`Rename the tag "${from}" in this view to:`, from);
+    const to = await askText({
+      title: `Rename the tag "${from}"`,
+      message: "It is renamed on the questions in this view.",
+      label: "New name",
+      initial: from,
+      confirmLabel: "Rename",
+    });
     if (!to || !to.trim() || to.trim() === from) return;
     await renameTag(Array.from(topicIds), from, to);
     setTagFilter([to.trim().toLowerCase()]);

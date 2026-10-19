@@ -7,6 +7,7 @@ import type { Concept, TreeNode } from "@/lib/db";
 import { deleteConcept, saveConcept, titleFrom } from "@/lib/concepts";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
+import { confirmAction } from "@/lib/dialog";
 import DraftReview from "./DraftReview";
 import ImageTextarea from "./ImageTextarea";
 import Reference from "./Reference";
@@ -67,7 +68,8 @@ export default function ConceptEditor({ initial, defaultTopicId, nodes }: Props)
 
   async function remove() {
     if (!initial) return;
-    if (!window.confirm("Delete this concept?")) return;
+    const ok = await confirmAction({ title: "Delete this concept?", confirmLabel: "Delete", danger: true });
+    if (!ok) return;
     await deleteConcept(initial.id);
     router.push(`/bank?node=${initial.topicId}&tab=concepts`);
   }

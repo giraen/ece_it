@@ -15,6 +15,7 @@ import {
 } from "@/lib/computation";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
+import { confirmAction } from "@/lib/dialog";
 import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
 import { categoriesOf } from "@/lib/tree";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
@@ -214,7 +215,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
 
   async function remove() {
     if (!initial) return;
-    if (!window.confirm("Delete this question?")) return;
+    const ok = await confirmAction({ title: "Delete this question?", confirmLabel: "Delete", danger: true });
+    if (!ok) return;
     await deleteQuestions([initial.id]);
     router.push(`/bank?node=${initial.topicId}`);
   }

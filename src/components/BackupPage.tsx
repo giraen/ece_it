@@ -21,6 +21,7 @@ import { markBackup } from "@/lib/lastBackup";
 import type { MergeCounts, PackOptions } from "@/lib/merge";
 import { selectPackContent } from "@/lib/share";
 import { pathOf } from "@/lib/tree";
+import { confirmAction } from "@/lib/dialog";
 import BackupStatus from "./BackupStatus";
 import PasswordInput from "./PasswordInput";
 import InfoTip from "./InfoTip";
@@ -331,7 +332,12 @@ function ImportFile() {
       if (p.kind === "backup") {
         if (
           backupMode === "replace" &&
-          !window.confirm("Replace everything in this browser with the contents of this file? This cannot be undone.")
+          !(await confirmAction({
+            title: "Replace everything in this browser?",
+            message: "All data here is replaced with the contents of this file. This cannot be undone.",
+            confirmLabel: "Replace everything",
+            danger: true,
+          }))
         ) {
           setBusy(false);
           return;

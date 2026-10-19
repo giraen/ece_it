@@ -5,6 +5,7 @@ import QuizPicker from "@/components/QuizPicker";
 import { formatDateTime } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { abandonAttempt, isComplete } from "@/lib/quiz";
+import { confirmAction } from "@/lib/dialog";
 import InfoTip from "@/components/InfoTip";
 import PracticeTag from "@/components/PracticeTag";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -53,8 +54,13 @@ export default function QuizPage() {
                 <button
                   className="btn btn-danger"
                   onClick={async () => {
-                    if (window.confirm("Discard this quiz? Your answers so far will not be scored."))
-                      await abandonAttempt(a.id);
+                    const ok = await confirmAction({
+                      title: "Discard this quiz?",
+                      message: "Your answers so far will not be scored.",
+                      confirmLabel: "Discard",
+                      danger: true,
+                    });
+                    if (ok) await abandonAttempt(a.id);
                   }}
                 >
                   Discard

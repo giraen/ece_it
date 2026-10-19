@@ -8,6 +8,7 @@ import { useNodes, useQuestions, useTagSuggestions } from "@/lib/hooks";
 import { suggestTags } from "@/lib/questions";
 import { tagUsage, type TagUsage } from "@/lib/tagUsage";
 import { updateDraft } from "@/lib/concepts";
+import { confirmAction } from "@/lib/dialog";
 import {
   STATUS_LABEL,
   combineReference,
@@ -693,9 +694,13 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               )}
               <button
                 className="btn btn-danger py-1"
-                onClick={() => {
-                  if (window.confirm(`Throw away all ${rows.length} questions waiting here?`))
-                    void discardPasted(rows.map((r) => r.d.id));
+                onClick={async () => {
+                  const ok = await confirmAction({
+                    title: `Throw away all ${rows.length} questions waiting here?`,
+                    confirmLabel: "Clear all",
+                    danger: true,
+                  });
+                  if (ok) await discardPasted(rows.map((r) => r.d.id));
                 }}
               >
                 Clear all

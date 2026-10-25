@@ -74,6 +74,8 @@ export function tagSections({
     candidates.push(s.trim());
   }
   const row = (text: string): TagRow => ({ kind: "tag", text, count: usage.counts.get(key(text)) ?? 0 });
+  // Whatever is chosen to be shown is listed A to Z, so a tag is easy to find.
+  const az = (list: string[]) => [...list].sort((a, b) => a.localeCompare(b));
   const q = key(draft);
 
   if (q) {
@@ -81,7 +83,10 @@ export function tagSections({
     const starts = hits.filter((t) => key(t).startsWith(q));
     const rest = hits.filter((t) => !key(t).startsWith(q));
     const sections: TagSection[] = [];
-    const matching = [...starts, ...rest].slice(0, limit).map(row);
+    const top = [...starts, ...rest].slice(0, limit);
+    const matching = [...az(top.filter((t) => starts.includes(t))), ...az(top.filter((t) => !starts.includes(t)))].map(
+      row,
+    );
     if (matching.length) sections.push({ title: "Matching tags", rows: matching });
     if (!chosen.has(q) && !candidates.some((t) => key(t) === q)) {
       sections.push({ title: "", rows: [{ kind: "create", text: draft.trim(), count: 0 }] });
@@ -93,15 +98,15 @@ export function tagSections({
   const cap = emptyLimit ?? limit;
   const here = topicScoped ? candidates.filter((t) => usage.here.has(key(t))) : [];
   if (here.length === 0) {
-    const all = candidates.slice(0, cap).map(row);
+    const all = az(candidates.slice(0, cap)).map(row);
     return all.length ? [{ title: "Suggestions", rows: all }] : [];
   }
   const sorted = [...here].sort(
     (a, b) => (usage.counts.get(key(b)) ?? 0) - (usage.counts.get(key(a)) ?? 0) || a.localeCompare(b),
   );
   const others = candidates.filter((t) => !usage.here.has(key(t)));
-  const sections: TagSection[] = [{ title: "Used on this topic", rows: sorted.slice(0, cap).map(row) }];
+  const sections: TagSection[] = [{ title: "Used on this topic", rows: az(sorted.slice(0, cap)).map(row) }];
   const room = Math.max(0, cap - sections[0].rows.length);
-  if (others.length && room > 0) sections.push({ title: "Everything else", rows: others.slice(0, room).map(row) });
+  if (others.length && room > 0) sections.push({ title: "Everything else", rows: az(others.slice(0, room)).map(row) });
   return sections;
 }

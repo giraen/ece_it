@@ -276,11 +276,13 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                     <Reference text={q.reference} className="mt-0.5 truncate" />
                     {q.tags.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        {q.tags.map((t) => (
-                          <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
-                            {t}
-                          </span>
-                        ))}
+                        {[...q.tags]
+                          .sort((a, b) => a.localeCompare(b))
+                          .map((t) => (
+                            <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                              {t}
+                            </span>
+                          ))}
                       </div>
                     )}
                   </div>

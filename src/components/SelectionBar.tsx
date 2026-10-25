@@ -63,7 +63,7 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
         else m.set(k, { label: t, count: 1 });
       }
     }
-    return Array.from(m.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    return Array.from(m.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [chosen]);
 
   // Suggestions: every tag in the bank that is not already on all of the selected questions.

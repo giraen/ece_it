@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Choice, DraftQuestion, Question, TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { useNodes, useQuestions, useTagSuggestions } from "@/lib/hooks";
-import { suggestTags } from "@/lib/questions";
+import { normalizeTags, suggestTags } from "@/lib/questions";
 import { tagUsage, type TagUsage } from "@/lib/tagUsage";
 import { updateDraft } from "@/lib/concepts";
 import { confirmAction } from "@/lib/dialog";
@@ -390,6 +390,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const pasteBox = useRef<HTMLTextAreaElement>(null);
   const [hasText, setHasText] = useState(false);
   const [defaultTopic, setDefaultTopic] = useState<string | null>(null);
+  // Tags that are put on every question read now, together with any Tags line in the text.
+  const [bulkTags, setBulkTags] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [changing, setChanging] = useState<string | null>(null);
   const [reference, setReference] = useState("");
@@ -420,6 +422,11 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
     const id = window.requestAnimationFrame(() => setMounted((m) => Math.min(total, m + CHUNK)));
     return () => window.cancelAnimationFrame(id);
   }, [loading, mounted, total]);
+
+  const bulkHelp = useMemo(
+    () => ({ suggestions: suggestTags(questions ?? [], defaultTopic), usage: tagUsage(questions ?? [], defaultTopic) }),
+    [questions, defaultTopic],
+  );
 
   if (!sources || !questions) return null;
 
@@ -490,7 +497,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       priority: priority || undefined,
       allowAi: allowAi || undefined,
       at: now(),
-    });
+    }).map((d) => (bulkTags.length ? { ...d, tags: normalizeTags([...(d.tags ?? []), ...bulkTags]) } : d));
     await savePasted(drafts);
     const ready = drafts.filter((d) => extractStatus(d) === "ready").length;
     if (pasteBox.current) pasteBox.current.value = "";
@@ -594,8 +601,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
               <li>Put a blank line between questions. Numbers such as 1. or 2) work in place of Q:.</li>
               <li>Put equations between $ signs, in the question and in the choices.</li>
               <li>
-                A Tags line, such as “Tags: series, formulas”, tags that question. You can change tags on each question
-                below.
+                A Tags line, such as “Tags: series, formulas”, tags that question. Tags you pick in step 2 are added to
+                every question. You can change tags on each question below.
               </li>
               <li>The Answer line is optional. You can mark the answer here instead.</li>
               <li>The choices are optional. If you give only an answer, you add the wrong choices here.</li>
@@ -644,6 +651,22 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             Source
           </label>
           <ReferenceInput id="extract-reference" value={reference} onChange={setReference} />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Tags for every question (optional)</p>
+          <p className="mb-1 text-xs text-muted">
+            Added to every question you read now, together with any Tags line in the text. You can still change the
+            tags of any question below.
+          </p>
+          <TagInput
+            value={bulkTags}
+            onChange={setBulkTags}
+            suggestions={bulkHelp.suggestions}
+            topicId={defaultTopic}
+            usage={bulkHelp.usage}
+            limit={8}
+            emptyLimit={3}
+          />
         </div>
         <div>
           <label className="flex items-center gap-2 text-sm font-medium">

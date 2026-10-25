@@ -36,7 +36,7 @@ export default function TagManager() {
     return tagStats(questions, notes);
   }, []);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<Sort>("most");
+  const [sort, setSort] = useState<Sort>("name");
   const [limit, setLimit] = useState(STEP);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [name, setName] = useState("");

@@ -19,10 +19,6 @@ export default function RecheckMastery({ id }: { id: string }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-muted">
-        The rule is looser now: a tag only has to appear once. You can check this quiz again, and if it qualifies it
-        earns mastery from the day you took it.
-      </p>
       <button type="button" className="btn" disabled={busy} onClick={() => void run()}>
         Check this quiz again
       </button>

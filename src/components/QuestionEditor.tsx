@@ -85,7 +85,6 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [reference, setReference] = useState(initial?.reference ?? "");
   const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
-  const [priority, setPriority] = useState(Boolean(initial?.priority));
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -189,7 +188,6 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         // Left out when it is 1, so a question that never repeats looks the same as before.
         ...(Number(repeatsText) > 1 ? { repeats: Number(repeatsText) } : {}),
         allowAi,
-        priority: priority || undefined,
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       });
@@ -400,18 +398,6 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             value={repeatsText}
             onChange={(e) => setRepeatsText(e.target.value)}
           />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} />
-            Priority
-          </label>
-          <InfoTip>
-            Mark a question you want to see sooner, such as one from a review center quiz or a book. Quizzes pick
-            priority questions first within each topic. One you already got right waits behind new and missed
-            questions, so the same few do not fill every quiz. You can turn this off in Settings.
-          </InfoTip>
         </div>
 
         <div className="flex items-center gap-1">

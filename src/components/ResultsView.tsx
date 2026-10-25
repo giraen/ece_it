@@ -84,18 +84,6 @@ function GroupRow({
   );
 }
 
-/** How the priority questions in a quiz went. Shown only when the quiz had some. */
-function PriorityNote({ items }: { items: AttemptItem[] }) {
-  const marked = items.filter((it) => it.priority);
-  if (marked.length === 0) return null;
-  const right = marked.filter((it) => it.correct).length;
-  return (
-    <p className="text-sm">
-      <span className="font-medium">Priority questions:</span> {right} of {marked.length} right.
-    </p>
-  );
-}
-
 /** One question as answered: what you picked, what was right, how sure you were, and the time. */
 function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
   const choiceById = new Map(item.choices.map((c) => [c.id, c]));
@@ -105,9 +93,6 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
     <li className="space-y-3 rounded-md border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="font-medium">Question {number}</span>
-        {item.priority && (
-          <span className="rounded bg-priority-soft px-1.5 py-0.5 text-[11px] font-medium text-priority">Priority</span>
-        )}
         <span className={`font-medium ${tone}`}>
           {item.answered ? (item.correct ? "Correct" : "Wrong") : "Not answered"}
         </span>
@@ -286,8 +271,6 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         />
         <Tile label="Accuracy" value={formatPercent(s.accuracy, 0)} />
       </section>
-
-      <PriorityNote items={attempt.items} />
 
       <section aria-label="Needs work">
         <h2 className="mb-2 font-medium">Needs work</h2>

@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Question } from "@/lib/db";
 import { restoreQuestions, snapshotQuestions } from "@/lib/bulk";
-import { setPriority } from "@/lib/priority";
 import { addTag, deleteQuestions, removeTag } from "@/lib/questions";
 import { tagSections, tagUsage } from "@/lib/tagUsage";
 
 interface Props {
   /** The selected questions that are in view. */
   ids: string[];
-  /** Every question in the bank, so tags and priority marks stay current. */
+  /** Every question in the bank, so tags stay current. */
   questions: Question[];
   /** How many questions the list is showing, for "Select all". */
   visibleCount: number;
@@ -31,7 +30,7 @@ function Kbd({ children }: { children: string }) {
 
 /**
  * The bar that floats at the bottom of the question list while questions are selected.
- * Priority, tags and delete all live here; each change can be undone from a short message above the bar.
+ * Tags and delete live here; each change can be undone from a short message above the bar.
  */
 export default function SelectionBar({ ids, questions, visibleCount, onSelectAll, onClear }: Props) {
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -50,7 +49,6 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
     const set = new Set(ids);
     return questions.filter((q) => set.has(q.id));
   }, [ids, questions]);
-  const allPriority = chosen.length > 0 && chosen.every((q) => q.priority);
 
   // Tags on the selected questions: how many of them carry each one.
   const onSelected = useMemo(() => {
@@ -120,15 +118,6 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
       document.removeEventListener("mousedown", onDown);
     };
   }, [shown, asking, tagsOpen, onClear]);
-
-  async function togglePriority() {
-    const on = !allPriority;
-    const before = await snapshotQuestions(ids);
-    await setPriority(ids, on);
-    say(on ? `${plural(n, "question")} marked priority` : `Priority removed from ${plural(n, "question")}`, () =>
-      restoreQuestions(before),
-    );
-  }
 
   async function add(text: string) {
     const parts = text
@@ -224,14 +213,6 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
                   </button>
                 )}
                 <span aria-hidden className="mx-1.5 h-5 w-px bg-line" />
-                <button
-                  aria-pressed={allPriority}
-                  className={`${iconBtn} ${allPriority ? "bg-priority-soft text-priority hover:bg-priority-solid/60" : ""}`}
-                  onClick={() => void togglePriority()}
-                >
-                  {allPriority ? "★ Remove priority" : "☆ Priority"}
-                </button>
-
                 <div className="relative" data-tags-area>
                   <button
                     aria-expanded={tagsOpen}

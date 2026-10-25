@@ -4,7 +4,7 @@ import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, t
 import { formatCountdown } from "./format";
 import { newId, now } from "./ids";
 import { masteryFor } from "./mastery";
-import { loadMasteryBar, loadPriorityFirst } from "./preferences";
+import { loadMasteryBar } from "./preferences";
 import { loadSourceMix, tierOfReference } from "./sourceMix";
 import { loadSources } from "./sources";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
@@ -51,7 +51,6 @@ function buildItem(
     variantId: shown.variantId,
     entryId: entry?.id,
     entryName: entry?.name,
-    ...(q.priority ? { priority: true } : {}),
     targetSec,
     confirmed: false,
     activeMs: 0,
@@ -133,16 +132,7 @@ export async function startAttempt(
   // The formula engine is only loaded when there is a computation question to roll.
   const comp = everyQuestion.some((q) => q.type === "computation") ? await import("./computation") : null;
   // A computation recipe that cannot produce a question is left out rather than breaking the quiz.
-  const playable = comp ? everyQuestion.filter((q) => q.type !== "computation" || comp.isUsable(q)) : everyQuestion;
-  // With "Priority questions first" turned off in Settings, every question is treated the same.
-  const priorityFirst = await loadPriorityFirst();
-  const usable = priorityFirst
-    ? playable
-    : playable.map((q) => {
-        const { priority, ...rest } = q;
-        void priority;
-        return rest;
-      });
+  const usable = comp ? everyQuestion.filter((q) => q.type !== "computation" || comp.isUsable(q)) : everyQuestion;
 
   // The kinds of source are mixed by the weights set in Settings. A question's kind comes from its reference.
   const sourceList = await loadSources();
@@ -157,7 +147,7 @@ export async function startAttempt(
   if (scope.kind === "category") {
     const blueprint = await db.blueprints.get(scope.id);
     if (!blueprint || blueprint.deletedAt) throw new Error("Set up a blueprint for this category first.");
-    const bq = composeBlueprintQuiz({ nodes, questions: usable, blueprint, history, mix })
+    const bq = composeBlueprintQuiz({ nodes, questions: usable, blueprint, history, mix });
     if (bq.picks.length === 0) throw new Error("There are no questions to quiz on here yet.");
     picked = bq.picks.map((p) => ({ question: p.question, entry: { id: p.entryId, name: p.entryName } }));
     eligibility = { eligible: bq.eligible, reason: bq.reason };

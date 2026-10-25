@@ -30,7 +30,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
  * The bar that floats at the bottom of the review list while questions are selected.
- * It moves them, sets the page they came from in a book, marks priority and AI reword, or discards them.
+ * It moves them, sets the page they came from in a book, marks AI reword, or discards them.
  */
 export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear, say, toast, onToastDone }: Props) {
   const [open, setOpen] = useState<"move" | "where" | null>(null);
@@ -42,7 +42,6 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
 
   const n = chosen.length;
   const shown = n > 0;
-  const allPriority = shown && chosen.every((d) => d.priority);
   const allAi = shown && chosen.every((d) => d.allowAi);
 
   // Only a question from a saved book has a page to set.
@@ -104,12 +103,6 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
     say(message, () => patchPasted(before));
   }
 
-  const togglePriority = () =>
-    change(
-      allPriority ? `Priority removed from ${plural(n, "question")}` : `${plural(n, "question")} marked priority`,
-      chosen.map((d) => ({ id: d.id, patch: { priority: allPriority ? undefined : true } })),
-      ["priority"],
-    );
   const toggleAi = () =>
     change(
       allAi ? `AI reword turned off for ${plural(n, "question")}` : `AI reword turned on for ${plural(n, "question")}`,
@@ -264,13 +257,6 @@ export default function ExtractBar({ chosen, sources, nodes, onDiscard, onClear,
               )}
             </div>
 
-            <button
-              aria-pressed={allPriority}
-              className={`${btn} ${allPriority ? "bg-priority-soft text-priority hover:bg-priority-solid/60" : ""}`}
-              onClick={() => void togglePriority()}
-            >
-              {allPriority ? "★ Remove priority" : "☆ Priority"}
-            </button>
             <button
               aria-pressed={allAi}
               className={`${btn} ${allAi ? "bg-accent-soft text-accent" : ""}`}

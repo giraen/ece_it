@@ -28,7 +28,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [priorityOnly, setPriorityOnly] = useState(false);
 
   // Everything under the selected node, or the whole bank when nothing is selected.
   const topicIds = new Set(
@@ -53,13 +52,8 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   // With tags chosen, each tag shows how many questions you would get by adding it.
   const narrowed = narrowedCounts(inScope, activeKeys);
 
-  // The priority filter is ignored when nothing in view is a priority, so it can never leave you with an empty list.
-  const priorityCount = inScope.filter((q) => q.priority).length;
-  const activePriority = priorityOnly && priorityCount > 0;
-
   const needle = search.trim().toLowerCase();
   const visible = inScope
-    .filter((q) => !activePriority || q.priority)
     .filter((q) => hasAllTags(q.tags, activeKeys))
     .filter(
       (q) =>
@@ -138,71 +132,49 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </Link>
       </div>
 
-      {(priorityCount > 0 || (showTags && tagIndex.size > 0)) && (
+      {showTags && tagIndex.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          {priorityCount > 0 && (
-            <button
-              aria-pressed={activePriority}
-              onClick={() => {
-                setPriorityOnly(!activePriority);
-                reset();
-              }}
-              className={`rounded px-2 py-0.5 text-sm font-medium ${
-                activePriority
-                  ? "bg-priority-solid text-on-priority"
-                  : "bg-priority-soft text-priority hover:bg-priority-solid/60"
-              }`}
-            >
-              Priority <span className="opacity-70">{priorityCount}</span>
-            </button>
-          )}
-          {showTags && tagIndex.size > 0 && (
-            <>
-              <span className={`text-sm text-muted ${priorityCount > 0 ? "ml-2" : ""}`}>Tags</span>
-              {Array.from(tagIndex.entries())
-                .sort((a, b) => a[1].label.localeCompare(b[1].label))
-                // Once a tag is chosen, tags that can no longer match anything are hidden, so the row gets shorter.
-                .filter(([key]) => activeKeys.length === 0 || activeKeys.includes(key) || narrowed.counts.has(key))
-                .map(([key, v]) => {
-                  const on = activeKeys.includes(key);
-                  const n = narrowed.counts.get(key) ?? 0;
-                  return (
-                    <button
-                      key={key}
-                      aria-pressed={on}
-                      onClick={() => {
-                        setTagFilter(toggleTag(activeKeys, key));
-                        reset();
-                      }}
-                      className={`rounded px-2 py-0.5 text-sm ${
-                        on ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
-                      }`}
-                    >
-                      {v.label} <span className="opacity-70">{on ? narrowed.shown : n}</span>
-                    </button>
-                  );
-                })}
-              {activeKeys.length > 0 && (
+          <span className="text-sm text-muted">Tags</span>
+          {Array.from(tagIndex.entries())
+            .sort((a, b) => a[1].label.localeCompare(b[1].label))
+            // Once a tag is chosen, tags that can no longer match anything are hidden, so the row gets shorter.
+            .filter(([key]) => activeKeys.length === 0 || activeKeys.includes(key) || narrowed.counts.has(key))
+            .map(([key, v]) => {
+              const on = activeKeys.includes(key);
+              const n = narrowed.counts.get(key) ?? 0;
+              return (
                 <button
-                  className="ml-1 text-sm underline underline-offset-2"
+                  key={key}
+                  aria-pressed={on}
                   onClick={() => {
-                    setTagFilter([]);
+                    setTagFilter(toggleTag(activeKeys, key));
                     reset();
                   }}
+                  className={`rounded px-2 py-0.5 text-sm ${
+                    on ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
+                  }`}
                 >
-                  Clear tags
+                  {v.label} <span className="opacity-70">{on ? narrowed.shown : n}</span>
                 </button>
-              )}
-              {activeKeys.length === 1 && (
-                <button className="text-sm underline underline-offset-2" onClick={() => void rename()}>
-                  Rename tag
-                </button>
-              )}
-              {activeKeys.length > 1 && (
-                <span className="text-xs text-muted">Questions with all {activeKeys.length}</span>
-              )}
-            </>
+              );
+            })}
+          {activeKeys.length > 0 && (
+            <button
+              className="ml-1 text-sm underline underline-offset-2"
+              onClick={() => {
+                setTagFilter([]);
+                reset();
+              }}
+            >
+              Clear tags
+            </button>
           )}
+          {activeKeys.length === 1 && (
+            <button className="text-sm underline underline-offset-2" onClick={() => void rename()}>
+              Rename tag
+            </button>
+          )}
+          {activeKeys.length > 1 && <span className="text-xs text-muted">Questions with all {activeKeys.length}</span>}
         </div>
       )}
       {!showTags && tagIndex.size > 0 && (
@@ -264,11 +236,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                       {q.type === "computation" && (
                         <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink">
                           Dynamic
-                        </span>
-                      )}
-                      {q.priority && (
-                        <span className="mr-2 rounded bg-priority-soft px-1.5 py-0.5 text-[11px] font-medium text-priority">
-                          Priority
                         </span>
                       )}
                       {pathOf(nodes, q.topicId)}

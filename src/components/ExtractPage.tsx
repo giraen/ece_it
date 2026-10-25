@@ -236,7 +236,7 @@ function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; wher
   );
 }
 
-/** The page of a book, Priority, and AI reword, on the card itself so Edit is not needed. */
+/** The page of a book and AI reword, on the card itself so Edit is not needed. */
 const QuickRow = memo(function QuickRow({ d, sources }: { d: DraftQuestion; sources: Source[] }) {
   const { source, where } = splitReference(d.reference ?? "", sources);
   const chip = "rounded-full border px-3 py-0.5 text-[13px]";
@@ -247,14 +247,6 @@ const QuickRow = memo(function QuickRow({ d, sources }: { d: DraftQuestion; sour
       ) : (
         <span className="text-xs text-muted">No saved source. Pick one under Edit.</span>
       )}
-      <button
-        type="button"
-        aria-pressed={!!d.priority}
-        className={`${chip} ${d.priority ? "border-transparent bg-priority-soft font-semibold text-priority" : "border-line text-muted hover:bg-paper"}`}
-        onClick={() => void updateDraft(d.id, { priority: d.priority ? undefined : true })}
-      >
-        {d.priority ? "★" : "☆"} Priority
-      </button>
       <button
         type="button"
         aria-pressed={!!d.allowAi}
@@ -395,7 +387,6 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
   const [selected, setSelected] = useState<string[]>([]);
   const [changing, setChanging] = useState<string | null>(null);
   const [reference, setReference] = useState("");
-  const [priority, setPriority] = useState(false);
   const [allowAi, setAllowAi] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
@@ -494,7 +485,6 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
       defaultTopicId: defaultTopic ?? "",
       findTopic: (t) => findTopic(entries, t),
       reference: (own) => combineReference(own, reference, sourceOnly),
-      priority: priority || undefined,
       allowAi: allowAi || undefined,
       at: now(),
     }).map((d) => (bulkTags.length ? { ...d, tags: normalizeTags([...(d.tags ?? []), ...bulkTags]) } : d));
@@ -667,16 +657,6 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
             limit={8}
             emptyLimit={3}
           />
-        </div>
-        <div>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} />
-            Priority
-          </label>
-          <p className="mt-1 text-xs text-muted">
-            Marks every question you read now, so quizzes pick them first. You can change it for any question later in
-            the Bank.
-          </p>
         </div>
         <div>
           <label className="flex items-center gap-2 text-sm font-medium">

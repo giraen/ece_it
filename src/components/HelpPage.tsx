@@ -174,12 +174,6 @@ export default function HelpPage() {
               it writes is shown until it passes a check.
             </li>
             <li>
-              <strong>Priority</strong> marks a question you want to see sooner, such as one from a review center (RC)
-              quiz or a book. Quizzes pick priority questions first within each topic. A priority question you already
-              got right waits behind new and missed ones, so the same few do not fill every quiz. In the Bank, tick
-              several questions to mark them together. Turn the behaviour off in Settings under Preferences.
-            </li>
-            <li>
               <Btn>Save and add another</Btn> keeps the topic, the type, the tags, and the source, so a run of questions
               from one book goes quickly.
             </li>

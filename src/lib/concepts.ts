@@ -20,14 +20,25 @@ export function titleFrom(body: string): string {
   return line || "Untitled concept";
 }
 
-/** What has been drafted from each concept: questions waiting for review and questions already accepted. */
-export function draftCounts(drafts: DraftQuestion[]): Map<string, { pending: number; accepted: number }> {
-  const out = new Map<string, { pending: number; accepted: number }>();
+export interface DraftCount {
+  pending: number;
+  accepted: number;
+  rejected: number;
+}
+
+/**
+ * What has been drafted from each concept: questions waiting for review, accepted, and rejected.
+ * A concept counts as drafted only while it has a question waiting or accepted, so one whose drafts were all
+ * rejected can be drafted again.
+ */
+export function draftCounts(drafts: DraftQuestion[]): Map<string, DraftCount> {
+  const out = new Map<string, DraftCount>();
   for (const d of drafts) {
-    if (d.deletedAt || (d.status !== "pending" && d.status !== "accepted")) continue;
-    const c = out.get(d.conceptId) ?? { pending: 0, accepted: 0 };
+    if (d.deletedAt) continue;
+    const c = out.get(d.conceptId) ?? { pending: 0, accepted: 0, rejected: 0 };
     if (d.status === "pending") c.pending++;
-    else c.accepted++;
+    else if (d.status === "accepted") c.accepted++;
+    else c.rejected++;
     out.set(d.conceptId, c);
   }
   return out;

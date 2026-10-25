@@ -363,9 +363,14 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
                               <span className="font-medium text-accent"> · {made.pending} to review</span>
                             )}
                             {made.accepted > 0 && <span className="text-muted"> · {made.accepted} accepted</span>}
+                            {made.rejected > 0 && <span className="text-muted"> · {made.rejected} rejected</span>}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted">Not drafted yet</span>
+                          <span className="text-xs text-muted">
+                            {made && made.rejected > 0
+                              ? `None kept yet · ${made.rejected} rejected`
+                              : "Not drafted yet"}
+                          </span>
                         )}
                       </div>
                     </div>

@@ -77,9 +77,9 @@ export function coverageFor(kind: "topic" | "subject") {
   return kind === "topic" ? { keysOf: tagKeys, groupName: "tag" } : { keysOf: topicKeys, groupName: "topic" };
 }
 
-/** Each group the bank has at least 2 questions for must contribute at least 2 to the quiz. */
-export function checkCoverage(
-  picked: Question[],
+/** The group keys of every picked question decide this: each group the bank has 2 or more questions for must appear. */
+export function checkKeyCoverage(
+  pickedKeys: string[][],
   pool: Question[],
   keysOf: (q: Question) => string[],
   groupName: string,
@@ -87,21 +87,31 @@ export function checkCoverage(
   const have = new Map<string, number>();
   const got = new Map<string, number>();
   for (const q of pool) for (const k of keysOf(q)) have.set(k, (have.get(k) ?? 0) + 1);
-  for (const q of picked) for (const k of keysOf(q)) got.set(k, (got.get(k) ?? 0) + 1);
+  for (const keys of pickedKeys) for (const k of keys) got.set(k, (got.get(k) ?? 0) + 1);
   for (const [k, n] of have) {
-    if (n >= CONFIG.minPerGroup && (got.get(k) ?? 0) < CONFIG.minPerGroup) {
-      return { ok: false, reason: `Some ${groupName}s have fewer than ${CONFIG.minPerGroup} questions in this quiz.` };
+    if (n >= CONFIG.minPerGroup && (got.get(k) ?? 0) < CONFIG.minCoverage) {
+      return { ok: false, reason: `Some ${groupName}s did not appear in this quiz.` };
     }
   }
   return { ok: true };
 }
 
-/** The shortest quiz that could give every group its 2 questions, never below `floor` and never above the pool. */
+/** Each group the bank has at least 2 questions for must appear in the quiz at least once. */
+export function checkCoverage(
+  picked: Question[],
+  pool: Question[],
+  keysOf: (q: Question) => string[],
+  groupName: string,
+): { ok: boolean; reason?: string } {
+  return checkKeyCoverage(picked.map(keysOf), pool, keysOf, groupName);
+}
+
+/** The shortest quiz that could include every group, never below `floor` and never above the pool. */
 export function minLengthForCoverage(pool: Question[], keysOf: (q: Question) => string[], floor: number): number {
   const have = new Map<string, number>();
   for (const q of pool) for (const k of keysOf(q)) have.set(k, (have.get(k) ?? 0) + 1);
   let total = 0;
-  for (const n of have.values()) total += Math.min(n, CONFIG.minPerGroup);
+  for (const n of have.values()) total += Math.min(n, CONFIG.minCoverage);
   return Math.min(Math.max(total, floor), pool.length);
 }
 
@@ -128,4 +138,27 @@ export function groupKeysFor(kind: NodeKind, item: AttemptItem): { key: string; 
   if (kind === "subject") return [{ key: item.topicId, label: item.topicName }];
   if (item.tags.length === 0) return [{ key: "", label: "Untagged" }];
   return item.tags.map((t) => ({ key: t.toLowerCase(), label: t }));
+}
+
+/**
+ * Whether a quiz that was already taken could have awarded mastery under the rules now, judged against the bank as it
+ * is now. A quiz is only checked again when it was ruled out for leaving a tag or topic out.
+ */
+export function recheckEligibility(
+  kind: "topic" | "subject",
+  items: AttemptItem[],
+  pool: Question[],
+): { eligible: boolean; reason?: string } {
+  const plan = planFor(kind, pool.length);
+  if (items.length < plan.masteryMin) {
+    return { eligible: false, reason: `Mastery needs at least ${plan.masteryMin} questions in a ${kind} quiz.` };
+  }
+  const { keysOf, groupName } = coverageFor(kind);
+  const c = checkKeyCoverage(
+    items.map((it) => groupKeysFor(kind, it).map((g) => g.key)),
+    pool,
+    keysOf,
+    groupName,
+  );
+  return c.ok ? { eligible: true } : { eligible: false, reason: c.reason };
 }

@@ -83,7 +83,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
       items < need
         ? {
             ok: false,
-            text: `Practice only. To give every ${groupName} at least 2 questions, ask for at least ${need}.`,
+            text: `Practice only. To include every ${groupName}, ask for at least ${need}.`,
           }
         : { ok: true, text: "This quiz can award mastery if you reach the bar." };
   }

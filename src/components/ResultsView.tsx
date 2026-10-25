@@ -8,12 +8,14 @@ import type { AttemptItem } from "@/lib/db";
 import { formatCountdown, formatDate, formatDateTime, formatDuration, formatPercent, formatRatio } from "@/lib/format";
 import { useAttempt, useAttempts, useConcepts, useNow } from "@/lib/hooks";
 import { expiryFor, masteryFor } from "@/lib/mastery";
+import { canRecheck } from "@/lib/recheck";
 import { groupKeysFor } from "@/lib/quizPlan";
 import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/scoring";
 import RichText from "./RichText";
 import Reference from "./Reference";
 import InfoTip from "./InfoTip";
 import PracticeTag from "./PracticeTag";
+import RecheckMastery from "./RecheckMastery";
 
 const LETTERS = "ABCDEFGH";
 
@@ -256,9 +258,10 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             {formatDate(expiryFor(kind, submittedAt))}.
           </p>
         ) : s.passed ? (
-          <p aria-label="Mastery" className="rounded-md border border-line bg-surface p-3 text-sm">
-            This quiz could not award mastery{attempt.ineligibleReason ? `: ${attempt.ineligibleReason}` : "."}
-          </p>
+          <div aria-label="Mastery" className="space-y-2 rounded-md border border-line bg-surface p-3 text-sm">
+            <p>This quiz could not award mastery{attempt.ineligibleReason ? `: ${attempt.ineligibleReason}` : "."}</p>
+            {canRecheck(attempt) && <RecheckMastery id={attempt.id} />}
+          </div>
         ) : attempt.eligible !== false ? (
           <p aria-label="Mastery" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm">
             <span className="font-medium text-danger">Locked for {CONFIG.cooldownHours} hours.</span> This {kind}{" "}

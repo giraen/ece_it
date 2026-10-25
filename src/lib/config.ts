@@ -10,6 +10,8 @@ export const CONFIG = {
   childFloor: 0.5,
   /** A group only counts toward the floor once it has this many questions in the quiz. */
   minPerGroup: 2,
+  /** For mastery, every tag or topic the bank has `minPerGroup` or more questions for must appear this many times. */
+  minCoverage: 1,
   /** Credit for a correct answer, by how sure the user was. Time never changes it. */
   sureCredit: { sure: 1, wise_guess: 0.6, not_sure: 0.4, just_guessed: 0 },
   /**

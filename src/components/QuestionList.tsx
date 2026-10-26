@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Question, TreeNode } from "@/lib/db";
 import { renameTag } from "@/lib/questions";
 import { askText } from "@/lib/dialog";
@@ -26,7 +27,20 @@ interface Props {
 
 export default function QuestionList({ nodes, questions, selected }: Props) {
   const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  // The chosen tags live in the address (?tag=series&tag=formulas), so a refresh or a copied link keeps them.
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const tagFilter = params.getAll("tag").map((t) => t.toLowerCase());
+  const setTagFilter = (keys: string[]) => {
+    const next = new URLSearchParams(params.toString());
+    next.delete("tag");
+    // A different set of tags starts again at the first page.
+    next.delete("page");
+    for (const k of keys) next.append("tag", k);
+    const text = next.toString();
+    router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
+  };
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   // Everything under the selected node, or the whole bank when nothing is selected.
@@ -99,7 +113,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
     if (!to || !to.trim() || to.trim() === from) return;
     await renameTag(Array.from(topicIds), from, to);
     setTagFilter([to.trim().toLowerCase()]);
-    reset();
   }
 
   const newHref = selected?.kind === "topic" ? `/editor?topic=${selected.id}` : "/editor";
@@ -148,7 +161,6 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                   aria-pressed={on}
                   onClick={() => {
                     setTagFilter(toggleTag(activeKeys, key));
-                    reset();
                   }}
                   className={`rounded px-2 py-0.5 text-sm ${
                     on ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
@@ -159,13 +171,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
               );
             })}
           {activeKeys.length > 0 && (
-            <button
-              className="ml-1 text-sm underline underline-offset-2"
-              onClick={() => {
-                setTagFilter([]);
-                reset();
-              }}
-            >
+            <button className="ml-1 text-sm underline underline-offset-2" onClick={() => setTagFilter([])}>
               Clear tags
             </button>
           )}

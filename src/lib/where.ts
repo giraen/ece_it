@@ -3,6 +3,11 @@ import type { Source } from "./sources";
 /** Only a book has a "where in it" to type, which is its page. Past quizzes, websites and videos have none. */
 export const hasWhere = (kind: Source["kind"]): boolean => kind === "book";
 
+/** Keeps what a page can hold: numbers, and the comma, dash and space of a list or a range such as "34-35". */
+export function pageOnly(typed: string): string {
+  return typed.replace(/[^\d\s,–-]/g, "");
+}
+
 /**
  * Counts up the first number in a "where" text, so one start such as "p. 143" can run through a row of questions:
  * 143, 144, 145. Only the first number changes, so "p. 143, Problem 5" becomes "p. 144, Problem 5".

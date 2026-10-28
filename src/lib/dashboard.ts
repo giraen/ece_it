@@ -1,10 +1,80 @@
 import type { Question, QuizAttempt, TreeNode } from "./db";
-import { masteryFor } from "./mastery";
+import { masteryFor, type MasteryInfo } from "./mastery";
 import { childrenOf, subtreeOf } from "./tree";
 
 /** Mastery that runs out within this many days counts as "expiring". */
 export const EXPIRING_DAYS = 3;
 const DAY = 86_400_000;
+
+/** Mastery that is held now and runs out within `EXPIRING_DAYS`. */
+export function isExpiringSoon(info: MasteryInfo | undefined, nowMs: number): boolean {
+  return info?.status === "mastered" && info.expiresAt !== undefined && info.expiresAt - nowMs <= EXPIRING_DAYS * DAY;
+}
+
+/** Mastery that was earned once and has run out. */
+export function isExpired(info: MasteryInfo | undefined): boolean {
+  return info?.status === "expired";
+}
+
+/** For one row of the mastery list: what runs out soon or has run out, in the row itself and in the rows under it. */
+export interface ExpiryMark {
+  soonSelf: boolean;
+  soonInside: number;
+  expiredSelf: boolean;
+  expiredInside: number;
+}
+
+/**
+ * Marks every node whose own mastery, or the mastery of anything under it, runs out soon or has run out, so a
+ * collapsed row can warn about what is hidden inside it. A subject shared by two categories is counted once under each.
+ */
+export function expiryMarks(
+  nodes: TreeNode[],
+  mastery: Map<string, { info: MasteryInfo }>,
+  nowMs: number,
+): Map<string, ExpiryMark> {
+  const out = new Map<string, ExpiryMark>();
+  const below = (id: string, seen: Set<string>) => {
+    for (const kid of childrenOf(nodes, id)) {
+      if (seen.has(kid.id)) continue;
+      seen.add(kid.id);
+      below(kid.id, seen);
+    }
+    return seen;
+  };
+  for (const n of nodes) {
+    const own = mastery.get(n.id)?.info;
+    const mark: ExpiryMark = {
+      soonSelf: isExpiringSoon(own, nowMs),
+      soonInside: 0,
+      expiredSelf: isExpired(own),
+      expiredInside: 0,
+    };
+    for (const id of below(n.id, new Set())) {
+      const info = mastery.get(id)?.info;
+      if (isExpiringSoon(info, nowMs)) mark.soonInside += 1;
+      if (isExpired(info)) mark.expiredInside += 1;
+    }
+    if (mark.soonSelf || mark.soonInside > 0 || mark.expiredSelf || mark.expiredInside > 0) out.set(n.id, mark);
+  }
+  return out;
+}
+
+/** How many rows, at any level, have expired, and how many run out soon. */
+export function expirySummary(
+  nodes: TreeNode[],
+  mastery: Map<string, { info: MasteryInfo }>,
+  nowMs: number,
+): { expired: number; soon: number } {
+  let expired = 0;
+  let soon = 0;
+  for (const n of nodes) {
+    const info = mastery.get(n.id)?.info;
+    if (isExpired(info)) expired += 1;
+    else if (isExpiringSoon(info, nowMs)) soon += 1;
+  }
+  return { expired, soon };
+}
 
 export interface Suggestion {
   node: TreeNode;
@@ -62,9 +132,7 @@ export function computeDashboard(input: {
 
   const expiringSoon = live
     .map((node) => ({ node, i: info.get(node.id) }))
-    .filter(
-      (x) => x.i?.status === "mastered" && x.i.expiresAt !== undefined && x.i.expiresAt - nowMs <= EXPIRING_DAYS * DAY,
-    )
+    .filter((x) => isExpiringSoon(x.i, nowMs))
     .map((x) => ({ node: x.node, expiresAt: x.i?.expiresAt as number }))
     .sort((a, b) => a.expiresAt - b.expiresAt);
 

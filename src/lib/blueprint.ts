@@ -1,6 +1,6 @@
-import { CONFIG } from "./config";
 import { composeQuiz, shuffle, type History, type Rand, type SourceMix } from "./compose";
 import type { Blueprint, Question, TreeNode } from "./db";
+import { masteryEligibility } from "./quizPlan";
 import { pathOf, subtreeOf } from "./tree";
 
 /** Splits `total` across the percentages so the whole numbers add up to exactly `total` (largest remainder). */
@@ -117,13 +117,7 @@ export function composeBlueprintQuiz({
   });
 
   const shortfall = allocations.some((a) => a.picked < a.wanted);
-  let reason: string | undefined;
-  if (shortfall) reason = "The bank has fewer questions than the blueprint asks for.";
-  else if (picks.length < CONFIG.quiz.category.minItems) {
-    reason = `Mastery needs at least ${CONFIG.quiz.category.minItems} questions in a category mock.`;
-  } else {
-    const thin = allocations.find((a) => a.available >= CONFIG.minPerGroup && a.picked < CONFIG.minPerGroup);
-    if (thin) reason = `"${thin.label}" has fewer than ${CONFIG.minPerGroup} questions in this mock.`;
-  }
-  return { picks: shuffle(picks, rand), allocations, shortfall, eligible: !reason, reason };
+  // Only the length decides whether a mock can award mastery. Which entries are thin does not.
+  const { eligible, reason } = masteryEligibility("category", picks.length);
+  return { picks: shuffle(picks, rand), allocations, shortfall, eligible, reason };
 }

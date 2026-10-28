@@ -12,13 +12,15 @@ import {
   useSources,
   type Source,
 } from "@/lib/sources";
-import { hasWhere, whereForInput, whereFromInput } from "@/lib/where";
+import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/where";
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   /** The id of the field, so a label can point at it. */
   id: string;
+  /** Opens the list above the field instead of below it, for a field at the bottom of the screen. */
+  dropUp?: boolean;
 }
 
 /** The sources shown before anything is typed: the three used most in each kind. */
@@ -36,7 +38,7 @@ interface Row {
  * Where a question or note came from. A dropdown of the saved sources: the top three of each kind to start with, and
  * typing searches all of them. Sources are made and changed in Settings. A book also gets a Page box.
  */
-export default function ReferenceInput({ value, onChange, id }: Props) {
+export default function ReferenceInput({ value, onChange, id, dropUp = false }: Props) {
   const sources = useSources();
   const use = useSourceUse();
   const [query, setQuery] = useState("");
@@ -154,7 +156,9 @@ export default function ReferenceInput({ value, onChange, id }: Props) {
         {open && (
           // Pressing inside the list must not take focus from the field, or it would close before the click lands.
           <div
-            className="absolute top-full right-0 left-0 z-30 mt-1.5 overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
+            className={`absolute right-0 left-0 z-30 overflow-hidden rounded-lg border border-line bg-surface shadow-lg ${
+              dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"
+            }`}
             onMouseDown={(e) => e.preventDefault()}
           >
             <div id={listId} role="listbox" aria-label="Sources" className="max-h-72 overflow-y-auto py-1">
@@ -229,8 +233,9 @@ function PageBox({
           setFocused(true);
         }}
         onChange={(e) => {
-          setText(e.target.value);
-          onChange(whereFromInput(kind, e.target.value));
+          const typed = pageOnly(e.target.value);
+          setText(typed);
+          onChange(whereFromInput(kind, typed));
         }}
         onBlur={() => setFocused(false)}
       />

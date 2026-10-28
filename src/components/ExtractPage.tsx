@@ -40,7 +40,7 @@ import {
 import { childrenOf, pathOf } from "@/lib/tree";
 import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/sources";
 import { motionReduced } from "@/lib/motion";
-import { hasWhere, whereForInput, whereFromInput } from "@/lib/where";
+import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/where";
 import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
 import ExtractBar, { type Toast } from "./ExtractBar";
 import ImageTextarea from "./ImageTextarea";
@@ -213,7 +213,7 @@ function WhereBox({ d, source, where }: { d: DraftQuestion; source: Source; wher
           setText(shownWhere);
           setFocused(true);
         }}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => setText(pageOnly(e.target.value))}
         onBlur={() => {
           commit();
           setFocused(false);
@@ -492,6 +492,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
     const ready = drafts.filter((d) => extractStatus(d) === "ready").length;
     if (pasteBox.current) pasteBox.current.value = "";
     setHasText(false);
+    // The tags were for this text only, so the next one starts with none.
+    setBulkTags([]);
     setFilter("all");
     setMessage({
       ok: true,
@@ -892,6 +894,7 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
           chosen={rows.filter((r) => chosen.includes(r.d.id)).map((r) => r.d)}
           sources={sources}
           nodes={nodes}
+          questions={questions}
           onDiscard={discardWithUndo}
           onClear={() => setSelected([])}
           say={say}

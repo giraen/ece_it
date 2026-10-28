@@ -143,6 +143,10 @@ export default function HelpPage() {
               Click a topic or subject to see only its questions. The list can be searched, and each question can be
               edited or deleted.
             </li>
+            <li>
+              The tag row has <Btn>Untagged</Btn>, which shows the questions that have no tag so they are easy to find.
+              Under a tag such as <code>solving</code>, the questions that have only that kind of tag come first.
+            </li>
           </Points>
         </Section>
 
@@ -155,7 +159,10 @@ export default function HelpPage() {
           <Points>
             <li>
               <strong>Tags</strong> are optional labels such as “series circuits”. They group questions inside a topic
-              and show up in your analytics.
+              and show up in your analytics. A topic quiz is built from them: most quizzes are spread evenly across the
+              tags, and some lean on one tag for up to about {Math.round(CONFIG.build.focusShare.max * 100)}% of the
+              questions, so you do not get used to one shape. The tags <code>concept</code> and <code>solving</code> say
+              what kind of question it is, so a quiz never builds around them.
             </li>
             <li>
               <strong>Reference</strong> is optional. It says where the question came from. See{" "}
@@ -206,11 +213,11 @@ export default function HelpPage() {
 
         <Section id="computation" title="Dynamic questions">
           <P>
-            A dynamic question is a recipe. Instead of one fixed question, you describe how to make many, and every
-            quiz rolls fresh numbers. The formula stays the same while the numbers change, which is what you want for
-            problem solving. Choose <Btn>Dynamic</Btn> as the type of question. A <Btn>Standard</Btn> question never
-            changes: you type the question and the choices yourself, and it can still be a calculation problem because
-            you type the numbers.
+            A dynamic question is a recipe. Instead of one fixed question, you describe how to make many, and every quiz
+            rolls fresh numbers. The formula stays the same while the numbers change, which is what you want for problem
+            solving. Choose <Btn>Dynamic</Btn> as the type of question. A <Btn>Standard</Btn> question never changes:
+            you type the question and the choices yourself, and it can still be a calculation problem because you type
+            the numbers.
           </P>
           <Steps>
             <li>
@@ -259,8 +266,8 @@ export default function HelpPage() {
               <strong>Suggest wrong choices.</strong> Writing the question and the right answer is easy. Coming up with
               convincing wrong ones is not. Write the question, mark and fill in the correct choice, leave some choices
               empty, and press <Btn>Suggest wrong choices</Btn>. The AI fills the empty boxes with confusing, similar,
-              or wrong-method answers, which you can edit. For a dynamic question, it suggests formulas, and every
-              one is checked to be a real, different answer before you see it. It needs the AI helper (see below).
+              or wrong-method answers, which you can edit. For a dynamic question, it suggests formulas, and every one
+              is checked to be a real, different answer before you see it. It needs the AI helper (see below).
             </li>
           </Points>
           <ChoicesDemo />
@@ -379,9 +386,8 @@ export default function HelpPage() {
           <CreditTable />
           <Points>
             <li>
-              A quiz <strong>passes</strong> at an average credit of {formatPercent(CONFIG.passBar, 0)}. Also, no group
-              of questions (a tag, topic, or subject) may average under {formatPercent(CONFIG.childFloor, 0)}. A group
-              only counts once it has {CONFIG.minPerGroup} questions in the quiz.
+              A quiz <strong>passes</strong> at an average credit of {formatPercent(CONFIG.passBar, 0)}, or the mastery
+              bar you set in Settings. Nothing else is asked of it, and it does not matter which tags or topics came up.
             </li>
             <li>
               A passing quiz that is long enough earns <strong>mastery</strong>: {d.topic} days for a topic, {d.subject}{" "}
@@ -395,6 +401,16 @@ export default function HelpPage() {
             <li>
               Mastery needs at least {q.topic.minItems} questions for a topic, and {q.subject.minItems} for a subject or
               category.
+            </li>
+            <li>
+              <strong>Recheck</strong> is on every result. It judges that quiz again under the mastery bar and minimum
+              now, and dates the mastery to the day the quiz was taken, so the time it lasts does not move. It can give
+              mastery and it can take it away. It never locks anything.
+            </li>
+            <li>
+              When the mastery bar or the minimums change, the quizzes whose mastery could still be running are
+              rechecked for you, and a message says how many gained or lost mastery. Older quizzes are left alone,
+              because they cannot change what is mastered now.
             </li>
           </Points>
           <MasteryStill />
@@ -493,8 +509,8 @@ export default function HelpPage() {
               award mastery. Add questions, or ask for more.
             </li>
             <li>
-              <strong>A dynamic recipe will not save.</strong> Read the list above <Btn>Roll a preview</Btn>. It
-              names the exact box that has a problem.
+              <strong>A dynamic recipe will not save.</strong> Read the list above <Btn>Roll a preview</Btn>. It names
+              the exact box that has a problem.
             </li>
             <li>
               <strong>Maths shows as plain text.</strong> Check that the formula sits between dollar signs.

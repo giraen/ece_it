@@ -138,23 +138,13 @@ export interface PassResult {
   passed: boolean;
   credit: number;
   bar: number;
-  /** Labels of groups that fell below the floor. */
-  failedGroups: string[];
 }
 
 const EPS = 1e-9;
 
-/** Passes when the average credit reaches the bar and no sizeable group falls below the floor. */
-export function evaluatePass(credit: number, groups: GroupStats[], bar: number = CONFIG.passBar): PassResult {
-  const failedGroups = groups
-    .filter((g) => g.n >= CONFIG.minPerGroup && g.credit + EPS < CONFIG.childFloor)
-    .map((g) => g.label);
-  return {
-    passed: credit + EPS >= bar && failedGroups.length === 0,
-    credit,
-    bar,
-    failedGroups,
-  };
+/** Passes when the average credit reaches the bar. Nothing else is asked of a quiz. */
+export function evaluatePass(credit: number, bar: number = CONFIG.passBar): PassResult {
+  return { passed: credit + EPS >= bar, credit, bar };
 }
 
 export interface Weakness {

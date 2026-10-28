@@ -7,15 +7,7 @@ import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
 import { masteryFor } from "@/lib/mastery";
 import { startAttempt } from "@/lib/quiz";
-import {
-  MAX_MINUTES,
-  coverageFor,
-  itemsProblem,
-  minLengthForCoverage,
-  planFor,
-  suggestedMinutes,
-  withCopies,
-} from "@/lib/quizPlan";
+import { MAX_MINUTES, itemsProblem, planFor, suggestedMinutes, withCopies } from "@/lib/quizPlan";
 import { targetSecPerItem } from "@/lib/scoring";
 import { pathOf, subtreeOf } from "@/lib/tree";
 import InfoTip from "./InfoTip";
@@ -77,15 +69,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
           : `Practice only. Mastery needs at least ${plan.masteryMin} questions in a ${kind} quiz.`,
     };
   } else {
-    const { keysOf, groupName } = coverageFor(kind);
-    const need = minLengthForCoverage(pool, keysOf, plan.masteryMin);
-    mastery =
-      items < need
-        ? {
-            ok: false,
-            text: `Practice only. To include every ${groupName}, ask for at least ${need}.`,
-          }
-        : { ok: true, text: "This quiz can award mastery if you reach the bar." };
+    mastery = { ok: true, text: "This quiz can award mastery if you reach the bar." };
   }
 
   async function start(practice: boolean) {

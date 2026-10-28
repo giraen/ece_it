@@ -7,7 +7,8 @@ import type { Question, TreeNode } from "@/lib/db";
 import { renameTag } from "@/lib/questions";
 import { askText } from "@/lib/dialog";
 import { pathOf, subtreeOf } from "@/lib/tree";
-import { hasAllTags, narrowedCounts, toggleTag } from "@/lib/tagFilter";
+import { UNTAGGED, matchesTags, narrowedCounts, toggleTag } from "@/lib/tagFilter";
+import { exemptOnlyFirst, isExemptTag } from "@/lib/tagRules";
 import { usePagination } from "@/lib/usePagination";
 import Pagination from "./Pagination";
 import Reference from "./Reference";
@@ -61,14 +62,16 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   }
   // The tag row is only shown inside a subject or a topic, where the list of tags is short enough to use.
   const showTags = selected?.kind === "subject" || selected?.kind === "topic";
+  const untaggedCount = inScope.filter((q) => q.tags.length === 0).length;
   // Tags that are not in this view are ignored, so changing the selection cannot leave you with an empty list.
-  const activeKeys = showTags ? tagFilter.filter((k) => tagIndex.has(k)) : [];
+  const activeKeys = showTags ? tagFilter.filter((k) => (k === UNTAGGED ? untaggedCount > 0 : tagIndex.has(k))) : [];
+  const untaggedOn = activeKeys.includes(UNTAGGED);
   // With tags chosen, each tag shows how many questions you would get by adding it.
   const narrowed = narrowedCounts(inScope, activeKeys);
 
   const needle = search.trim().toLowerCase();
-  const visible = inScope
-    .filter((q) => hasAllTags(q.tags, activeKeys))
+  const sorted = inScope
+    .filter((q) => matchesTags(q.tags, activeKeys))
     .filter(
       (q) =>
         !needle ||
@@ -78,6 +81,8 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
     )
     // Newest created first. Editing a question no longer moves it to the top.
     .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
+  // Under a tag such as "solving", the questions that have only that kind of tag come first, so they stand out.
+  const visible = activeKeys.some(isExemptTag) ? exemptOnlyFirst(sorted) : sorted;
 
   const top = useRef<HTMLElement>(null);
   const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(visible);
@@ -101,7 +106,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   }
 
   async function rename() {
-    if (activeKeys.length !== 1) return;
+    if (activeKeys.length !== 1 || untaggedOn) return;
     const from = tagIndex.get(activeKeys[0])!.label;
     const to = await askText({
       title: `Rename the tag "${from}"`,
@@ -145,9 +150,21 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </Link>
       </div>
 
-      {showTags && tagIndex.size > 0 && (
+      {showTags && (tagIndex.size > 0 || untaggedCount > 0) && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
           <span className="text-sm text-muted">Tags</span>
+          {/* Questions with no tag at all. It is hidden once a tag is chosen, because it could not match anything. */}
+          {untaggedCount > 0 && (activeKeys.length === 0 || untaggedOn) && (
+            <button
+              aria-pressed={untaggedOn}
+              onClick={() => setTagFilter(toggleTag(activeKeys, UNTAGGED))}
+              className={`rounded border border-dashed px-2 py-0.5 text-sm ${
+                untaggedOn ? "border-accent bg-accent text-white" : "border-accent/50 text-accent hover:bg-accent/10"
+              }`}
+            >
+              Untagged <span className="opacity-70">{untaggedCount}</span>
+            </button>
+          )}
           {Array.from(tagIndex.entries())
             .sort((a, b) => a[1].label.localeCompare(b[1].label))
             // Once a tag is chosen, tags that can no longer match anything are hidden, so the row gets shorter.
@@ -175,7 +192,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
               Clear tags
             </button>
           )}
-          {activeKeys.length === 1 && (
+          {activeKeys.length === 1 && !untaggedOn && (
             <button className="text-sm underline underline-offset-2" onClick={() => void rename()}>
               Rename tag
             </button>

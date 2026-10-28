@@ -36,8 +36,10 @@ export function awardsMastery(a: QuizAttempt): boolean {
  * Mastery and cooldown for one topic, subject, or category, worked out only from submitted attempts.
  * - Mastery comes from the latest awarding quiz and lasts a fixed time that depends on the level.
  * - A failed quiz that could have awarded mastery locks the node for the cooldown. A later quiz replaces it.
- *   A failed practice-only quiz never locks anything, since it could not have earned mastery anyway.
- * - Failing never removes mastery you still hold, and quizzes you did not submit never count.
+ *   A failed practice-only quiz never locks anything, since it could not have earned mastery anyway, and neither
+ *   does a quiz a recheck took mastery from (`noLock`), since it was not failed when it was taken.
+ * - Failing a quiz never removes mastery you still hold (only a recheck can), and quizzes you did not submit never
+ *   count.
  */
 export function masteryFor(attempts: QuizAttempt[], node: Pick<TreeNode, "id" | "kind">, nowMs: number): MasteryInfo {
   const mine = attempts
@@ -57,7 +59,7 @@ export function masteryFor(attempts: QuizAttempt[], node: Pick<TreeNode, "id" | 
   let lockedUntil: number | undefined;
   // A practice quiz is never eligible, so it never starts the lock.
   const last = mine.find((a) => a.eligible !== false && !a.practice);
-  if (last?.summary && !last.summary.passed && last.submittedAt !== undefined) {
+  if (last?.summary && !last.summary.passed && !last.noLock && last.submittedAt !== undefined) {
     const until = last.submittedAt + CONFIG.cooldownHours * HOUR;
     if (nowMs < until) lockedUntil = until;
   }

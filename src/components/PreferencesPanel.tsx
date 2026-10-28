@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CONFIG } from "@/lib/config";
 import { MASTERY_BAR_MAX, MASTERY_BAR_MIN, cleanMasteryBar, saveMasteryBar, useMasteryBar } from "@/lib/preferences";
 import { setFullMotion, useFullMotion } from "@/lib/motion";
+import { syncRules } from "@/lib/recheck";
 import InfoTip from "./InfoTip";
 
 export default function PreferencesPanel() {
@@ -19,6 +20,8 @@ export default function PreferencesPanel() {
     if (cleanMasteryBar(text) !== null) {
       await saveMasteryBar(text);
       setText(null);
+      // Quizzes still counting toward mastery are judged again by the new bar.
+      void syncRules();
     }
   }
 
@@ -31,8 +34,8 @@ export default function PreferencesPanel() {
               Mastery bar
             </label>
             <InfoTip>
-              A quiz passes, and can award mastery, when its average credit reaches this bar. It applies to quizzes you
-              take from now on. Quizzes you already took keep the bar they were scored with. The graph on the Analytics
+              A quiz passes, and can award mastery, when its average credit reaches this bar. When you change it, the
+              quizzes whose mastery could still be running are rechecked against the new bar. The graph on the Analytics
               tab shows this bar as a dashed green line, and the {Math.round(CONFIG.minimumPass * 100)}% minimum to pass
               as a fixed red line.
             </InfoTip>

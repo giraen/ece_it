@@ -225,11 +225,6 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           {s.passed
             ? `Passed. You reached the ${formatPercent(s.bar, 0)} bar.`
             : `Not passed. You needed ${formatPercent(s.bar, 0)} and scored ${formatPercent(s.credit)}.`}
-          {s.failedGroups.length > 0 && (
-            <span className="mt-1 block text-sm font-normal">
-              These areas averaged under {formatPercent(CONFIG.childFloor, 0)}: {s.failedGroups.join(", ")}.
-            </span>
-          )}
         </p>
 
         {attempt.practice ? (
@@ -237,27 +232,29 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             <span className="font-medium">Practice quiz.</span> It does not count toward mastery and it never locks
             anything. You can take the real quiz whenever you are ready.
           </p>
-        ) : s.masteryAwarded ? (
-          <p aria-label="Mastery" className="rounded-md border border-good/40 bg-good/5 p-3 text-sm">
-            <span className="font-medium text-good">Mastery earned.</span> This {kind} stays mastered until{" "}
-            {formatDate(expiryFor(kind, submittedAt))}.
-          </p>
-        ) : s.passed ? (
+        ) : (
           <div aria-label="Mastery" className="space-y-2 rounded-md border border-line bg-surface p-3 text-sm">
-            <p>This quiz could not award mastery{attempt.ineligibleReason ? `: ${attempt.ineligibleReason}` : "."}</p>
+            {s.masteryAwarded ? (
+              <p>
+                <span className="font-medium text-good">Mastery earned.</span> This {kind} stays mastered until{" "}
+                {formatDate(expiryFor(kind, submittedAt))}.
+              </p>
+            ) : s.passed ? (
+              <p>This quiz could not award mastery{attempt.ineligibleReason ? `: ${attempt.ineligibleReason}` : "."}</p>
+            ) : attempt.eligible !== false && !attempt.noLock ? (
+              <p>
+                <span className="font-medium text-danger">Locked for {CONFIG.cooldownHours} hours.</span> This {kind}{" "}
+                unlocks after {formatDateTime(submittedAt + CONFIG.cooldownHours * 3_600_000)}. Mastery you already hold
+                is not affected.
+              </p>
+            ) : (
+              <p>
+                This quiz did not award mastery{attempt.ineligibleReason ? `. ${attempt.ineligibleReason}` : "."}
+                {attempt.eligible !== false && " It is not locked."}
+              </p>
+            )}
             {canRecheck(attempt) && <RecheckMastery id={attempt.id} />}
           </div>
-        ) : attempt.eligible !== false ? (
-          <p aria-label="Mastery" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm">
-            <span className="font-medium text-danger">Locked for {CONFIG.cooldownHours} hours.</span> This {kind}{" "}
-            unlocks after {formatDateTime(submittedAt + CONFIG.cooldownHours * 3_600_000)}. Mastery you already hold is
-            not affected.
-          </p>
-        ) : (
-          <p aria-label="Mastery" className="rounded-md border border-line bg-surface p-3 text-sm">
-            This was a practice quiz, so nothing is locked
-            {attempt.ineligibleReason ? `. ${attempt.ineligibleReason}` : "."} You can retake it any time.
-          </p>
         )}
       </div>
 

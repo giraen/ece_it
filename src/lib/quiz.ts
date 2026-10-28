@@ -8,8 +8,8 @@ import { loadMasteryBar } from "./preferences";
 import { loadSourceMix, tierOfReference } from "./sourceMix";
 import { loadSources } from "./sources";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
-import { MAX_MINUTES, groupKeysFor, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
-import { evaluatePass, groupStats, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
+import { MAX_MINUTES, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
+import { evaluatePass, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
 import { pathOf, subtreeOf } from "./tree";
 
 /** What the quiz shows for a question. For a computation question this is one roll of fresh numbers. */
@@ -32,7 +32,8 @@ function buildItem(
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const topic = byId.get(q.topicId);
   const subject = topic?.parentId ? byId.get(topic.parentId) : undefined;
-  const category = (categoryId ? byId.get(categoryId) : undefined) ?? (subject?.parentId ? byId.get(subject.parentId) : undefined);
+  const category =
+    (categoryId ? byId.get(categoryId) : undefined) ?? (subject?.parentId ? byId.get(subject.parentId) : undefined);
   return {
     questionId: q.id,
     type: q.type,
@@ -64,11 +65,11 @@ function buildItem(
 type Computation = typeof import("./computation");
 
 /**
-* What a quiz shows for a question. It never waits on an AI: it uses a rewording that was already made and checked,
-* and falls back to the original question when there is none.
-* - A standard question shows whichever version has been shown least: the original or an approved variant.
-* - A computation question rolls fresh numbers, using its own wordings plus any approved AI wordings.
-*/
+ * What a quiz shows for a question. It never waits on an AI: it uses a rewording that was already made and checked,
+ * and falls back to the original question when there is none.
+ * - A standard question shows whichever version has been shown least: the original or an approved variant.
+ * - A computation question rolls fresh numbers, using its own wordings plus any approved AI wordings.
+ */
 function shownFor(
   q: Question,
   comp: Computation | null,
@@ -166,7 +167,7 @@ export async function startAttempt(
     const chosen = separateCopies(composeQuiz({ nodes, questions: pool, scope, length: items, history, mix }));
     if (chosen.length === 0) throw new Error("There are no questions to quiz on here yet.");
     picked = chosen.map((question) => ({ question }));
-    eligibility = masteryEligibility(plan, chosen, pool);
+    eligibility = masteryEligibility(scope.kind, chosen.length);
     minutes = plan.fixedMinutes ?? totalMinutes;
   }
 
@@ -286,8 +287,7 @@ export async function submitAttempt(id: string): Promise<void> {
       return { ...it, answered, correct, credit: itemCredit({ correct, sureness: it.sureness }) };
     });
     const overall = overallStats(items);
-    const groups = groupStats(items, (it) => groupKeysFor(a.scopeKind, it));
-    const pass = evaluatePass(overall.credit, groups, bar);
+    const pass = evaluatePass(overall.credit, bar);
     const t = now();
     await db.attempts.put({
       ...a,
@@ -305,7 +305,6 @@ export async function submitAttempt(id: string): Promise<void> {
         passed: pass.passed,
         masteryAwarded: pass.passed && a.eligible !== false && !a.practice,
         bar: pass.bar,
-        failedGroups: pass.failedGroups,
       },
     });
   });

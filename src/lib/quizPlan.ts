@@ -66,67 +66,25 @@ export function itemsProblem(plan: QuizPlan, n: number): string | null {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Does a quiz cover its groups well enough to award mastery?
+// Can a quiz award mastery?
 // ---------------------------------------------------------------------------------------------
 
-/** Tag groups for a topic quiz. Every tag counts, and an untagged question is its own group. */
-export const tagKeys = (q: Question): string[] => (q.tags.length ? q.tags.map((t) => t.toLowerCase()) : [""]);
-export const topicKeys = (q: Question): string[] => [q.topicId];
-
-export function coverageFor(kind: "topic" | "subject") {
-  return kind === "topic" ? { keysOf: tagKeys, groupName: "tag" } : { keysOf: topicKeys, groupName: "topic" };
+/** The fewest questions a quiz of this kind may have and still award mastery. */
+export function masteryMinItems(kind: NodeKind): number {
+  return CONFIG.quiz[kind].minItems;
 }
 
-/** The group keys of every picked question decide this: each group the bank has 2 or more questions for must appear. */
-export function checkKeyCoverage(
-  pickedKeys: string[][],
-  pool: Question[],
-  keysOf: (q: Question) => string[],
-  groupName: string,
-): { ok: boolean; reason?: string } {
-  const have = new Map<string, number>();
-  const got = new Map<string, number>();
-  for (const q of pool) for (const k of keysOf(q)) have.set(k, (have.get(k) ?? 0) + 1);
-  for (const keys of pickedKeys) for (const k of keys) got.set(k, (got.get(k) ?? 0) + 1);
-  for (const [k, n] of have) {
-    if (n >= CONFIG.minPerGroup && (got.get(k) ?? 0) < CONFIG.minCoverage) {
-      return { ok: false, reason: `Some ${groupName}s did not appear in this quiz.` };
-    }
+/**
+ * Whether a quiz with this many questions can award mastery. Only the length matters: which tags or topics showed up
+ * does not, and passing is decided by the mastery bar alone.
+ */
+export function masteryEligibility(kind: NodeKind, count: number): { eligible: boolean; reason?: string } {
+  const min = masteryMinItems(kind);
+  if (count < min) {
+    const where = kind === "category" ? "a category mock" : `a ${kind} quiz`;
+    return { eligible: false, reason: `Mastery needs at least ${min} questions in ${where}.` };
   }
-  return { ok: true };
-}
-
-/** Each group the bank has at least 2 questions for must appear in the quiz at least once. */
-export function checkCoverage(
-  picked: Question[],
-  pool: Question[],
-  keysOf: (q: Question) => string[],
-  groupName: string,
-): { ok: boolean; reason?: string } {
-  return checkKeyCoverage(picked.map(keysOf), pool, keysOf, groupName);
-}
-
-/** The shortest quiz that could include every group, never below `floor` and never above the pool. */
-export function minLengthForCoverage(pool: Question[], keysOf: (q: Question) => string[], floor: number): number {
-  const have = new Map<string, number>();
-  for (const q of pool) for (const k of keysOf(q)) have.set(k, (have.get(k) ?? 0) + 1);
-  let total = 0;
-  for (const n of have.values()) total += Math.min(n, CONFIG.minCoverage);
-  return Math.min(Math.max(total, floor), pool.length);
-}
-
-/** Whether a quiz that was picked can award mastery, and if not, why. */
-export function masteryEligibility(
-  plan: QuizPlan,
-  picked: Question[],
-  pool: Question[],
-): { eligible: boolean; reason?: string } {
-  if (picked.length < plan.masteryMin) {
-    return { eligible: false, reason: `Mastery needs at least ${plan.masteryMin} questions in a ${plan.kind} quiz.` };
-  }
-  const { keysOf, groupName } = coverageFor(plan.kind);
-  const c = checkCoverage(picked, pool, keysOf, groupName);
-  return c.ok ? { eligible: true } : { eligible: false, reason: c.reason };
+  return { eligible: true };
 }
 
 /** Which results group an item belongs to: tags in a topic quiz, topics in a subject quiz, blueprint entries in a mock. */
@@ -138,27 +96,4 @@ export function groupKeysFor(kind: NodeKind, item: AttemptItem): { key: string; 
   if (kind === "subject") return [{ key: item.topicId, label: item.topicName }];
   if (item.tags.length === 0) return [{ key: "", label: "Untagged" }];
   return item.tags.map((t) => ({ key: t.toLowerCase(), label: t }));
-}
-
-/**
- * Whether a quiz that was already taken could have awarded mastery under the rules now, judged against the bank as it
- * is now. A quiz is only checked again when it was ruled out for leaving a tag or topic out.
- */
-export function recheckEligibility(
-  kind: "topic" | "subject",
-  items: AttemptItem[],
-  pool: Question[],
-): { eligible: boolean; reason?: string } {
-  const plan = planFor(kind, pool.length);
-  if (items.length < plan.masteryMin) {
-    return { eligible: false, reason: `Mastery needs at least ${plan.masteryMin} questions in a ${kind} quiz.` };
-  }
-  const { keysOf, groupName } = coverageFor(kind);
-  const c = checkKeyCoverage(
-    items.map((it) => groupKeysFor(kind, it).map((g) => g.key)),
-    pool,
-    keysOf,
-    groupName,
-  );
-  return c.ok ? { eligible: true } : { eligible: false, reason: c.reason };
 }

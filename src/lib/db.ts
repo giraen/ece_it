@@ -261,12 +261,13 @@ export interface AttemptSummary {
   /** Average credit across all questions. */
   credit: number;
   totalMs: number;
-  /** The score and group floors were met. */
+  /** The average credit reached the mastery bar. */
   passed: boolean;
   /** Passed AND the quiz was eligible. Only this earns mastery. */
   masteryAwarded?: boolean;
   bar: number;
-  failedGroups: string[];
+  /** Older quizzes listed the groups that fell below a floor. The floor is gone, and nothing writes this now. */
+  failedGroups?: string[];
 }
 
 export interface QuizAttempt {
@@ -276,9 +277,11 @@ export interface QuizAttempt {
   /** "Elex › Circuits › DC analysis" at the time the quiz started. */
   scopeName: string;
   mode: "standard" | "mock";
-  /** False when the quiz was too short or too thin to award mastery. Missing means eligible. */
+  /** False when the quiz was too short to award mastery. Missing means eligible. */
   eligible?: boolean;
   ineligibleReason?: string;
+  /** Set when a recheck took mastery away from a quiz that had passed, so the recheck does not start the 24-hour lock. */
+  noLock?: boolean;
   /** Taken just to practise. It never awards mastery and never starts the 24-hour lock. */
   practice?: boolean;
   status: "in_progress" | "submitted" | "abandoned";

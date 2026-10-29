@@ -18,7 +18,7 @@ export const CONFIG = {
    */
   build: {
     /** The chance that a quiz is spread evenly. Otherwise it is focused. */
-    evenShare: 0.75,
+    evenShare: 0.85,
     /** A focused quiz gives its one group between these shares of the quiz. */
     focusShare: { min: 0.3, max: 0.4 },
     /**

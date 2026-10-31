@@ -28,6 +28,21 @@ export const CONFIG = {
     focusAtLeast: 1.5,
     focusCap: 0.6,
   },
+  /** The lists of strengths and weak spots on the Analytics tab. */
+  stats: {
+    /** A tag needs at least this many answers to be listed. */
+    minTagAnswers: 5,
+    /** A single question needs at least this many answers to be listed. */
+    minQuestionAnswers: 3,
+    /** How many rows each list shows. */
+    listSize: 5,
+    /** An answer that took less than this share of the target time counts as fast. */
+    fastRatio: 0.5,
+    /** The Fastest list only has tags or questions you get right at least this often. */
+    fastMinAccuracy: 0.8,
+    /** In the Always sure list, being right less often than this when you say Sure is shown in red. */
+    sureTrust: 0.9,
+  },
   /** Credit for a correct answer, by how sure the user was. Time never changes it. */
   sureCredit: { sure: 1, wise_guess: 0.6, not_sure: 0.4, just_guessed: 0 },
   /**

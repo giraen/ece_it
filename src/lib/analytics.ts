@@ -1,5 +1,7 @@
+import { CONFIG } from "./config";
 import type { QuizAttempt } from "./db";
 import { median, SURENESS_ORDER, type Sureness } from "./scoring";
+import { isExemptTag } from "./tagRules";
 
 /** One question as it was answered in one submitted quiz. */
 export interface Obs {
@@ -9,6 +11,8 @@ export interface Obs {
   stem: string;
   topicId: string;
   topicName: string;
+  /** The category the question was asked under, as it was named then. */
+  categoryName: string;
   tags: string[];
   answered: boolean;
   correct: boolean;
@@ -30,6 +34,7 @@ export function observations(attempts: QuizAttempt[]): Obs[] {
         stem: it.stem,
         topicId: it.topicId,
         topicName: it.topicName,
+        categoryName: it.categoryName ?? "",
         tags: it.tags,
         answered: it.answered,
         correct: it.correct,
@@ -208,50 +213,6 @@ export function categorySeries(
   return [...out, all];
 }
 
-export interface QuestionStat {
-  questionId: string;
-  stem: string;
-  topicName: string;
-  seen: number;
-  correct: number;
-  accuracy: number;
-  avgRatio: number;
-  confidentWrong: number;
-  flag: "suspect" | "easy" | null;
-}
-
-/**
- * Per question, across every quiz it appeared in.
- * "suspect": wrong while sure at least half the time, so either the answer key is wrong or something stubborn is off.
- * "easy": always right and quick over several tries, so it adds little.
- */
-export function questionStats(obs: Obs[]): QuestionStat[] {
-  const by = new Map<string, Obs[]>();
-  for (const o of obs) by.set(o.questionId, [...(by.get(o.questionId) ?? []), o]);
-  return Array.from(by.entries()).map(([questionId, list]) => {
-    const latest = [...list].sort((a, b) => b.at - a.at)[0];
-    const seen = list.length;
-    const correct = list.filter((o) => o.correct).length;
-    const confidentWrong = list.filter((o) => o.answered && !o.correct && o.sureness === "sure").length;
-    const answered = list.filter((o) => o.answered);
-    const avgRatio = answered.length ? answered.reduce((s, o) => s + o.ratio, 0) / answered.length : 0;
-    let flag: QuestionStat["flag"] = null;
-    if (seen >= 3 && confidentWrong / seen >= 0.5) flag = "suspect";
-    else if (seen >= 4 && correct === seen && avgRatio <= 0.5) flag = "easy";
-    return {
-      questionId,
-      stem: latest.stem,
-      topicName: latest.topicName,
-      seen,
-      correct,
-      accuracy: seen ? correct / seen : 0,
-      avgRatio,
-      confidentWrong,
-      flag,
-    };
-  });
-}
-
 export interface Summary {
   quizzes: number;
   questions: number;
@@ -272,4 +233,115 @@ export function summarize(attempts: QuizAttempt[]): Summary {
     credit: questions ? credit / questions : 0,
     totalMs: done.reduce((s, a) => s + (a.summary?.totalMs ?? 0), 0),
   };
+}
+/** One tag, or one question, with how you do on it. Used to list what you are weak at, sure of, fast at, and so on. */
+export interface Standing {
+  key: string;
+  label: string;
+  /** The topic a question belongs to. Tags span topics, so they have none. */
+  topicName?: string;
+  /** Times it was asked, answered or not. */
+  n: number;
+  /** Times it was answered. */
+  answered: number;
+  accuracy: number;
+  /** Average credit, counting unanswered as 0. */
+  credit: number;
+  /** Median time taken divided by the target. Under 1.0 is faster than the target. 0 when nothing was answered. */
+  pace: number;
+  /** How often you said Sure, out of the answered ones. */
+  sureRate: number;
+  /** How often you were right when you said Sure. */
+  sureRight: number;
+  /** Wrong answers that were marked Sure: you believed something that was not true. */
+  sureWrong: number;
+  /** Answers marked Not sure or Just guessed: you were not prepared for it. */
+  unsure: number;
+  /** Wrong answers given much faster than the target time: a slip rather than a gap. */
+  fastWrong: number;
+}
+
+export type StandingKind = "tag" | "question";
+export type Ranking = "weakest" | "slowest" | "fastest" | "sure" | "misconception" | "unprepared" | "careless";
+
+const plain = (stem: string) => stem.replace(/!\[[^\]]*\]\([^)]*\)/g, "[image]");
+
+/**
+ * How you do on each tag, or on each question, inside one category (or all of them with `category` null).
+ * Tags are counted across every topic of the category, and the exempt tags such as "solving" are left out. A tag or a
+ * question needs enough answers to say anything, so rarer ones are left out.
+ */
+export function standings(obs: Obs[], kind: StandingKind, category: string | null): Standing[] {
+  const wanted = category?.trim().toLowerCase() ?? null;
+  const buckets = new Map<string, { label: string; topicName?: string; items: Obs[] }>();
+  const put = (key: string, label: string, topicName: string | undefined, o: Obs) => {
+    const b = buckets.get(key);
+    if (b) b.items.push(o);
+    else buckets.set(key, { label, topicName, items: [o] });
+  };
+  for (const o of obs) {
+    if (wanted !== null && o.categoryName.trim().toLowerCase() !== wanted) continue;
+    if (kind === "question") {
+      put(o.questionId, plain(o.stem), o.topicName, o);
+      continue;
+    }
+    const seen = new Set<string>();
+    for (const t of o.tags) {
+      const key = t.trim().toLowerCase();
+      if (!key || isExemptTag(key) || seen.has(key)) continue;
+      seen.add(key);
+      put(key, t.trim(), undefined, o);
+    }
+  }
+  const min = kind === "tag" ? CONFIG.stats.minTagAnswers : CONFIG.stats.minQuestionAnswers;
+  const out: Standing[] = [];
+  for (const [key, { label, topicName, items }] of buckets) {
+    const answered = items.filter((o) => o.answered);
+    if (answered.length < min) continue;
+    const sure = answered.filter((o) => o.sureness === "sure");
+    out.push({
+      key,
+      label,
+      topicName,
+      n: items.length,
+      answered: answered.length,
+      accuracy: items.filter((o) => o.correct).length / items.length,
+      credit: items.reduce((s, o) => s + o.credit, 0) / items.length,
+      pace: median(answered.map((o) => o.ratio)),
+      sureRate: sure.length / answered.length,
+      sureRight: sure.length ? sure.filter((o) => o.correct).length / sure.length : 0,
+      sureWrong: sure.filter((o) => !o.correct).length,
+      unsure: answered.filter((o) => o.sureness === "not_sure" || o.sureness === "just_guessed").length,
+      fastWrong: answered.filter((o) => !o.correct && o.ratio <= CONFIG.stats.fastRatio).length,
+    });
+  }
+  return out;
+}
+
+/** The first few of a list, best fit for the ranking first. Ties go to the one with more answers. */
+export function rankStandings(rows: Standing[], ranking: Ranking, size: number = CONFIG.stats.listSize): Standing[] {
+  const share = (n: number, r: Standing) => n / r.answered;
+  const fits: Record<Ranking, (r: Standing) => boolean> = {
+    weakest: () => true,
+    slowest: (r) => r.pace > 0,
+    // Quick is only worth listing where you are also right, or the list would be full of rushed wrong answers.
+    fastest: (r) => r.pace > 0 && r.accuracy + 1e-9 >= CONFIG.stats.fastMinAccuracy,
+    sure: (r) => r.sureRate > 0,
+    misconception: (r) => r.sureWrong > 0,
+    unprepared: (r) => r.unsure > 0,
+    careless: (r) => r.fastWrong > 0,
+  };
+  const order: Record<Ranking, (a: Standing, b: Standing) => number> = {
+    weakest: (a, b) => a.credit - b.credit,
+    slowest: (a, b) => b.pace - a.pace,
+    fastest: (a, b) => a.pace - b.pace,
+    sure: (a, b) => b.sureRate - a.sureRate,
+    misconception: (a, b) => share(b.sureWrong, b) - share(a.sureWrong, a),
+    unprepared: (a, b) => share(b.unsure, b) - share(a.unsure, a),
+    careless: (a, b) => share(b.fastWrong, b) - share(a.fastWrong, a),
+  };
+  return rows
+    .filter(fits[ranking])
+    .sort((a, b) => order[ranking](a, b) || b.n - a.n || a.label.localeCompare(b.label))
+    .slice(0, size);
 }

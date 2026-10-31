@@ -78,13 +78,8 @@ export default function QuestionPane({
   const complete = isComplete(item);
   const choiceById = new Map(item.choices.map((c) => [c.id, c]));
 
-  const confirmLabel = item.confirmed
-    ? isLast
-      ? "Submit quiz"
-      : "Next question"
-    : isLast
-      ? "Confirm and submit"
-      : "Confirm and next";
+  // The last question submits the quiz, every other one moves on to the next.
+  const confirmLabel = isLast ? "Submit" : "Confirm";
 
   async function confirm() {
     if (!complete || paused) return;

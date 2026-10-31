@@ -57,7 +57,10 @@ function BankView() {
         ))}
       </div>
       <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={select} />
+        {/* The tree stays in view while the list scrolls. A long tree scrolls on its own. */}
+        <div className="scroll-thin sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+          <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={select} />
+        </div>
         {tab === "questions" ? (
           <QuestionList key={selected?.id ?? "all"} nodes={nodes} questions={questions} selected={selected} />
         ) : (

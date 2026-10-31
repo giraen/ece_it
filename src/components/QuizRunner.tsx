@@ -25,7 +25,10 @@ function QuestionNav({ items, index, onPick }: { items: AttemptItem[]; index: nu
     current.current?.scrollIntoView({ block: "nearest" });
   }, [index]);
   return (
-    <nav aria-label="Questions" className="-mx-1 grid min-h-0 grid-cols-5 gap-1 overflow-y-auto px-1 py-1">
+    <nav
+      aria-label="Questions"
+      className="scroll-thin -mx-1 grid min-h-0 grid-cols-5 gap-1 overflow-y-auto py-1 pr-2.5 pl-1"
+    >
       {items.map((it, i) => {
         const done = isComplete(it);
         const partial = !done && Boolean(it.selectedChoiceId);

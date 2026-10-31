@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Question } from "@/lib/db";
 import { restoreQuestions, snapshotQuestions } from "@/lib/bulk";
-import { addTag, deleteQuestions, removeTag } from "@/lib/questions";
+import { addTag, deleteQuestions, removeTag, setReferences } from "@/lib/questions";
+import { joinReference, sourceLabel, splitReference, useSources } from "@/lib/sources";
 import { tagSections, tagUsage } from "@/lib/tagUsage";
+import ReferenceInput from "./ReferenceInput";
 
 interface Props {
   /** The selected questions that are in view. */
@@ -30,11 +32,15 @@ function Kbd({ children }: { children: string }) {
 
 /**
  * The bar that floats at the bottom of the question list while questions are selected.
- * Tags and delete live here; each change can be undone from a short message above the bar.
+ * It changes their tags or their source, or deletes them. Each change can be undone from a short message above
+ * the bar.
  */
 export default function SelectionBar({ ids, questions, visibleCount, onSelectAll, onClear }: Props) {
-  const [tagsOpen, setTagsOpen] = useState(false);
+  const [open, setOpen] = useState<"tags" | "source" | null>(null);
+  const tagsOpen = open === "tags";
   const [asking, setAsking] = useState(false);
+  const [sourceText, setSourceText] = useState("");
+  const sources = useSources();
   const [draft, setDraft] = useState("");
   const [active, setActive] = useState(-1);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -46,8 +52,11 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
   const n = ids.length;
   const shown = n > 0;
   const chosen = useMemo(() => {
-    const set = new Set(ids);
-    return questions.filter((q) => set.has(q.id));
+    const byId = new Map(questions.map((q) => [q.id, q]));
+    return ids.flatMap((id) => {
+      const q = byId.get(id);
+      return q ? [q] : [];
+    });
   }, [ids, questions]);
 
   // Tags on the selected questions: how many of them carry each one.
@@ -85,16 +94,17 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
   // With nothing selected the panel and the question have nothing to act on, so they are reset right away.
-  if (!shown && (tagsOpen || asking || draft)) {
-    setTagsOpen(false);
+  if (!shown && (open || asking || draft || sourceText)) {
+    setOpen(null);
     setAsking(false);
     setDraft("");
+    setSourceText("");
   }
   useEffect(() => {
     if (asking) cancel.current?.focus();
   }, [asking]);
 
-  // Escape backs out one layer at a time. A click outside the tag panel closes it.
+  // Escape backs out one layer at a time. A click outside an open panel closes it.
   useEffect(() => {
     if (!shown) return;
     function onKey(e: KeyboardEvent) {
@@ -105,11 +115,11 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
         !!el && (field || el.tagName === "TEXTAREA" || el.tagName === "SELECT") && !root.current?.contains(el);
       if (typing) return;
       if (asking) setAsking(false);
-      else if (tagsOpen) setTagsOpen(false);
+      else if (open) setOpen(null);
       else onClear();
     }
     function onDown(e: MouseEvent) {
-      if (tagsOpen && !(e.target as HTMLElement).closest("[data-tags-area]")) setTagsOpen(false);
+      if (open && !(e.target as HTMLElement).closest("[data-bar-pop]")) setOpen(null);
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
@@ -117,7 +127,7 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
     };
-  }, [shown, asking, tagsOpen, onClear]);
+  }, [shown, asking, open, onClear]);
 
   async function add(text: string) {
     const parts = text
@@ -139,6 +149,25 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
     say(`Removed “${tag}” from ${plural(n, "question")}`, () => restoreQuestions(before));
   }
 
+  async function applySource() {
+    const text = sourceText.trim();
+    const list = sources ?? [];
+    const { source: next, where: nextWhere } = splitReference(text, list);
+    const items = chosen.map((q) => {
+      // Choosing the source a question already has keeps its own page.
+      const cur = splitReference(q.reference ?? "", list);
+      const keep = next && !nextWhere && cur.source?.id === next.id ? cur.where : nextWhere;
+      return { id: q.id, reference: next ? joinReference(sourceLabel(next), keep) : text || undefined };
+    });
+    const before = await snapshotQuestions(ids);
+    await setReferences(items);
+    setOpen(null);
+    setSourceText("");
+    say(text ? `Set the source on ${plural(n, "question")}` : `Source removed from ${plural(n, "question")}`, () =>
+      restoreQuestions(before),
+    );
+  }
+
   async function remove() {
     const before = await snapshotQuestions(ids);
     const count = n;
@@ -149,6 +178,8 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
   }
 
   const iconBtn = "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-accent-soft";
+  const pop =
+    "absolute bottom-full left-1/2 mb-3 -translate-x-1/2 rounded-xl border border-line bg-surface p-3 shadow-xl";
 
   return (
     <>
@@ -213,13 +244,13 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
                   </button>
                 )}
                 <span aria-hidden className="mx-1.5 h-5 w-px bg-line" />
-                <div className="relative" data-tags-area>
+                <div className="relative" data-bar-pop>
                   <button
                     aria-expanded={tagsOpen}
                     aria-haspopup="dialog"
                     className={`${iconBtn} ${tagsOpen ? "bg-accent-soft" : ""}`}
                     onClick={() => {
-                      setTagsOpen(!tagsOpen);
+                      setOpen(tagsOpen ? null : "tags");
                       setDraft("");
                       setActive(-1);
                       window.setTimeout(() => input.current?.focus(), 0);
@@ -328,6 +359,34 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
                         <span>
                           <Kbd>Esc</Kbd> close
                         </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative" data-bar-pop>
+                  <button
+                    aria-expanded={open === "source"}
+                    aria-haspopup="dialog"
+                    className={`${iconBtn} ${open === "source" ? "bg-accent-soft" : ""}`}
+                    onClick={() => {
+                      setOpen(open === "source" ? null : "source");
+                      setSourceText("");
+                    }}
+                  >
+                    Source <span aria-hidden>▾</span>
+                  </button>
+                  {open === "source" && (
+                    <div role="dialog" aria-label="Source, for the selected questions" className={`${pop} w-[32rem]`}>
+                      <p className="mb-2 text-[11px] tracking-wide text-muted uppercase">
+                        Source, for the {n === 1 ? "selected question" : `${n} selected`}
+                      </p>
+                      <ReferenceInput id="selection-bar-source" value={sourceText} onChange={setSourceText} dropUp />
+                      <button className="btn btn-primary mt-3" onClick={() => void applySource()}>
+                        {sourceText.trim() ? `Set on ${n}` : `Remove the source from ${n}`}
+                      </button>
+                      <p className="mt-1.5 text-xs whitespace-normal text-muted">
+                        A question that already has the chosen source keeps its own page.
                       </p>
                     </div>
                   )}

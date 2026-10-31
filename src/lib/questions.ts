@@ -38,6 +38,18 @@ export async function deleteQuestions(ids: string[]): Promise<void> {
   });
 }
 
+/** Sets where each question came from. An empty reference removes it. */
+export async function setReferences(items: { id: string; reference?: string }[]): Promise<void> {
+  const stamp = now();
+  await db.transaction("rw", db.questions, async () => {
+    for (const { id, reference } of items) {
+      const q = await db.questions.get(id);
+      if (!q || q.deletedAt) continue;
+      await db.questions.update(id, { reference: reference?.trim() || undefined, updatedAt: stamp });
+    }
+  });
+}
+
 function sameTag(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }

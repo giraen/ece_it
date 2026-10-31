@@ -424,12 +424,13 @@ export default function HelpPage() {
               the reference. You can show only the ones you got wrong, or lost credit on.
             </li>
             <li>
-              <strong>Analytics</strong> (profile menu) has two tabs. <strong>Mastery</strong> shows every category,
+              <strong>Analytics</strong> (profile menu) has three tabs. <strong>Mastery</strong> shows every category,
               subject, and topic with its status and when it runs out. A red <strong>!</strong> on a row means something
               in it has expired, and an amber one means something runs out within 3 days. <strong>Analytics</strong>{" "}
-              shows credit over time, your weakest topics, how well your sureness matched your answers, and short lists
-              for each category, for tags or for single questions: weakest, always sure, misconceptions (sure but
-              wrong), unprepared (not sure or just guessed), fastest, slowest, and careless (fast but wrong).
+              shows credit over time, your weakest topics, and how well your sureness matched your answers.{" "}
+              <strong>Strengths &amp; weak spots</strong> has short lists for each category, for tags or for single
+              questions: weakest, always sure, misconceptions (sure but wrong), unprepared (not sure or just guessed),
+              fastest, slowest, and careless (fast but wrong).
             </li>
             <li>
               <strong>Home</strong> shows what is next to quiz, how many topics are left, what expires soon, and your

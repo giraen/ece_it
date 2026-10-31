@@ -12,7 +12,6 @@ import { SURENESS_LABEL } from "@/lib/scoring";
 import CreditChart from "./CreditChart";
 import Sparkline from "./Sparkline";
 import InfoTip from "./InfoTip";
-import StrengthsPanel from "./StrengthsPanel";
 
 function Tile({ value, label }: { value: string; label: string }) {
   return (
@@ -113,8 +112,6 @@ export default function Analytics() {
           </table>
         </div>
       </section>
-
-      <StrengthsPanel obs={obs} bar={bar} />
 
       <section aria-label="Calibration">
         <div className="mb-2 flex items-center gap-1">

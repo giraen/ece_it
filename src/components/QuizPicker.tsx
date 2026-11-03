@@ -5,8 +5,12 @@ import Link from "next/link";
 import { CONFIG } from "@/lib/config";
 import type { Blueprint, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate } from "@/lib/format";
-import { masteryFor } from "@/lib/mastery";
+import { EXPIRING_DAYS, expiryMarks, expirySummary, type ExpiryMark } from "@/lib/dashboard";
+import { treeMastery, type TreeMastery } from "@/lib/mastery";
 import { childrenOf, subtreeOf } from "@/lib/tree";
+import { ExpirySummary, ExpiryWarn } from "./ExpiryBadges";
+
+const DAY = 86_400_000;
 
 interface Props {
   nodes: TreeNode[];
@@ -30,7 +34,8 @@ function Row({
   at,
   nodes,
   perTopic,
-  attempts,
+  mastery,
+  marks,
   blueprints,
   nowMs,
   open,
@@ -41,7 +46,9 @@ function Row({
   at: string;
   nodes: TreeNode[];
   perTopic: Map<string, number>;
-  attempts: QuizAttempt[];
+  mastery: Map<string, TreeMastery>;
+  /** Rows whose mastery, or something under them, runs out soon or has run out. */
+  marks: Map<string, ExpiryMark>;
   blueprints: Blueprint[];
   nowMs: number;
   open: Set<string>;
@@ -52,7 +59,9 @@ function Row({
   const count = countUnder(nodes, perTopic, node.id);
   const minItems = node.kind === "category" ? undefined : CONFIG.quiz[node.kind].minItems;
   const practiceOnly = minItems !== undefined && count > 0 && count < minItems;
-  const info = masteryFor(attempts, node, nowMs);
+  const info = mastery.get(node.id)?.info;
+  const mark = marks.get(node.id);
+  const soon = info?.expiresAt !== undefined && info.expiresAt - nowMs <= EXPIRING_DAYS * DAY;
   const hasBlueprint = blueprints.some((b) => b.categoryId === node.id);
   const locked = info?.lockedUntil !== undefined;
 
@@ -74,18 +83,21 @@ function Row({
           <span className="w-5" />
         )}
         <span className={`min-w-0 flex-1 truncate text-sm ${node.kind === "category" ? "font-medium" : ""}`}>
+          {mark && <ExpiryWarn mark={mark} />}
           {node.name}
         </span>
         <span className="text-xs text-muted tabular-nums">
           {count} question{count === 1 ? "" : "s"}
         </span>
         {info?.status === "mastered" && info.expiresAt !== undefined && (
-          <span className="rounded bg-good/10 px-1.5 py-0.5 text-xs text-good">
+          <span
+            className={`rounded px-1.5 py-0.5 text-xs ${soon ? "bg-priority-soft text-priority" : "bg-good/10 text-good"}`}
+          >
             Mastered until {formatDate(info.expiresAt)}
           </span>
         )}
         {info?.status === "expired" && info.expiresAt !== undefined && (
-          <span className="rounded bg-paper px-1.5 py-0.5 text-xs text-muted">
+          <span className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger">
             Expired {formatDate(info.expiresAt)}
           </span>
         )}
@@ -107,7 +119,11 @@ function Row({
         )}
         {node.kind === "category" ? (
           <span className="flex gap-1.5">
-            <Link href={`/blueprint?category=${node.id}`} className="btn" aria-label={`${hasBlueprint ? "Blueprint" : "Set up blueprint"} for ${node.name}`}>
+            <Link
+              href={`/blueprint?category=${node.id}`}
+              className="btn"
+              aria-label={`${hasBlueprint ? "Blueprint" : "Set up blueprint"} for ${node.name}`}
+            >
               {hasBlueprint ? "Blueprint" : "Set up blueprint"}
             </Link>
             {hasBlueprint && (
@@ -146,7 +162,8 @@ function Row({
               at={`${at}/${k.id}`}
               nodes={nodes}
               perTopic={perTopic}
-              attempts={attempts}
+              mastery={mastery}
+              marks={marks}
               blueprints={blueprints}
               nowMs={nowMs}
               open={open}
@@ -175,24 +192,32 @@ export default function QuizPicker({ nodes, questions, attempts, blueprints, now
 
   const roots = childrenOf(nodes, null);
   if (roots.length === 0) return <p className="text-sm text-muted">Setting up the categories…</p>;
+  // The same red and amber ! as on the Mastery tab, so a collapsed row says what is hidden inside it.
+  const mastery = treeMastery(nodes, attempts, nowMs);
+  const marks = expiryMarks(nodes, mastery, nowMs);
+  const summary = expirySummary(nodes, mastery, nowMs);
 
   return (
-    <ul className="rounded-md border border-line bg-surface p-2">
-      {roots.map((r) => (
-        <Row
-          key={r.id}
-          node={r}
-          depth={0}
-          at={`/${r.id}`}
-          nodes={nodes}
-          perTopic={perTopic}
-          attempts={attempts}
-          blueprints={blueprints}
-          nowMs={nowMs}
-          open={open}
-          toggle={toggle}
-        />
-      ))}
-    </ul>
+    <div className="space-y-2">
+      <ExpirySummary expired={summary.expired} soon={summary.soon} />
+      <ul className="rounded-md border border-line bg-surface p-2">
+        {roots.map((r) => (
+          <Row
+            key={r.id}
+            node={r}
+            depth={0}
+            at={`/${r.id}`}
+            nodes={nodes}
+            perTopic={perTopic}
+            mastery={mastery}
+            marks={marks}
+            blueprints={blueprints}
+            nowMs={nowMs}
+            open={open}
+            toggle={toggle}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }

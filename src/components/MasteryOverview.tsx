@@ -5,6 +5,7 @@ import Link from "next/link";
 import { countAvailable } from "@/lib/compose";
 import type { TreeNode } from "@/lib/db";
 import { EXPIRING_DAYS, expiryMarks, expirySummary, type ExpiryMark } from "@/lib/dashboard";
+import { ExpirySummary, ExpiryWarn } from "./ExpiryBadges";
 import { formatCountdown, formatDate } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { treeMastery, type TreeMastery } from "@/lib/mastery";
@@ -50,51 +51,6 @@ function Status({ m, nowMs }: { m: TreeMastery; nowMs: number }) {
   return <span className="rounded border border-line px-2 py-0.5 text-xs text-muted">Not yet</span>;
 }
 
-/** One round "!" badge. It shows a number when more than one row is behind it. */
-function Badge({ tone, total, text }: { tone: "expired" | "soon"; total: number; text: string }) {
-  return (
-    <span
-      role="img"
-      aria-label={text}
-      title={text}
-      className={`mr-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[11px] leading-none font-bold ${
-        tone === "expired" ? "bg-danger text-paper" : "bg-priority-solid text-on-priority"
-      }`}
-    >
-      {total > 1 ? `! ${total}` : "!"}
-    </span>
-  );
-}
-
-/** A red ! when something here has expired, and an amber ! when something runs out soon. Both can show at once. */
-function Warn({ mark }: { mark: ExpiryMark }) {
-  const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
-  const expiredText = [
-    mark.expiredSelf ? "This has expired." : "",
-    mark.expiredInside > 0
-      ? `${items(mark.expiredInside)} inside ${mark.expiredInside === 1 ? "has" : "have"} expired.`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const soonText = [
-    mark.soonSelf ? `This runs out within ${EXPIRING_DAYS} days.` : "",
-    mark.soonInside > 0
-      ? `${items(mark.soonInside)} inside run${mark.soonInside === 1 ? "s" : ""} out within ${EXPIRING_DAYS} days.`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  return (
-    <>
-      {expiredText && (
-        <Badge tone="expired" total={(mark.expiredSelf ? 1 : 0) + mark.expiredInside} text={expiredText} />
-      )}
-      {soonText && <Badge tone="soon" total={(mark.soonSelf ? 1 : 0) + mark.soonInside} text={soonText} />}
-    </>
-  );
-}
-
 function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: string; ctx: Ctx }) {
   const kids = childrenOf(ctx.nodes, node.id);
   const open = ctx.expanded.has(at);
@@ -129,7 +85,7 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
           <span className="w-5" />
         )}
         <span className="min-w-0 flex-1 basis-40">
-          {mark && <Warn mark={mark} />}
+          {mark && <ExpiryWarn mark={mark} />}
           <span className={`text-sm ${node.kind === "category" ? "font-semibold" : ""}`}>{node.name}</span>
           <span className="ml-2 text-xs text-muted">
             {count} question{count === 1 ? "" : "s"}
@@ -235,22 +191,9 @@ export default function MasteryOverview() {
             how many rows are behind it.
           </InfoTip>
         </div>
-        {(summary.expired > 0 || summary.soon > 0) && (
-          <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
-            {summary.expired > 0 && (
-              <span>
-                <Badge tone="expired" total={1} text="Expired" />
-                {summary.expired} expired
-              </span>
-            )}
-            {summary.soon > 0 && (
-              <span>
-                <Badge tone="soon" total={1} text={`Runs out within ${EXPIRING_DAYS} days`} />
-                {summary.soon} running out within {EXPIRING_DAYS} days
-              </span>
-            )}
-          </p>
-        )}
+        <div className="mt-1">
+          <ExpirySummary expired={summary.expired} soon={summary.soon} />
+        </div>
       </div>
       {roots.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">

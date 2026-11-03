@@ -6,7 +6,6 @@ import { patchPasted, setPastedTopic } from "@/lib/extractStore";
 import { normalizeTags } from "@/lib/questions";
 import { joinReference, sourceLabel, splitReference, type Source } from "@/lib/sources";
 import { tagSections, tagUsage } from "@/lib/tagUsage";
-import { bumpWhere, hasWhere, pageOnly, whereFromInput } from "@/lib/where";
 import ReferenceInput from "./ReferenceInput";
 import TopicPicker from "./TopicPicker";
 
@@ -40,8 +39,7 @@ function Kbd({ children }: { children: string }) {
 
 /**
  * The bar that floats at the bottom of the review list while questions are selected.
- * It moves them, changes their tags or source, sets the page they came from in a book, marks AI reword, or
- * discards them.
+ * It moves them, changes their tags or source, marks AI reword, or discards them.
  */
 export default function ExtractBar({
   chosen,
@@ -54,33 +52,17 @@ export default function ExtractBar({
   toast,
   onToastDone,
 }: Props) {
-  const [open, setOpen] = useState<"move" | "where" | "tags" | "source" | null>(null);
+  const [open, setOpen] = useState<"move" | "tags" | "source" | null>(null);
   const [draft, setDraft] = useState("");
   const [active, setActive] = useState(-1);
   const [sourceText, setSourceText] = useState("");
-  const [where, setWhere] = useState("");
-  const [countUp, setCountUp] = useState(false);
   const [moveTo, setMoveTo] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const field = useRef<HTMLInputElement>(null);
   const tagField = useRef<HTMLInputElement>(null);
 
   const n = chosen.length;
   const shown = n > 0;
   const allAi = shown && chosen.every((d) => d.allowAi);
-
-  // Only a question from a saved book has a page to set.
-  const withSource = chosen.flatMap((d) => {
-    const { source } = splitReference(d.reference ?? "", sources);
-    return source && hasWhere(source.kind) ? [{ d, source }] : [];
-  });
-  const text = where.trim();
-  const preview = countUp
-    ? withSource
-        .slice(0, 3)
-        .map((_, k) => bumpWhere(text, k))
-        .join("  ·  ") + (withSource.length > 3 ? "  …" : "")
-    : `Each gets “${text}”.`;
 
   // Tags on the selected questions: how many of them carry each one.
   const onSelected = useMemo(() => {
@@ -110,9 +92,8 @@ export default function ExtractBar({
   const rows = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
 
   // With nothing selected there is nothing to act on, so a panel left open is closed right away.
-  if (!shown && (open || where || draft || sourceText)) {
+  if (!shown && (open || draft || sourceText)) {
     setOpen(null);
-    setWhere("");
     setDraft("");
     setSourceText("");
   }
@@ -204,19 +185,6 @@ export default function ExtractBar({
       chosen.map((d) => ({ id: d.id, patch: { allowAi: allAi ? undefined : true } })),
       ["allowAi"],
     );
-
-  async function applyWhere() {
-    if (!text || withSource.length === 0) return;
-    const items = withSource.map(({ d, source }, k) => ({
-      id: d.id,
-      patch: {
-        reference: joinReference(sourceLabel(source), whereFromInput(source.kind, countUp ? bumpWhere(text, k) : text)),
-      },
-    }));
-    setOpen(null);
-    setWhere("");
-    await change(`Set the page on ${plural(items.length, "question")}`, items, ["reference"]);
-  }
 
   async function move() {
     if (!moveTo) return;
@@ -434,61 +402,6 @@ export default function ExtractBar({
                   </button>
                   <p className="mt-1.5 text-xs text-muted">
                     A question that already has the chosen source keeps its own page.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="relative" data-extract-pop>
-              <button
-                aria-expanded={open === "where"}
-                aria-haspopup="dialog"
-                className={`${btn} ${open === "where" ? "bg-accent-soft" : ""}`}
-                onClick={() => {
-                  setOpen(open === "where" ? null : "where");
-                  window.setTimeout(() => field.current?.focus(), 0);
-                }}
-              >
-                Page <span aria-hidden>▾</span>
-              </button>
-              {open === "where" && (
-                <div role="dialog" aria-label="Page, for the selected questions" className={`${pop} w-80`}>
-                  <p className="mb-2 text-[11px] tracking-wide text-muted uppercase">
-                    Page, for {withSource.length === n ? `the ${n}` : `${withSource.length} of the ${n}`} selected
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      ref={field}
-                      className="input"
-                      aria-label="Page, for the selected questions"
-                      placeholder="143"
-                      value={where}
-                      onChange={(e) => setWhere(pageOnly(e.target.value))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void applyWhere();
-                        }
-                      }}
-                    />
-                    <button
-                      className="btn btn-primary"
-                      disabled={!text || withSource.length === 0}
-                      onClick={() => void applyWhere()}
-                    >
-                      Set
-                    </button>
-                  </div>
-                  <label className="mt-2.5 flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={countUp} onChange={(e) => setCountUp(e.target.checked)} />
-                    Count up the first number for each next question
-                  </label>
-                  <p className="mt-1.5 text-xs text-muted">
-                    {withSource.length === 0
-                      ? "None of these is from a saved book, so there is no page to set."
-                      : text
-                        ? preview
-                        : "Questions that are not from a saved book are skipped."}
                   </p>
                 </div>
               )}

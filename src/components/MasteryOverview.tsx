@@ -9,6 +9,7 @@ import { formatCountdown, formatDate } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
 import { treeMastery, type TreeMastery } from "@/lib/mastery";
 import { childrenOf } from "@/lib/tree";
+import { CONFIG } from "@/lib/config";
 import InfoTip from "./InfoTip";
 import LoadingScreen from "./LoadingScreen";
 
@@ -227,10 +228,11 @@ export default function MasteryOverview() {
         <div className="flex items-center gap-1">
           <h2 className="text-lg font-semibold">Mastery</h2>
           <InfoTip>
-            Pass a quiz at a level to earn mastery for that level. It lasts 14 days for a topic, 42 for a subject, and
-            84 for a category, which you earn with a mock board. A failed quiz locks that same item for 24 hours. A red
-            ! means that row, or something inside it, has expired. An amber ! means it runs out within {EXPIRING_DAYS}{" "}
-            days. A number next to the ! is how many rows are behind it.
+            Pass a quiz at a level to earn mastery for that level. It lasts {CONFIG.masteryDays.topic} days for a topic,{" "}
+            {CONFIG.masteryDays.subject} for a subject, and {CONFIG.masteryDays.category} for a category, which you earn
+            with a mock board. A failed quiz locks that same item for 24 hours. A red ! means that row, or something
+            inside it, has expired. An amber ! means it runs out within {EXPIRING_DAYS} days. A number next to the ! is
+            how many rows are behind it.
           </InfoTip>
         </div>
         {(summary.expired > 0 || summary.soon > 0) && (

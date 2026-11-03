@@ -51,7 +51,7 @@ export const CONFIG = {
    * A quiz with fewer items than `minItems` can still be taken, but it cannot award mastery.
    */
   quiz: {
-    topic: { minItems: 25, maxItems: 50, defaultItems: 30, totalMinutes: 60 },
+    topic: { minItems: 30, maxItems: 50, defaultItems: 30, totalMinutes: 60 },
     subject: { minItems: 50, defaultItems: 100 },
     category: { minItems: 50, defaultItems: 100 },
     /** When the person picks the number of items, the total time is suggested as items times this many seconds. */
@@ -64,7 +64,7 @@ export const CONFIG = {
   /** Computation questions: how many times to re-roll before a template is called unusable. */
   maxRolls: 50,
   /** How long mastery lasts, in days. */
-  masteryDays: { topic: 14, subject: 42, category: 84 },
+  masteryDays: { topic: 14, subject: 21, category: 21 },
   /** Hours a node stays locked after a failed quiz. */
   cooldownHours: 24,
 } as const;

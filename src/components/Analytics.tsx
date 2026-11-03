@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import LoadingScreen from "./LoadingScreen";
-import { byTopic, calibration, categorySeries, observations, summarize } from "@/lib/analytics";
+import { byTopic, calibration, categorySeries, levelSeries, observations, summarize } from "@/lib/analytics";
 import { FIXED_CATEGORIES } from "@/lib/categories";
 import { CONFIG } from "@/lib/config";
 import { formatPercent, formatRatio, formatSpent } from "@/lib/format";
@@ -42,6 +42,8 @@ export default function Analytics() {
 
   const sum = summarize(attempts);
   const series = categorySeries(attempts, FIXED_CATEGORIES);
+  const subjectLines = levelSeries(attempts, "subject");
+  const topicLines = levelSeries(attempts, "topic");
   const topics = byTopic(obs).sort((a, b) => a.credit - b.credit);
   const cal = calibration(obs);
   const sure = cal[0];
@@ -60,13 +62,15 @@ export default function Analytics() {
         <div className="mb-2 flex items-center gap-1">
           <h3 className="font-medium">Credit over time</h3>
           <InfoTip>
-            One line per category, and All for every category together. Click a category to show or hide it. Switch the
-            time axis to see each quiz, or a weekly or monthly average. The dashed green line is the goal you set in
-            Settings. The red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
+            View by category, subject, or topic. By category there is one line per category, and All for every category
+            together: click a category to show or hide it. By subject or topic, pick one from the list, and add up to
+            five more to compare them. Point at a dot to see that quiz split by subject or topic. Switch the time axis
+            to see each quiz, or a weekly or monthly average. The dashed green line is the goal you set in Settings. The
+            red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
           </InfoTip>
         </div>
         <div className="rounded-md border border-line bg-surface p-3">
-          <CreditChart series={series} bar={bar} />
+          <CreditChart series={series} subjects={subjectLines} topics={topicLines} bar={bar} />
         </div>
       </section>
 

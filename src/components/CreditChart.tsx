@@ -9,7 +9,6 @@ import {
   periodStart,
   timeDomain,
   type ChartPoint,
-  type Measure,
   type TimeAxis,
 } from "@/lib/chartTime";
 import { CONFIG } from "@/lib/config";
@@ -24,15 +23,22 @@ const SERIES_VAR: Record<string, string> = {
   [ALL_KEY]: "var(--color-ink)",
 };
 const colorOf = (key: string) => SERIES_VAR[key] ?? "var(--color-accent)";
+/** Colours for the subjects or topics you pick, in the order you add them. */
+const PICK_VARS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)", "var(--s6)"];
+const MAX_PICKED = PICK_VARS.length;
+
+export type View = "category" | "subject" | "topic";
+
+const VIEWS: { value: View; label: string }[] = [
+  { value: "category", label: "Category" },
+  { value: "subject", label: "Subject" },
+  { value: "topic", label: "Topic" },
+];
 
 const AXES: { value: TimeAxis; label: string }[] = [
   { value: "quiz", label: "Each quiz" },
   { value: "week", label: "Weekly" },
   { value: "month", label: "Monthly" },
-];
-const MEASURES: { value: Measure; label: string }[] = [
-  { value: "result", label: "Quiz result" },
-  { value: "average", label: "Category average" },
 ];
 
 const short = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -74,13 +80,121 @@ function Segmented<T extends string>({
 interface Line {
   s: CategorySeries;
   pts: ChartPoint[];
+  color: string;
 }
 
-export default function CreditChart({ series, bar }: { series: CategorySeries[]; bar: number }) {
+/** The line whose last quiz is the newest, so the chart opens on what you did most recently. */
+function latestKey(lines: CategorySeries[]): string | undefined {
+  let best: CategorySeries | undefined;
+  for (const l of lines) {
+    const at = l.points[l.points.length - 1]?.at ?? -Infinity;
+    if (!best || at > (best.points[best.points.length - 1]?.at ?? -Infinity)) best = l;
+  }
+  return best?.key;
+}
+
+/** Chips for the picked subjects or topics, each with a ✕, and a dropdown to add another. */
+function Picker({
+  noun,
+  lines,
+  picked,
+  onChange,
+}: {
+  noun: string;
+  lines: CategorySeries[];
+  picked: string[];
+  onChange: (keys: string[]) => void;
+}) {
+  const byKey = new Map(lines.map((l) => [l.key, l]));
+  const groups = new Map<string, CategorySeries[]>();
+  for (const l of lines) {
+    if (picked.includes(l.key)) continue;
+    const g = l.group ?? "";
+    groups.set(g, [...(groups.get(g) ?? []), l]);
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`${noun}s to show`}>
+      {picked.map((key, i) => {
+        const l = byKey.get(key);
+        if (!l) return null;
+        const last = l.points[l.points.length - 1];
+        const c = PICK_VARS[i];
+        return (
+          <span
+            key={key}
+            title={l.group ? `${l.group} › ${l.name}` : l.name}
+            className="inline-flex max-w-[18rem] items-center gap-2 rounded-full border bg-surface py-1 pr-1 pl-2 text-sm"
+            style={{ borderColor: c }}
+          >
+            <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: c }} aria-hidden="true" />
+            <span className="truncate">{l.name}</span>
+            <span className="text-xs text-muted tabular-nums">{last ? formatPercent(last.credit, 0) : "–"}</span>
+            <button
+              type="button"
+              aria-label={`Hide ${l.name}`}
+              className="inline-flex size-5 items-center justify-center rounded-full text-muted hover:bg-paper hover:text-ink"
+              onClick={() => onChange(picked.filter((k) => k !== key))}
+            >
+              ✕
+            </button>
+          </span>
+        );
+      })}
+      {picked.length < MAX_PICKED && groups.size > 0 && (
+        <select
+          aria-label={`Add a ${noun} to the chart`}
+          className="input w-auto py-1"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) onChange([...picked, e.target.value]);
+          }}
+        >
+          <option value="">{picked.length ? `+ Add another ${noun}` : `Pick a ${noun}`}</option>
+          {Array.from(groups.entries()).map(([g, ls]) => (
+            <optgroup key={g} label={g || "Other"}>
+              {ls.map((l) => (
+                <option key={l.key} value={l.key}>
+                  {l.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      )}
+      {picked.length >= MAX_PICKED && (
+        <span className="text-xs text-muted">Up to {MAX_PICKED} at once. Remove one to add another.</span>
+      )}
+    </div>
+  );
+}
+
+export default function CreditChart({
+  series,
+  subjects,
+  topics,
+  bar,
+}: {
+  /** One line per category, with "All" last. */
+  series: CategorySeries[];
+  subjects: CategorySeries[];
+  topics: CategorySeries[];
+  bar: number;
+}) {
   const [axis, setAxis] = useState<TimeAxis>("quiz");
-  const [measure, setMeasure] = useState<Measure>("result");
+  const [view, setView] = useState<View>("category");
   const [on, setOn] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(series.map((s) => [s.key, s.key !== ALL_KEY])),
+  );
+  // The subjects and topics you picked. Until you pick, the one quizzed most recently is shown.
+  const [pickedSubjects, setPickedSubjects] = useState<string[] | null>(null);
+  const [pickedTopics, setPickedTopics] = useState<string[] | null>(null);
+  const subjectKeys = useMemo(
+    () => pickedSubjects ?? [latestKey(subjects)].filter((k): k is string => !!k),
+    [pickedSubjects, subjects],
+  );
+  const topicKeys = useMemo(
+    () => pickedTopics ?? [latestKey(topics)].filter((k): k is string => !!k),
+    [pickedTopics, topics],
   );
   const [active, setActive] = useState<{ key: string; x: number } | null>(null);
   const [width, setWidth] = useState(640);
@@ -101,19 +215,30 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
   const base = H - pad.b;
 
   const { domain, lines, fit } = useMemo(() => {
-    const domain = timeDomain(series.flatMap((s) => s.points));
-    const lines: Line[] = series.map((s) => ({ s, pts: chartPoints(s.points, axis, measure, domain) }));
+    let chosen: { s: CategorySeries; color: string }[];
+    if (view === "category") {
+      chosen = series.filter((s) => on[s.key]).map((s) => ({ s, color: colorOf(s.key) }));
+    } else {
+      const pool = view === "subject" ? subjects : topics;
+      const keys = view === "subject" ? subjectKeys : topicKeys;
+      chosen = keys.flatMap((k, i) => {
+        const s = pool.find((l) => l.key === k);
+        return s ? [{ s, color: PICK_VARS[i] }] : [];
+      });
+    }
+    const domain = timeDomain(chosen.flatMap((c) => c.s.points));
+    const lines: Line[] = chosen.map((c) => ({ ...c, pts: chartPoints(c.s.points, axis, domain) }));
     const fit = fitRange(
       lines.flatMap((l) => l.pts.map((p) => p.v)),
       [bar, CONFIG.minimumPass],
     );
     return { domain, lines, fit };
-  }, [series, axis, measure, bar]);
+  }, [series, subjects, topics, view, on, subjectKeys, topicKeys, axis, bar]);
 
   const x = (ms: number) => pad.l + ((ms - domain[0]) / (domain[1] - domain[0])) * (plotR - pad.l);
   const y = (v: number) => pad.t + (1 - (v - fit.lo) / (1 - fit.lo)) * (base - pad.t);
 
-  const shown = lines.filter((l) => on[l.s.key] && l.pts.length > 0);
+  const shown = lines.filter((l) => l.pts.length > 0);
   const hits = shown.flatMap((l) => l.pts.map((p) => ({ line: l, p, px: x(p.x), py: y(p.v) })));
   const activeHit = active ? hits.find((h) => h.line.s.key === active.key && h.p.x === active.x) : undefined;
   const halo = { paintOrder: "stroke", stroke: "var(--color-surface)", strokeWidth: 3 } as const;
@@ -155,7 +280,8 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
   for (let t = Math.round(fit.lo * 100); t <= 100; t += stepPct) ticks.push(t);
 
   // end labels, nudged apart so they never sit on top of each other
-  const ends = shown
+  // Only categories have short names, so only they are written at the end of their lines.
+  const ends = (view === "category" ? shown : [])
     .map((l) => ({ key: l.s.key, name: l.s.key === ALL_KEY ? "ALL" : l.s.name, y: y(l.pts[l.pts.length - 1].v) + 3.5 }))
     .sort((a, b) => a.y - b.y);
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 12) ends[i].y = ends[i - 1].y + 12;
@@ -165,11 +291,11 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
   const xLabels = [0.06, 0.28, 0.5, 0.72, 0.94].map((f) => domain[0] + f * (domain[1] - domain[0]));
 
   // tooltip text
-  const tip = activeHit ? describe(activeHit.line, activeHit.p, axis, measure) : null;
+  const tip = activeHit ? describe(activeHit.line, activeHit.p, axis) : null;
 
   return (
     <div className="credit-chart space-y-3">
-      <style>{`.credit-chart{--s1:#2a78d6;--s2:#eda100;--s3:#6250d6;--s4:#e87ba4}:root[data-theme="dark"] .credit-chart{--s1:#3987e5;--s2:#c98500;--s3:#9085e9;--s4:#d55181}`}</style>
+      <style>{`.credit-chart{--s1:#2a78d6;--s2:#eda100;--s3:#6250d6;--s4:#e87ba4;--s5:#1a9a8a;--s6:#8a6a3a}:root[data-theme="dark"] .credit-chart{--s1:#3987e5;--s2:#c98500;--s3:#9085e9;--s4:#d55181;--s5:#2bb5a3;--s6:#b8935a}`}</style>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <Segmented
@@ -182,56 +308,60 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
           }}
         />
         <Segmented
-          label="Line shows"
-          value={measure}
-          options={MEASURES}
+          label="View by"
+          value={view}
+          options={VIEWS}
           onChange={(v) => {
-            setMeasure(v);
+            setView(v);
             setActive(null);
           }}
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Categories to show">
-        {series.map((s) => {
-          const last = s.points[s.points.length - 1];
-          const isOn = !!on[s.key];
-          const c = colorOf(s.key);
-          return (
-            <button
-              key={s.key}
-              type="button"
-              aria-pressed={isOn}
-              title={`${s.name}. Click to show or hide. Double-click to show only this one.`}
-              onClick={() => setOn((o) => ({ ...o, [s.key]: !o[s.key] }))}
-              onDoubleClick={() => setOn(Object.fromEntries(series.map((o) => [o.key, o.key === s.key])))}
-              className={`inline-flex items-center gap-2 rounded-full border bg-surface py-1 pl-2 pr-3 text-sm ${
-                s.key === ALL_KEY ? "ml-2" : ""
-              } ${isOn ? "" : "text-muted"}`}
-              style={{ borderColor: isOn ? c : "var(--color-line)" }}
-            >
-              <span
-                className="h-3 w-3 shrink-0 rounded-full border-2"
-                style={{ borderColor: c, background: isOn ? c : "transparent" }}
-                aria-hidden="true"
-              />
-              {s.key === ALL_KEY ? "All" : s.name}
-              <span className="text-xs tabular-nums text-muted">
-                {last ? formatPercent(measureValue(last, measure), 0) : "–"}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {view === "subject" && (
+        <Picker noun="subject" lines={subjects} picked={subjectKeys} onChange={setPickedSubjects} />
+      )}
+      {view === "topic" && <Picker noun="topic" lines={topics} picked={topicKeys} onChange={setPickedTopics} />}
+      {view === "category" && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Categories to show">
+          {series.map((s) => {
+            const last = s.points[s.points.length - 1];
+            const isOn = !!on[s.key];
+            const c = colorOf(s.key);
+            return (
+              <button
+                key={s.key}
+                type="button"
+                aria-pressed={isOn}
+                title={`${s.name}. Click to show or hide. Double-click to show only this one.`}
+                onClick={() => setOn((o) => ({ ...o, [s.key]: !o[s.key] }))}
+                onDoubleClick={() => setOn(Object.fromEntries(series.map((o) => [o.key, o.key === s.key])))}
+                className={`inline-flex items-center gap-2 rounded-full border bg-surface py-1 pl-2 pr-3 text-sm ${
+                  s.key === ALL_KEY ? "ml-2" : ""
+                } ${isOn ? "" : "text-muted"}`}
+                style={{ borderColor: isOn ? c : "var(--color-line)" }}
+              >
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full border-2"
+                  style={{ borderColor: c, background: isOn ? c : "transparent" }}
+                  aria-hidden="true"
+                />
+                {s.key === ALL_KEY ? "All" : s.name}
+                <span className="text-xs tabular-nums text-muted">{last ? formatPercent(last.credit, 0) : "–"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      <p className="text-xs text-muted">{noteFor(axis, measure)}</p>
+      <p className="text-xs text-muted">{noteFor(axis, view)}</p>
 
       <div ref={stage} className="relative">
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="block h-auto w-full select-none"
           role="img"
-          aria-label="Credit score over time, one line per category. Use the left and right arrow keys to step through the points."
+          aria-label={`Credit score over time, one line per ${view}. Use the left and right arrow keys to step through the points.`}
           tabIndex={0}
           onPointerMove={(e) => setActive(nearest(e))}
           onPointerLeave={() => setActive(null)}
@@ -326,14 +456,14 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
           </text>
 
           {shown.map((l) => {
-            const c = colorOf(l.s.key);
+            const c = l.color;
             const dim = active !== null && active.key !== l.s.key;
             // The dots pop in one after another, left to right. Then the line draws through them.
             const n = l.pts.length;
             const gap = n > 1 ? Math.min(0.12, 0.9 / (n - 1)) : 0;
             const lineAt = 0.3 + gap * (n - 1);
-            // A new key replays the drawing when the axis, the measure, or the line itself changes.
-            const play = `${l.s.key}-${axis}-${measure}`;
+            // A new key replays the drawing when the axis, the view, or the line itself changes.
+            const play = `${view}-${l.s.key}-${axis}`;
             return (
               <g key={play} opacity={dim ? 0.4 : 1}>
                 {l.pts.length > 1 && (
@@ -378,7 +508,9 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
               fill="var(--color-muted)"
               {...halo}
             >
-              Pick a category above to show its line.
+              {view === "category"
+                ? "Pick a category above to show its line."
+                : `Pick a ${view} above to show its line.`}
             </text>
           )}
           {ends.map((e) => (
@@ -409,29 +541,25 @@ export default function CreditChart({ series, bar }: { series: CategorySeries[];
               transform: `translate(${activeHit.px > W * 0.55 ? "calc(-100% - 14px)" : "14px"}, -50%)`,
             }}
           >
-            <TipBody tip={tip} color={colorOf(activeHit.line.s.key)} />
+            <TipBody tip={tip} color={activeHit.line.color} />
           </div>
         )}
       </div>
 
       <p className="sr-only" aria-live="polite">
         {tip
-          ? `${tip.name}${tip.value ? `: ${tip.value}` : ""}. ${tip.when}. ${tip.items.map((q) => `${q.when} ${q.label} ${q.credit}`).join(". ")}`
+          ? `${tip.name}${tip.value ? `: ${tip.value}` : ""}. ${tip.when}. ${tip.items.map((q) => `${q.when} ${q.label} ${q.credit}`).join(". ")}. ${tip.parts.map((q) => `${q.label} ${q.credit}`).join(". ")}`
           : ""}
       </p>
     </div>
   );
 }
 
-const measureValue = (p: { credit: number; avg: number }, m: Measure) => (m === "result" ? p.credit : p.avg);
-
-function noteFor(axis: TimeAxis, measure: Measure): string {
-  const unit = axis === "quiz" ? "quiz" : axis === "week" ? "week" : "month";
-  if (axis === "quiz")
-    return measure === "result" ? "Each dot is one quiz." : "Each dot is the category average after one quiz.";
-  return measure === "result"
-    ? `Each dot is the average of a ${unit}'s quizzes.`
-    : `Each dot is the category average at the end of a ${unit}.`;
+function noteFor(axis: TimeAxis, view: View): string {
+  if (axis !== "quiz") return `Each dot is the average of a ${axis}'s quizzes.`;
+  if (view === "topic") return "Each dot is one quiz, scored on that topic's questions.";
+  const split = view === "category" ? "its subjects, or its topics when it covered one subject" : "its topics";
+  return `Each dot is one quiz, scored on that ${view}'s questions. Point at a dot to see it split into ${split}.`;
 }
 
 interface Tip {
@@ -442,25 +570,33 @@ interface Tip {
   when: string;
   items: { when: string; label: string; credit: string }[];
   more: number;
+  /** For one quiz: its result split one level down, such as by subject inside a category. */
+  partsTitle: string;
+  parts: { label: string; credit: string; n: number }[];
 }
 
 const MAX_LISTED = 6;
+const MAX_PARTS = 8;
 
-function describe(line: Line, p: ChartPoint, axis: TimeAxis, measure: Measure): Tip {
+function describe(line: Line, p: ChartPoint, axis: TimeAxis): Tip {
   const when =
     axis === "week"
       ? `Week of ${short(p.start)}`
       : axis === "month"
         ? new Date(p.start).toLocaleDateString(undefined, { month: "long", year: "numeric" })
         : "";
+  const one = p.items.length === 1 ? p.items[0] : null;
+  const parts = one ? one.parts : [];
   return {
     name: line.s.name,
-    value: p.items.length === 1 && measure === "result" ? "" : formatPercent(p.v),
+    value: one ? "" : formatPercent(p.v),
     when,
     items: p.items
       .slice(0, MAX_LISTED)
       .map((q) => ({ when: short(q.at), label: q.label, credit: formatPercent(q.credit, 0) })),
     more: Math.max(0, p.items.length - MAX_LISTED),
+    partsTitle: `By ${one?.partsBy ?? "topic"}`,
+    parts: parts.slice(0, MAX_PARTS).map((q) => ({ label: q.label, credit: formatPercent(q.credit, 0), n: q.n })),
   };
 }
 
@@ -484,6 +620,23 @@ function TipBody({ tip, color }: { tip: Tip; color: string }) {
         ))}
         {tip.more > 0 && <li className="text-muted">+{tip.more} more</li>}
       </ul>
+      {tip.parts.length > 0 && (
+        <>
+          <p className="mt-1.5 border-t border-line pt-1.5 text-[11px] tracking-wide text-muted uppercase">
+            {tip.partsTitle}
+          </p>
+          <ul className="mt-0.5 space-y-0.5 text-xs">
+            {tip.parts.map((q, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span className="min-w-0 truncate">
+                  {q.label} <span className="text-muted">({q.n})</span>
+                </span>
+                <span className="tabular-nums">{q.credit}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

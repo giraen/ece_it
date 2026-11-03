@@ -1,7 +1,6 @@
 import type { SeriesPoint } from "./analytics";
 
 export type TimeAxis = "quiz" | "week" | "month";
-export type Measure = "result" | "average";
 
 const DAY = 86_400_000;
 
@@ -45,20 +44,13 @@ export interface ChartPoint {
 }
 
 /**
- * Turns a category's quizzes into the dots to draw.
+ * Turns a line's quizzes into the dots to draw.
  * "quiz": one dot per quiz, on the time it was taken.
- * "week" / "month": one dot per period, in the middle of it, showing the average result of that period's quizzes,
- * or the running category average as it stood at the end of the period.
+ * "week" / "month": one dot per period, in the middle of it, showing the average result of that period's quizzes.
  */
-export function chartPoints(
-  points: SeriesPoint[],
-  axis: TimeAxis,
-  measure: Measure,
-  domain: [number, number],
-): ChartPoint[] {
+export function chartPoints(points: SeriesPoint[], axis: TimeAxis, domain: [number, number]): ChartPoint[] {
   const sorted = [...points].sort((a, b) => a.at - b.at);
-  const pick = (p: SeriesPoint) => (measure === "result" ? p.credit : p.avg);
-  if (axis === "quiz") return sorted.map((p) => ({ x: p.at, v: pick(p), items: [p], start: p.at }));
+  if (axis === "quiz") return sorted.map((p) => ({ x: p.at, v: p.credit, items: [p], start: p.at }));
 
   const groups = new Map<number, SeriesPoint[]>();
   for (const p of sorted) {
@@ -68,8 +60,7 @@ export function chartPoints(
   return Array.from(groups.entries()).map(([start, items]) => {
     const lo = Math.max(domain[0], start);
     const hi = Math.min(domain[1], periodEnd(start, axis));
-    const v =
-      measure === "result" ? items.reduce((s, p) => s + p.credit, 0) / items.length : items[items.length - 1].avg;
+    const v = items.reduce((s, p) => s + p.credit, 0) / items.length;
     return { x: (lo + hi) / 2, v, items, start };
   });
 }

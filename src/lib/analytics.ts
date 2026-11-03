@@ -138,79 +138,153 @@ export function creditOverTime(attempts: QuizAttempt[]): QuizPoint[] {
     }));
 }
 
+/** One part of a quiz's result inside a line: a subject inside a category, or a topic inside a subject. */
+export interface SeriesPart {
+  key: string;
+  label: string;
+  /** Average credit of that part's questions in the quiz. */
+  credit: number;
+  /** How many of the quiz's questions were in that part. */
+  n: number;
+}
+
 export interface SeriesPoint {
   at: number;
-  /** Average credit of this quiz's questions in the category. */
+  /** Average credit of this quiz's questions that belong to the line. */
   credit: number;
-  /** The category's running average after this quiz: the latest credit of each topic so far, averaged. */
-  avg: number;
   /** The quiz it came from, e.g. "ELEX › Circuits". */
   label: string;
+  /**
+   * The same result split one level down, weakest first: by subject inside a category, or by topic inside a subject.
+   * When a quiz only covered one subject, a category's point is split by topic instead. Empty for a topic.
+   */
+  parts: SeriesPart[];
+  /** What the parts are. */
+  partsBy?: "category" | "subject" | "topic";
 }
 
 export interface CategorySeries {
   key: string;
   name: string;
+  /** Where it sits, for grouping in a list: the category of a subject, or the category and subject of a topic. */
+  group?: string;
   points: SeriesPoint[];
 }
 
 /** The key of the extra series that covers every category together. */
 export const ALL_KEY = "all";
 
+type Item = QuizAttempt["items"][number];
+
+function submittedInOrder(attempts: QuizAttempt[]): QuizAttempt[] {
+  return attempts
+    .filter((a) => !a.deletedAt && a.status === "submitted" && a.summary && a.submittedAt !== undefined)
+    .sort((a, b) => (a.submittedAt ?? 0) - (b.submittedAt ?? 0));
+}
+
+const average = (items: Item[]) => items.reduce((s, it) => s + it.credit, 0) / items.length;
+
+/** Splits a quiz's questions into parts and scores each one, weakest first. */
+function partsOf(items: Item[], keyOf: (it: Item) => { key: string; label: string }): SeriesPart[] {
+  const by = new Map<string, { label: string; items: Item[] }>();
+  for (const it of items) {
+    const { key, label } = keyOf(it);
+    const b = by.get(key);
+    if (b) b.items.push(it);
+    else by.set(key, { label, items: [it] });
+  }
+  return Array.from(by.entries())
+    .map(([key, b]) => ({ key, label: b.label, credit: average(b.items), n: b.items.length }))
+    .sort((x, y) => x.credit - y.credit || x.label.localeCompare(y.label));
+}
+
+const bySubject = (it: Item) => ({ key: it.subjectId, label: it.subjectName });
+const byTopicPart = (it: Item) => ({ key: it.topicId, label: it.topicName });
+const byCategory = (it: Item) => ({ key: (it.categoryName ?? "").trim().toLowerCase(), label: it.categoryName ?? "" });
+
+/** Splits by the first level that has more than one part, so a one-subject quiz is split by topic. */
+function splitDown(
+  items: Item[],
+  levels: { by: "category" | "subject" | "topic"; keyOf: (it: Item) => { key: string; label: string } }[],
+): Pick<SeriesPoint, "parts" | "partsBy"> {
+  for (const l of levels) {
+    const parts = partsOf(items, l.keyOf);
+    if (parts.length > 1) return { parts, partsBy: l.by };
+  }
+  return { parts: [] };
+}
+const SUBJECT = { by: "subject" as const, keyOf: bySubject };
+const TOPIC = { by: "topic" as const, keyOf: byTopicPart };
+const CATEGORY = { by: "category" as const, keyOf: byCategory };
+
 /**
  * One line of points per category, plus one for all of them together (always last), oldest first.
- * A quiz makes a point in every category it asked questions from, scored on those questions only.
+ * A quiz makes a point in every category it asked questions from, scored on those questions only, and split by
+ * subject.
  */
 export function categorySeries(
   attempts: QuizAttempt[],
   categories: readonly { key: string; name: string }[],
 ): CategorySeries[] {
-  const done = attempts
-    .filter((a) => !a.deletedAt && a.status === "submitted" && a.summary && a.submittedAt !== undefined)
-    .sort((a, b) => (a.submittedAt ?? 0) - (b.submittedAt ?? 0));
   const names = categories.map((c) => c.name.trim().toLowerCase());
   const out: CategorySeries[] = categories.map((c) => ({ key: c.key, name: c.name, points: [] }));
   const all: CategorySeries = { key: ALL_KEY, name: "All categories", points: [] };
-  const latest: Map<string, number>[] = categories.map(() => new Map());
-  const latestAll = new Map<string, number>();
-  const mean = (m: Map<string, number>) => {
-    let sum = 0;
-    for (const v of m.values()) sum += v;
-    return m.size ? sum / m.size : 0;
-  };
 
-  for (const a of done) {
+  for (const a of submittedInOrder(attempts)) {
     const label = a.practice ? `${a.scopeName} (practice)` : a.scopeName;
     const at = a.submittedAt as number;
-    type Sum = { sum: number; n: number };
-    const add = (m: Map<string, Sum>, id: string, credit: number) => {
-      const t = m.get(id) ?? { sum: 0, n: 0 };
-      t.sum += credit;
-      t.n += 1;
-      m.set(id, t);
-    };
-    const perCat: Map<string, Sum>[] = categories.map(() => new Map());
-    const perAll = new Map<string, Sum>();
+    const perCat: Item[][] = categories.map(() => []);
     for (const it of a.items) {
-      add(perAll, it.topicId, it.credit);
       const ci = names.indexOf((it.categoryName ?? "").trim().toLowerCase());
-      if (ci >= 0) add(perCat[ci], it.topicId, it.credit);
+      if (ci >= 0) perCat[ci].push(it);
     }
-    perCat.forEach((topics, ci) => {
-      if (topics.size === 0) return;
-      let sum = 0;
-      let n = 0;
-      for (const [topicId, t] of topics) {
-        latest[ci].set(topicId, t.sum / t.n);
-        sum += t.sum;
-        n += t.n;
-      }
-      out[ci].points.push({ at, credit: sum / n, avg: mean(latest[ci]), label });
+    perCat.forEach((items, ci) => {
+      if (items.length)
+        out[ci].points.push({ at, credit: average(items), label, ...splitDown(items, [SUBJECT, TOPIC]) });
     });
-    for (const [topicId, t] of perAll) latestAll.set(topicId, t.sum / t.n);
-    all.points.push({ at, credit: a.summary?.credit ?? 0, avg: mean(latestAll), label });
+    if (a.items.length) {
+      all.points.push({ at, credit: a.summary?.credit ?? 0, label, ...splitDown(a.items, [CATEGORY, SUBJECT, TOPIC]) });
+    }
   }
   return [...out, all];
+}
+
+/**
+ * One line per subject or per topic that has been quizzed, oldest point first. A quiz makes a point on every subject
+ * or topic it asked questions from, scored on those questions only. A subject's point is split by topic.
+ */
+export function levelSeries(attempts: QuizAttempt[], level: "subject" | "topic"): CategorySeries[] {
+  const lines = new Map<string, CategorySeries>();
+  for (const a of submittedInOrder(attempts)) {
+    const label = a.practice ? `${a.scopeName} (practice)` : a.scopeName;
+    const at = a.submittedAt as number;
+    const by = new Map<string, Item[]>();
+    for (const it of a.items) {
+      const key = level === "subject" ? it.subjectId : it.topicId;
+      by.set(key, [...(by.get(key) ?? []), it]);
+    }
+    for (const [key, items] of by) {
+      const first = items[items.length - 1];
+      let line = lines.get(key);
+      if (!line) {
+        line = { key, name: "", points: [] };
+        lines.set(key, line);
+      }
+      // The newest name wins, so a renamed subject or topic shows its current name.
+      line.name = level === "subject" ? first.subjectName : first.topicName;
+      line.group =
+        level === "subject" ? (first.categoryName ?? "") : `${first.categoryName ?? ""} › ${first.subjectName}`;
+      line.points.push({
+        at,
+        credit: average(items),
+        label,
+        ...(level === "subject" ? splitDown(items, [TOPIC]) : { parts: [] }),
+      });
+    }
+  }
+  return Array.from(lines.values()).sort(
+    (x, y) => (x.group ?? "").localeCompare(y.group ?? "") || x.name.localeCompare(y.name),
+  );
 }
 
 export interface Summary {

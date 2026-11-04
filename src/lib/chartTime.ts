@@ -1,25 +1,25 @@
 import type { SeriesPoint } from "./analytics";
 
-export type TimeAxis = "quiz" | "week" | "month";
+export type TimeAxis = "day" | "week" | "month";
 /** "average": the line's average after each quiz. "result": each quiz's own score. */
 export type Measure = "average" | "result";
 
 const DAY = 86_400_000;
 
-/** When the week (Monday first) or month that holds `ms` begins, in local time. */
-export function periodStart(ms: number, axis: "week" | "month"): number {
+/** When the day, week (Monday first) or month that holds `ms` begins, in local time. */
+export function periodStart(ms: number, axis: TimeAxis): number {
   const d = new Date(ms);
+  if (axis === "day") return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   if (axis === "month") return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
   const back = (d.getDay() + 6) % 7;
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - back).getTime();
 }
 
-/** When the next week or month begins. */
-export function periodEnd(start: number, axis: "week" | "month"): number {
+/** When the next day, week or month begins. */
+export function periodEnd(start: number, axis: TimeAxis): number {
   const d = new Date(start);
-  return axis === "month"
-    ? new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
-    : new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7).getTime();
+  if (axis === "month") return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (axis === "day" ? 1 : 7)).getTime();
 }
 
 /** The span the chart covers: a day before the first quiz to a day after the last, so end dots never touch the edge. */
@@ -41,15 +41,14 @@ export interface ChartPoint {
   v: number;
   /** The quizzes behind it, oldest first. */
   items: SeriesPoint[];
-  /** The start of its week or month, or the quiz time on the per-quiz axis. */
+  /** The start of its day, week or month. */
   start: number;
 }
 
 /**
- * Turns a line's quizzes into the dots to draw.
- * "quiz": one dot per quiz, on the time it was taken.
- * "week" / "month": one dot per period, in the middle of it. It shows the line's average as it stood at the end of the
- * period, or with "result" the average score of that period's quizzes.
+ * Turns a line's quizzes into the dots to draw: one dot per day, week or month, in the middle of it, so every quiz of
+ * that period is one dot. It shows the line's average as it stood at the end of the period, or with "result" the
+ * average score of that period's quizzes.
  */
 export function chartPoints(
   points: SeriesPoint[],
@@ -58,9 +57,6 @@ export function chartPoints(
   domain: [number, number],
 ): ChartPoint[] {
   const sorted = [...points].sort((a, b) => a.at - b.at);
-  const pick = (p: SeriesPoint) => (measure === "average" ? p.avg : p.credit);
-  if (axis === "quiz") return sorted.map((p) => ({ x: p.at, v: pick(p), items: [p], start: p.at }));
-
   const groups = new Map<number, SeriesPoint[]>();
   for (const p of sorted) {
     const s = periodStart(p.at, axis);

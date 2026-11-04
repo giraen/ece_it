@@ -37,7 +37,7 @@ const VIEWS: { value: View; label: string }[] = [
 ];
 
 const AXES: { value: TimeAxis; label: string }[] = [
-  { value: "quiz", label: "Each quiz" },
+  { value: "day", label: "Daily" },
   { value: "week", label: "Weekly" },
   { value: "month", label: "Monthly" },
 ];
@@ -181,7 +181,7 @@ export default function CreditChart({
   topics: CategorySeries[];
   bar: number;
 }) {
-  const [axis, setAxis] = useState<TimeAxis>("quiz");
+  const [axis, setAxis] = useState<TimeAxis>("day");
   const [view, setView] = useState<View>("category");
   const [on, setOn] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(series.map((s) => [s.key, s.key !== ALL_KEY])),
@@ -290,8 +290,8 @@ export default function CreditChart({
     .sort((a, b) => a.y - b.y);
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 12) ends[i].y = ends[i - 1].y + 12;
 
-  const bands = axis === "quiz" ? [] : periodsIn(domain, axis);
-  const quizDays = axis === "quiz" ? Array.from(new Set(hits.map((h) => h.p.x))) : [];
+  const bands = axis === "day" ? [] : periodsIn(domain, axis);
+  const quizDays = axis === "day" ? Array.from(new Set(hits.map((h) => h.p.x))) : [];
   const xLabels = [0.06, 0.28, 0.5, 0.72, 0.94].map((f) => domain[0] + f * (domain[1] - domain[0]));
 
   // tooltip text
@@ -418,7 +418,7 @@ export default function CreditChart({
           ))}
           <line x1={pad.l} x2={plotR} y1={base} y2={base} stroke="var(--color-line)" strokeWidth="1" />
 
-          {axis === "quiz" &&
+          {axis === "day" &&
             xLabels.map((ms) => (
               <text key={ms} x={x(ms)} y={H - 12} textAnchor="middle" fontSize="10" fill="var(--color-muted)">
                 {short(ms)}
@@ -492,7 +492,7 @@ export default function CreditChart({
                       style={{ animationDelay: `${i * gap}s` }}
                       cx={x(p.x)}
                       cy={y(p.v)}
-                      r={isActive ? 6 : axis === "quiz" ? 3.5 : 4.5}
+                      r={isActive ? 6 : axis === "day" ? 3.5 : 4.5}
                       fill={c}
                       stroke={isActive ? "var(--color-surface)" : "none"}
                       strokeWidth="2"
@@ -561,11 +561,11 @@ export default function CreditChart({
 
 function noteFor(axis: TimeAxis, view: View): string {
   if (view === "topic") {
-    return axis === "quiz" ? "Each dot is one quiz on that topic." : `Each dot is the average of a ${axis}'s quizzes.`;
+    return `Each dot is the average of a ${axis}'s quizzes on that topic.`;
   }
   const below = view === "category" ? "subject" : "topic";
-  const when = axis === "quiz" ? "after each quiz" : `at the end of each ${axis}`;
-  return `Each dot is the ${view}'s average ${when}: the latest score of every topic in it, averaged. Point at a dot to see the quiz and each ${below}'s score.`;
+  const when = `at the end of each ${axis}`;
+  return `Each dot is the ${view}'s average ${when}: the latest score of every topic in it, averaged. Point at a dot to see that ${axis}'s quizzes and each ${below}'s score.`;
 }
 
 interface Tip {
@@ -574,7 +574,7 @@ interface Tip {
   value: string;
   /** What the value is, such as "Average". */
   valueLabel: string;
-  /** "Week of Sep 7", "September 2026". Empty on the per-quiz axis. */
+  /** "Thursday, Oct 29", "Week of Sep 7", "September 2026". */
   when: string;
   itemsTitle: string;
   items: { when: string; label: string; credit: string }[];
@@ -594,7 +594,10 @@ function describe(line: Line, p: ChartPoint, axis: TimeAxis, measure: Measure): 
       ? `Week of ${short(p.start)}`
       : axis === "month"
         ? new Date(p.start).toLocaleDateString(undefined, { month: "long", year: "numeric" })
-        : "";
+        : new Date(p.start).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  // On the daily axis the date is already in the heading, so each quiz shows its time instead.
+  const at = (ms: number) =>
+    axis === "day" ? new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : short(ms);
   const averaged = measure === "average";
   const lastQuiz = p.items[p.items.length - 1];
   const parts = averaged ? lastQuiz.parts : [];
@@ -607,7 +610,7 @@ function describe(line: Line, p: ChartPoint, axis: TimeAxis, measure: Measure): 
     itemsTitle: averaged ? (p.items.length === 1 ? "Quiz" : "Quizzes") : "",
     items: p.items
       .slice(0, MAX_LISTED)
-      .map((q) => ({ when: short(q.at), label: q.label, credit: formatPercent(q.credit, 0) })),
+      .map((q) => ({ when: at(q.at), label: q.label, credit: formatPercent(q.credit, 0) })),
     more: Math.max(0, p.items.length - MAX_LISTED),
     partsTitle: `Latest score by ${by}`,
     parts: parts.slice(0, MAX_PARTS).map((q) => ({

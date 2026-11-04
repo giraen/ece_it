@@ -62,11 +62,12 @@ export default function Analytics() {
         <div className="mb-2 flex items-center gap-1">
           <h3 className="font-medium">Credit over time</h3>
           <InfoTip>
-            View by category, subject, or topic. By category there is one line per category, and All for every category
-            together: click a category to show or hide it. By subject or topic, pick one from the list, and add up to
-            five more to compare them. Point at a dot to see that quiz split by subject or topic. Switch the time axis
-            to see each quiz, or a weekly or monthly average. The dashed green line is the goal you set in Settings. The
-            red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
+            View by category, subject, or topic. A category or subject line is its average: after each quiz, the latest
+            score of every topic in it, averaged. Point at a dot to see the quiz behind it and each subject or
+            topic&apos;s latest score. A topic line shows each quiz&apos;s own score. By category, click a category to
+            show or hide it. By subject or topic, pick one from the list, and add up to five more to compare them.
+            Switch the time axis to see each quiz, or each week or month. The dashed green line is the goal you set in
+            Settings. The red line is the fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
           </InfoTip>
         </div>
         <div className="rounded-md border border-line bg-surface p-3">

@@ -9,6 +9,7 @@ import {
   periodStart,
   timeDomain,
   type ChartPoint,
+  type Measure,
   type TimeAxis,
 } from "@/lib/chartTime";
 import { CONFIG } from "@/lib/config";
@@ -128,7 +129,7 @@ function Picker({
           >
             <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: c }} aria-hidden="true" />
             <span className="truncate">{l.name}</span>
-            <span className="text-xs text-muted tabular-nums">{last ? formatPercent(last.credit, 0) : "–"}</span>
+            <span className="text-xs text-muted tabular-nums">{last ? formatPercent(last.avg, 0) : "–"}</span>
             <button
               type="button"
               aria-label={`Hide ${l.name}`}
@@ -214,6 +215,9 @@ export default function CreditChart({
   const plotR = W - pad.r;
   const base = H - pad.b;
 
+  // Categories and subjects show their average across their topics. A topic shows each quiz's own score.
+  const measure: Measure = view === "topic" ? "result" : "average";
+
   const { domain, lines, fit } = useMemo(() => {
     let chosen: { s: CategorySeries; color: string }[];
     if (view === "category") {
@@ -227,13 +231,13 @@ export default function CreditChart({
       });
     }
     const domain = timeDomain(chosen.flatMap((c) => c.s.points));
-    const lines: Line[] = chosen.map((c) => ({ ...c, pts: chartPoints(c.s.points, axis, domain) }));
+    const lines: Line[] = chosen.map((c) => ({ ...c, pts: chartPoints(c.s.points, axis, measure, domain) }));
     const fit = fitRange(
       lines.flatMap((l) => l.pts.map((p) => p.v)),
       [bar, CONFIG.minimumPass],
     );
     return { domain, lines, fit };
-  }, [series, subjects, topics, view, on, subjectKeys, topicKeys, axis, bar]);
+  }, [series, subjects, topics, view, on, subjectKeys, topicKeys, axis, measure, bar]);
 
   const x = (ms: number) => pad.l + ((ms - domain[0]) / (domain[1] - domain[0])) * (plotR - pad.l);
   const y = (v: number) => pad.t + (1 - (v - fit.lo) / (1 - fit.lo)) * (base - pad.t);
@@ -291,7 +295,7 @@ export default function CreditChart({
   const xLabels = [0.06, 0.28, 0.5, 0.72, 0.94].map((f) => domain[0] + f * (domain[1] - domain[0]));
 
   // tooltip text
-  const tip = activeHit ? describe(activeHit.line, activeHit.p, axis) : null;
+  const tip = activeHit ? describe(activeHit.line, activeHit.p, axis, measure) : null;
 
   return (
     <div className="credit-chart space-y-3">
@@ -347,7 +351,7 @@ export default function CreditChart({
                   aria-hidden="true"
                 />
                 {s.key === ALL_KEY ? "All" : s.name}
-                <span className="text-xs tabular-nums text-muted">{last ? formatPercent(last.credit, 0) : "–"}</span>
+                <span className="text-xs tabular-nums text-muted">{last ? formatPercent(last.avg, 0) : "–"}</span>
               </button>
             );
           })}
@@ -556,47 +560,62 @@ export default function CreditChart({
 }
 
 function noteFor(axis: TimeAxis, view: View): string {
-  if (axis !== "quiz") return `Each dot is the average of a ${axis}'s quizzes.`;
-  if (view === "topic") return "Each dot is one quiz, scored on that topic's questions.";
-  const split = view === "category" ? "its subjects, or its topics when it covered one subject" : "its topics";
-  return `Each dot is one quiz, scored on that ${view}'s questions. Point at a dot to see it split into ${split}.`;
+  if (view === "topic") {
+    return axis === "quiz" ? "Each dot is one quiz on that topic." : `Each dot is the average of a ${axis}'s quizzes.`;
+  }
+  const below = view === "category" ? "subject" : "topic";
+  const when = axis === "quiz" ? "after each quiz" : `at the end of each ${axis}`;
+  return `Each dot is the ${view}'s average ${when}: the latest score of every topic in it, averaged. Point at a dot to see the quiz and each ${below}'s score.`;
 }
 
 interface Tip {
   name: string;
   /** The dot's value. Left out when it is just the one quiz listed below. */
   value: string;
+  /** What the value is, such as "Average". */
+  valueLabel: string;
   /** "Week of Sep 7", "September 2026". Empty on the per-quiz axis. */
   when: string;
+  itemsTitle: string;
   items: { when: string; label: string; credit: string }[];
   more: number;
-  /** For one quiz: its result split one level down, such as by subject inside a category. */
+  /** What the average is made of at that point, such as each subject's score inside a category. */
   partsTitle: string;
   parts: { label: string; credit: string; n: number }[];
+  more2: number;
 }
 
 const MAX_LISTED = 6;
 const MAX_PARTS = 8;
 
-function describe(line: Line, p: ChartPoint, axis: TimeAxis): Tip {
+function describe(line: Line, p: ChartPoint, axis: TimeAxis, measure: Measure): Tip {
   const when =
     axis === "week"
       ? `Week of ${short(p.start)}`
       : axis === "month"
         ? new Date(p.start).toLocaleDateString(undefined, { month: "long", year: "numeric" })
         : "";
-  const one = p.items.length === 1 ? p.items[0] : null;
-  const parts = one ? one.parts : [];
+  const averaged = measure === "average";
+  const lastQuiz = p.items[p.items.length - 1];
+  const parts = averaged ? lastQuiz.parts : [];
+  const by = lastQuiz.partsBy ?? "topic";
   return {
     name: line.s.name,
-    value: one ? "" : formatPercent(p.v),
+    value: averaged || p.items.length > 1 ? formatPercent(p.v) : "",
+    valueLabel: averaged ? "Average" : "Average of these quizzes",
     when,
+    itemsTitle: averaged ? (p.items.length === 1 ? "Quiz" : "Quizzes") : "",
     items: p.items
       .slice(0, MAX_LISTED)
       .map((q) => ({ when: short(q.at), label: q.label, credit: formatPercent(q.credit, 0) })),
     more: Math.max(0, p.items.length - MAX_LISTED),
-    partsTitle: `By ${one?.partsBy ?? "topic"}`,
-    parts: parts.slice(0, MAX_PARTS).map((q) => ({ label: q.label, credit: formatPercent(q.credit, 0), n: q.n })),
+    partsTitle: `Latest score by ${by}`,
+    parts: parts.slice(0, MAX_PARTS).map((q) => ({
+      label: q.label,
+      credit: formatPercent(q.credit, 0),
+      n: by === "topic" ? 0 : q.n,
+    })),
+    more2: Math.max(0, parts.length - MAX_PARTS),
   };
 }
 
@@ -607,9 +626,19 @@ function TipBody({ tip, color }: { tip: Tip; color: string }) {
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
         {tip.name}
       </p>
-      {tip.value && <p className="mt-0.5 text-lg font-semibold tabular-nums">{tip.value}</p>}
+      {tip.value && (
+        <p className="mt-0.5 flex items-baseline gap-1.5">
+          <span className="text-lg font-semibold tabular-nums">{tip.value}</span>
+          <span className="text-xs text-muted">{tip.valueLabel}</span>
+        </p>
+      )}
       {tip.when && <p className="mt-0.5 text-xs text-muted">{tip.when}</p>}
-      <ul className="mt-1.5 space-y-0.5 border-t border-line pt-1.5 text-xs">
+      {tip.itemsTitle && (
+        <p className="mt-1.5 border-t border-line pt-1.5 text-[11px] tracking-wide text-muted uppercase">
+          {tip.itemsTitle}
+        </p>
+      )}
+      <ul className={`space-y-0.5 text-xs ${tip.itemsTitle ? "mt-0.5" : "mt-1.5 border-t border-line pt-1.5"}`}>
         {tip.items.map((q, i) => (
           <li key={i} className="flex justify-between gap-3">
             <span className="min-w-0 text-muted">
@@ -629,11 +658,18 @@ function TipBody({ tip, color }: { tip: Tip; color: string }) {
             {tip.parts.map((q, i) => (
               <li key={i} className="flex justify-between gap-3">
                 <span className="min-w-0 truncate">
-                  {q.label} <span className="text-muted">({q.n})</span>
+                  {q.label}
+                  {q.n > 0 && (
+                    <span className="text-muted">
+                      {" "}
+                      ({q.n} topic{q.n === 1 ? "" : "s"})
+                    </span>
+                  )}
                 </span>
                 <span className="tabular-nums">{q.credit}</span>
               </li>
             ))}
+            {tip.more2 > 0 && <li className="text-muted">+{tip.more2} more</li>}
           </ul>
         </>
       )}

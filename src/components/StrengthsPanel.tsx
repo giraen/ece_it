@@ -20,7 +20,7 @@ const WEAKEST: ListInfo = {
   id: "weakest",
   title: "Weakest",
   means: "Lowest credit",
-  note: "The lowest average credit. Unanswered questions count as zero.",
+  note: "The lowest average credit, among tags or questions still under your goal. Once one reaches the goal it leaves this list. Unanswered questions count as zero.",
 };
 const SURE: ListInfo = {
   id: "sure",
@@ -184,7 +184,9 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
               <h4 className="mb-1.5 text-xs font-medium tracking-wide text-muted uppercase">{group.title}</h4>
               <div className={`grid gap-3 md:grid-cols-2 ${kind === "question" ? "" : "xl:grid-cols-3"}`}>
                 {group.lists.map((list) => {
-                  const top = rankStandings(rows, list.id);
+                  // At or above the goal is no longer a weak spot.
+                  const pool = list.id === "weakest" ? rows.filter((r) => r.credit + 1e-9 < bar) : rows;
+                  const top = rankStandings(pool, list.id);
                   return (
                     <div key={list.id} className="rounded-md border border-line bg-surface">
                       <div className="flex items-center gap-1 border-b border-line px-3 py-2">
@@ -193,7 +195,11 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
                         <InfoTip>{list.note}</InfoTip>
                       </div>
                       {top.length === 0 ? (
-                        <p className="px-3 py-3 text-sm text-muted">Nothing yet.</p>
+                        <p className="px-3 py-3 text-sm text-muted">
+                          {list.id === "weakest" && rows.length > 0
+                            ? `Nothing under your ${formatPercent(bar, 0)} goal.`
+                            : "Nothing yet."}
+                        </p>
                       ) : (
                         <ol className="divide-y divide-line">
                           {top.map((row) => {

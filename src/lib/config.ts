@@ -47,12 +47,12 @@ export const CONFIG = {
   sureCredit: { sure: 1, wise_guess: 0.6, not_sure: 0.4, just_guessed: 0 },
   /**
    * How big a quiz is, and how long it gets. The time for one item is the total time divided by the number of items.
-   * A topic quiz has a fixed 1 hour. For a subject or category quiz, the person chooses the items and the total time.
+   * A topic or subject quiz has a fixed 1 hour. For a category mock, the person chooses the items and the total time.
    * A quiz with fewer items than `minItems` can still be taken, but it cannot award mastery.
    */
   quiz: {
     topic: { minItems: 30, maxItems: 50, defaultItems: 30, totalMinutes: 60 },
-    subject: { minItems: 50, defaultItems: 100 },
+    subject: { minItems: 50, maxItems: 50, defaultItems: 50, totalMinutes: 60 },
     category: { minItems: 50, defaultItems: 100 },
     /** When the person picks the number of items, the total time is suggested as items times this many seconds. */
     suggestedSecPerItem: 90,

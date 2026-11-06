@@ -47,7 +47,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
   const itemsError = itemsProblem(plan, items);
   const validItems = itemsError === null;
 
-  // The time follows the suggestion until you type your own. A topic quiz is always one hour.
+  // The time follows the suggestion until you type your own. A topic or subject quiz is always one hour.
   const minutesValue =
     plan.fixedMinutes ?? Number(minutesText ?? suggestedMinutes(validItems ? items : plan.defaultItems));
   const minutesError =
@@ -155,7 +155,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
             {plan.fixedMinutes !== null ? (
               <p className="text-sm">
                 {plan.fixedMinutes === 60 ? "1 hour" : `${plan.fixedMinutes} minutes`}{" "}
-                <span className="text-muted">(always the same for a topic quiz)</span>
+                <span className="text-muted">(always the same for a {kind} quiz)</span>
               </p>
             ) : (
               <>

@@ -327,8 +327,9 @@ export default function HelpPage() {
           <Points>
             <li>
               A topic quiz has {q.topic.minItems} to {q.topic.maxItems} questions ({q.topic.defaultItems} to start) and
-              always {q.topic.totalMinutes} minutes. A subject or category quiz is at least {q.subject.minItems}{" "}
-              questions, and you choose the time. The suggested time is {q.suggestedSecPerItem} seconds a question.
+              always {q.topic.totalMinutes} minutes. A subject quiz has {q.subject.maxItems} questions and always{" "}
+              {q.subject.totalMinutes} minutes. A category mock is at least {q.category.minItems} questions, and you
+              choose the time. The suggested time is {q.suggestedSecPerItem} seconds a question.
             </li>
             <li>
               The time is a target only. The timer counts up, never stops the quiz, and never changes your score. It is

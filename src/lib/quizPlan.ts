@@ -10,30 +10,19 @@ export interface QuizPlan {
   /** The most items you can ask for. */
   maxItems: number;
   defaultItems: number;
-  /** A topic quiz is always this many minutes. A subject quiz lets you choose, so this is null. */
+  /** A topic or subject quiz is always this many minutes. Null would let you choose. */
   fixedMinutes: number | null;
 }
 
 export function planFor(kind: "topic" | "subject", available: number): QuizPlan {
-  if (kind === "topic") {
-    const t = CONFIG.quiz.topic;
-    return {
-      kind,
-      available,
-      masteryMin: t.minItems,
-      maxItems: Math.min(t.maxItems, available),
-      defaultItems: Math.min(t.defaultItems, available),
-      fixedMinutes: t.totalMinutes,
-    };
-  }
-  const s = CONFIG.quiz.subject;
+  const c = CONFIG.quiz[kind];
   return {
     kind,
     available,
-    masteryMin: s.minItems,
-    maxItems: available,
-    defaultItems: Math.min(s.defaultItems, available),
-    fixedMinutes: null,
+    masteryMin: c.minItems,
+    maxItems: Math.min(c.maxItems, available),
+    defaultItems: Math.min(c.defaultItems, available),
+    fixedMinutes: c.totalMinutes,
   };
 }
 

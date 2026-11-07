@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "ECE Review",
   description: "Board exam review with timed quizzes, sureness ratings, and mastery tracking.",
 };
+
+// Lets the page reach under a phone's rounded corners and home bar, so the tab bar can pad itself to stay clear of them.
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

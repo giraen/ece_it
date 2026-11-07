@@ -215,7 +215,7 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
                                 </div>
                                 <span className={`shrink-0 tabular-nums ${f.tone}`}>{f.value}</span>
                                 {kind === "question" && (
-                                  <Link href={`/editor?id=${row.key}`} className="btn py-1">
+                                  <Link href={`/editor?id=${row.key}`} className="btn py-1 max-lg:hidden">
                                     Open
                                   </Link>
                                 )}

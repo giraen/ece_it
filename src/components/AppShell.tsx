@@ -7,6 +7,7 @@ import { RECHECK_EVENT, syncRules, type RecheckSummary } from "@/lib/recheck";
 import { usePathname } from "next/navigation";
 import DialogHost from "./DialogHost";
 import Logo from "./Logo";
+import PhoneNav from "./PhoneNav";
 import ProfileMenu from "./ProfileMenu";
 import ThemeToggle from "./ThemeToggle";
 
@@ -17,10 +18,36 @@ const NAV = [
   { href: "/quiz", label: "Quiz" },
 ];
 
-/** The header and the page frame around every page. On a small screen it is replaced by a full-screen notice. */
+/** Pages for writing and organising questions. They need a big screen, so a phone shows a note instead. */
+const COMPUTER_ONLY = ["/bank", "/editor", "/extract", "/blueprint", "/concept", "/settings/sources", "/settings/tags"];
+
+/** A quiz in progress fills the phone screen, with its own buttons at the bottom, so the tab bar is hidden. */
+const FULL_SCREEN = ["/quiz/play"];
+
+function ComputerOnly() {
+  return (
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-4 py-16 text-center">
+      <Logo />
+      <h1 className="text-lg font-semibold">This page is for a computer</h1>
+      <p className="text-sm text-muted">
+        Writing and organising questions needs a bigger screen. Open this page on a laptop or desktop computer.
+      </p>
+      <Link href="/" className="btn">
+        Back to home
+      </Link>
+    </div>
+  );
+}
+
+/**
+ * The header and the page frame around every page. On a computer the pages sit under a top bar. On a phone the top bar
+ * is slim and the main pages are in a tab bar at the bottom.
+ */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [rechecked, setRechecked] = useState<RecheckSummary | null>(null);
+  const computerOnly = COMPUTER_ONLY.some((p) => path.startsWith(p));
+  const fullScreen = FULL_SCREEN.some((p) => path.startsWith(p));
 
   useEffect(() => {
     // Ask the browser not to delete your saved questions when it runs low on space.
@@ -36,26 +63,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {/* Small screens only. It covers everything, and the real app below is hidden, so nothing can be tapped. */}
-      <section
-        aria-label="Screen too small"
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-paper p-8 text-center lg:hidden"
-      >
-        <Logo />
-        <h1 className="text-xl font-semibold">ECE Review is made for a large view</h1>
-        <p className="max-w-sm text-muted">
-          This screen is too small to use it properly. Please open this site on a laptop or desktop computer.
-        </p>
-        <p className="max-w-sm text-sm text-muted">On a computer already? Make the browser window wider.</p>
-      </section>
-
-      <header className="border-b border-line bg-surface max-lg:hidden">
-        <div className="mx-auto flex max-w-7xl items-center gap-2 px-6 py-2.5">
+      <header className={`border-b border-line bg-surface ${fullScreen ? "max-lg:hidden" : ""}`}>
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 lg:px-6">
           <Link href="/" className="mr-4 flex items-center gap-2 font-semibold" aria-label="ECE Review, home">
             <Logo />
             <span>ECE Review</span>
           </Link>
-          <nav aria-label="Main" className="flex gap-1">
+          <nav aria-label="Main" className="flex gap-1 max-lg:hidden">
             {NAV.map((n) => {
               const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
               return (
@@ -74,13 +88,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
-            <ProfileMenu />
+            <div className="max-lg:hidden">
+              <ProfileMenu />
+            </div>
           </div>
         </div>
       </header>
       {rechecked && (
-        <div role="status" className="border-b border-line bg-accent-soft max-lg:hidden">
-          <div className="mx-auto flex max-w-7xl items-center gap-3 px-6 py-2 text-sm">
+        <div role="status" className="border-b border-line bg-accent-soft">
+          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 text-sm lg:px-6">
             <span>
               The mastery rules changed, so {count(rechecked.checked)} from the recent past{" "}
               {rechecked.checked === 1 ? "was" : "were"} rechecked. {count(rechecked.gained)} gained mastery and{" "}
@@ -92,7 +108,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6 max-lg:hidden">{children}</main>
+      <main
+        className={`mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 lg:px-6 lg:py-6 ${
+          fullScreen ? "max-lg:py-0" : "py-4 max-lg:pb-24"
+        }`}
+      >
+        {computerOnly ? (
+          <>
+            <div className="max-lg:hidden">{children}</div>
+            <div className="lg:hidden">
+              <ComputerOnly />
+            </div>
+          </>
+        ) : (
+          children
+        )}
+      </main>
+      {!fullScreen && <PhoneNav />}
       <DialogHost />
     </>
   );

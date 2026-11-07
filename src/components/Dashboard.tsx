@@ -61,7 +61,7 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-2xl font-semibold">Home</h1>
         <div className="flex flex-wrap gap-2">
-          <Link href="/editor" className="btn">
+          <Link href="/editor" className="btn max-lg:hidden">
             New question
           </Link>
           <Link href="/quiz" className="btn btn-primary">
@@ -74,8 +74,16 @@ export default function Dashboard() {
         <section className="rounded-md border border-dashed border-line p-8 text-center">
           <p className="font-medium">Your bank is empty.</p>
           <p className="mt-1 text-sm text-muted">Add a few questions, and this page will fill in.</p>
-          <Link href="/bank" className="btn btn-primary mt-4">
+          <Link href="/bank" className="btn btn-primary mt-4 max-lg:hidden">
             Open the bank
+          </Link>
+          {/* A phone starts with an empty bank of its own, so it points to the backup import instead. */}
+          <p className="mt-3 text-sm text-muted lg:hidden">
+            Your questions are saved in each browser separately. To bring them here, export a backup on your computer
+            and import it on this phone.
+          </p>
+          <Link href="/settings#backup" className="btn btn-primary mt-4 lg:hidden">
+            Import a backup
           </Link>
         </section>
       ) : (
@@ -97,7 +105,7 @@ export default function Dashboard() {
             )}
           </section>
 
-          <section aria-label="Overview" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section aria-label="Overview" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Tile
               href="/progress"
               value={d.topicsLeft}

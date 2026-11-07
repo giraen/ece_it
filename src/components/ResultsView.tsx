@@ -258,7 +258,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         )}
       </div>
 
-      <section aria-label="Totals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Totals" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Average credit" value={formatPercent(s.credit)} note={`The bar is ${formatPercent(s.bar, 0)}`} />
         <Tile label="Correct" value={`${s.correct} of ${s.n}`} note={`${s.n - s.answered} not answered`} />
         <Tile

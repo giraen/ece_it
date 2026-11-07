@@ -119,7 +119,14 @@ export default function HelpPage() {
           </Steps>
           <P>
             The profile menu at the top right holds <Btn>Analytics</Btn>, <Btn>Bank</Btn>, <Btn>Settings</Btn>, and this{" "}
-            <Btn>Help</Btn> page. The site needs a wide window. On a small screen it asks you to use a larger one.
+            <Btn>Help</Btn> page.
+          </P>
+          <P>
+            On a phone, the tabs at the bottom open <Btn>Home</Btn>, <Btn>Quiz</Btn>, <Btn>Progress</Btn>, and{" "}
+            <Btn>More</Btn>. You can take quizzes and see your progress there. Writing and organising questions (the
+            Bank, Extract, the editor, and blueprints) needs a computer. Each browser keeps its own bank, so to quiz on
+            your phone, export a backup on your computer and import it in <Btn>Settings</Btn> on the phone. Quizzes you
+            take on the phone stay on the phone until you move a backup back.
           </P>
         </Section>
 

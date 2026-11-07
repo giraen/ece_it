@@ -30,3 +30,44 @@ export const UserIcon = () => (
     <path d="M4 21a8 8 0 0 1 16 0" />
   </svg>
 );
+export const HomeIcon = () => (
+  <svg {...base}>
+    <path d="M3 10.5 12 3l9 7.5" />
+    <path d="M5 9.5V21h5v-6h4v6h5V9.5" />
+  </svg>
+);
+
+export const QuizIcon = () => (
+  <svg {...base}>
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <path d="M8 8h8M8 12h8M8 16h5" />
+  </svg>
+);
+
+export const ChartIcon = () => (
+  <svg {...base}>
+    <path d="M4 20V4M4 20h16" />
+    <path d="m7 15 4-4 3 3 5-6" />
+  </svg>
+);
+
+export const MoreIcon = () => (
+  <svg {...base}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+);
+
+export const GridIcon = () => (
+  <svg {...base}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+  </svg>
+);
+
+export const CloseIcon = () => (
+  <svg {...base}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </svg>
+);

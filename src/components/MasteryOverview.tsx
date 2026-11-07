@@ -99,7 +99,7 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
         <span className="flex gap-1.5">
           {node.kind === "category" ? (
             <>
-              <Link href={`/blueprint?category=${node.id}`} className="btn py-1">
+              <Link href={`/blueprint?category=${node.id}`} className="btn py-1 max-lg:hidden">
                 {ctx.blueprintFor.has(node.id) ? "Blueprint" : "Set up blueprint"}
               </Link>
               {ctx.blueprintFor.has(node.id) &&

@@ -121,7 +121,7 @@ function Row({
           <span className="flex gap-1.5">
             <Link
               href={`/blueprint?category=${node.id}`}
-              className="btn"
+              className="btn max-lg:hidden"
               aria-label={`${hasBlueprint ? "Blueprint" : "Set up blueprint"} for ${node.name}`}
             >
               {hasBlueprint ? "Blueprint" : "Set up blueprint"}

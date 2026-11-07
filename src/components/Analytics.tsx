@@ -50,7 +50,7 @@ export default function Analytics() {
 
   return (
     <div className="space-y-8">
-      <section aria-label="Totals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section aria-label="Totals" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Tile value={String(sum.quizzes)} label="Quizzes taken" />
         <Tile value={String(sum.questions)} label="Questions answered" />
         <Tile value={formatPercent(sum.accuracy, 0)} label="Accuracy" />
@@ -132,16 +132,16 @@ export default function Analytics() {
         </div>
         <div className="space-y-2 rounded-md border border-line bg-surface p-4">
           {cal.map((r) => (
-            <div key={r.level} className="flex items-center gap-3 text-sm">
+            <div key={r.level} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm lg:flex-nowrap">
               <span className="w-28 shrink-0">{SURENESS_LABEL[r.level]}</span>
               <div
-                className="h-3 flex-1 overflow-hidden rounded bg-paper"
+                className="h-3 flex-1 overflow-hidden rounded bg-paper max-lg:order-last max-lg:basis-full"
                 role="img"
                 aria-label={`${SURENESS_LABEL[r.level]}: right ${Math.round(r.rate * 100)}% of the time`}
               >
                 <div className="h-3 rounded bg-accent" style={{ width: `${r.rate * 100}%` }} />
               </div>
-              <span className="w-44 shrink-0 text-right tabular-nums text-muted">
+              <span className="ml-auto shrink-0 text-right tabular-nums text-muted lg:w-44">
                 {r.answered ? `${formatPercent(r.rate, 0)} right (${r.correct} of ${r.answered})` : "no answers yet"}
               </span>
             </div>

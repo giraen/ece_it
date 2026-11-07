@@ -118,7 +118,7 @@ export default function QuestionPane({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm text-muted">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm text-muted max-lg:mt-3">
         <span>
           Question {index + 1} of {total}
         </span>
@@ -134,7 +134,7 @@ export default function QuestionPane({
         </div>
       ) : (
         <>
-          <div className="rounded-md border border-line border-l-4 border-l-accent bg-surface p-5">
+          <div className="rounded-md border border-line border-l-4 border-l-accent bg-surface p-4 lg:p-5">
             <RichText text={item.stem} className="text-[17px] leading-relaxed" />
           </div>
 
@@ -171,7 +171,7 @@ export default function QuestionPane({
 
           <div className="mt-5">
             <p className="mb-2 text-sm font-medium">How sure are you?</p>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Sureness">
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap" role="group" aria-label="Sureness">
               {SURENESS_ORDER.map((s) => (
                 <button
                   key={s}
@@ -179,29 +179,35 @@ export default function QuestionPane({
                   aria-pressed={item.sureness === s}
                   title={MEANING[s]}
                   onClick={() => void setSureness(attemptId, index, s, getElapsed())}
-                  className={`btn ${item.sureness === s ? "border-accent bg-accent text-white hover:bg-accent/90" : ""}`}
+                  className={`btn max-lg:py-2.5 ${item.sureness === s ? "border-accent bg-accent text-white hover:bg-accent/90" : ""}`}
                 >
                   {SURENESS_LABEL[s]}
-                  <span className="ml-1 text-xs opacity-60">{KEY_FOR[s]}</span>
+                  <span className="ml-1 text-xs opacity-60 max-lg:hidden">{KEY_FOR[s]}</span>
                 </button>
               ))}
             </div>
             {!selected && (
               <p className="mt-1 text-xs text-muted">
-                Pick a choice first. The keys A to {LETTERS[item.choiceOrder.length - 1]} also pick.
+                Pick a choice first.
+                <span className="max-lg:hidden"> The keys A to {LETTERS[item.choiceOrder.length - 1]} also pick.</span>
               </p>
             )}
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+          {/* On a phone the buttons stay at the bottom of the screen, where a thumb reaches them. */}
+          <div className="mt-6 flex flex-wrap items-center gap-2 max-lg:sticky max-lg:bottom-0 max-lg:-mx-4 max-lg:flex-nowrap max-lg:border-t max-lg:border-line max-lg:bg-surface max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             {onPrev && (
-              <button className="btn" onClick={onPrev}>
+              <button className="btn max-lg:py-2.5" onClick={onPrev}>
                 Previous
               </button>
             )}
-            <button className="btn btn-primary" disabled={!complete} onClick={() => void confirm()}>
+            <button
+              className="btn btn-primary max-lg:flex-1 max-lg:py-2.5"
+              disabled={!complete}
+              onClick={() => void confirm()}
+            >
               {confirmLabel}
-              <span className="ml-1 text-xs opacity-70">Enter</span>
+              <span className="ml-1 text-xs opacity-70 max-lg:hidden">Enter</span>
             </button>
           </div>
         </>

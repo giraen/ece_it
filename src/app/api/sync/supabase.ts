@@ -13,8 +13,8 @@
 export const SPACE = /^[0-9a-f]{64}$/;
 /** A name for one upload of the synced copy. */
 export const UPLOAD = /^[0-9a-z]{16,40}$/;
-/** Image ids are SHA-256 hashes of the picture. */
-export const IMAGE = /^[0-9a-f]{64}$/;
+/** Image ids are a hash of the picture: 24 hex characters today, but anything plain from 8 to 64 is accepted. */
+export const IMAGE = /^[0-9A-Za-z_-]{8,64}$/;
 export const MAX_PARTS = 200;
 export const MAX_PART_BYTES = 3_700_000;
 

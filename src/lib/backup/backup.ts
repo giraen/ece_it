@@ -1,4 +1,12 @@
-import { BackupError, encodeFile, type Container, type ImageFile, type Manifest } from "./backupFormat";
+import {
+  BackupError,
+  encodeFile,
+  step,
+  type Container,
+  type ImageFile,
+  type Manifest,
+  type OnStep,
+} from "./backupFormat";
 import {
   db,
   type Blueprint,
@@ -61,8 +69,11 @@ function manifest(kind: "backup" | "pack", counts: Record<string, number>, name?
 /** A full backup of this browser: the bank, images, attempts, blueprints. Needs a password. */
 export async function buildFullBackup(
   password: string,
+  onStep?: OnStep,
 ): Promise<{ bytes: Uint8Array; counts: Record<string, number> }> {
+  await step(onStep, "Reading your questions and quizzes…");
   const tables = await loadTables();
+  await step(onStep, "Reading your images…");
   const images = await imageFiles();
   const counts = {
     questions: tables.questions.filter((q) => !q.deletedAt).length,
@@ -71,7 +82,7 @@ export async function buildFullBackup(
     images: images.length,
   };
   const container: Container = { manifest: manifest("backup", counts), data: { ...tables }, images };
-  return { bytes: await encodeFile(container, password), counts };
+  return { bytes: await encodeFile(container, password, undefined, onStep), counts };
 }
 
 export interface PackExport {
@@ -86,7 +97,9 @@ export async function buildPack(
   name: string,
   password?: string,
   includeVariants = false,
+  onStep?: OnStep,
 ): Promise<PackExport> {
+  await step(onStep, "Reading the questions…");
   const tables = await loadTables();
   const sel = selectPackContent(
     tables.nodes,
@@ -117,7 +130,7 @@ export async function buildPack(
     images,
   };
   return {
-    bytes: await encodeFile(container, password || undefined),
+    bytes: await encodeFile(container, password || undefined, undefined, onStep),
     counts,
     blueprintsSkipped: sel.blueprintsSkipped,
   };
@@ -254,7 +267,8 @@ export interface PackPreview {
 export type Preview = BackupPreview | PackPreview;
 
 /** Looks at an opened file and works out what importing it would do. Changes nothing. */
-export async function previewContainer(c: Container): Promise<Preview> {
+export async function previewContainer(c: Container, onStep?: OnStep): Promise<Preview> {
+  await step(onStep, "Comparing it with what is in this browser…");
   const tables = tablesFrom(c);
   const have = new Set((await db.images.toCollection().primaryKeys()) as string[]);
   const newImages = c.images.filter((i) => !have.has(i.id));

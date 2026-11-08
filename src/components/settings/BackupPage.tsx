@@ -40,6 +40,25 @@ function Card({ title, info, children }: { title: string; info?: React.ReactNode
   );
 }
 
+/**
+ * What a long job is doing, with a spinning ring, so a big backup never looks stuck. Screen readers hear each step.
+ */
+function Working({ label }: { label: string | null }) {
+  return (
+    <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted empty:hidden">
+      {label && (
+        <>
+          <span
+            aria-hidden="true"
+            className="size-4 shrink-0 rounded-full border-2 border-line border-t-accent motion-safe:animate-spin"
+          />
+          {label}
+        </>
+      )}
+    </p>
+  );
+}
+
 function message(e: unknown): string {
   return e instanceof BackupError || e instanceof Error ? e.message : "Something went wrong.";
 }
@@ -88,7 +107,8 @@ function checkPassword(pw: string, confirm: string, optional: boolean): string |
 function FullBackup() {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
-  const [busy, setBusy] = useState(false);
+  // What the long job is doing right now, such as "Encrypting…". Empty when nothing is running.
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -97,9 +117,10 @@ function FullBackup() {
     const problem = checkPassword(pw, pw2, false);
     setError(problem);
     if (problem) return;
-    setBusy(true);
+    setBusy("Starting…");
     try {
-      const { bytes, counts } = await buildFullBackup(pw);
+      const { bytes, counts } = await buildFullBackup(pw, setBusy);
+      setBusy("Saving the file…");
       downloadBytes(bytes, `ece-review-backup-${today()}.ecebak`);
       markBackup();
       setDone(
@@ -110,7 +131,7 @@ function FullBackup() {
     } catch (e) {
       setError(message(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -124,9 +145,10 @@ function FullBackup() {
       <PasswordFields password={pw} confirm={pw2} onPassword={setPw} onConfirm={setPw2} />
       {error && <p className="text-sm text-danger">{error}</p>}
       {done && <p className="text-sm text-good">{done}</p>}
-      <button className="btn btn-primary" disabled={busy} onClick={() => void run()}>
-        {busy ? "Encrypting…" : "Export full backup"}
+      <button className="btn btn-primary" disabled={!!busy} onClick={() => void run()}>
+        {busy ? "Working…" : "Export full backup"}
       </button>
+      <Working label={busy} />
     </Card>
   );
 }
@@ -153,7 +175,8 @@ function PackExport({
   const [name, setName] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
-  const [busy, setBusy] = useState(false);
+  // What the long job is doing right now, such as "Encrypting…". Empty when nothing is running.
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -168,9 +191,9 @@ function PackExport({
     const problem = checkPassword(pw, pw2, true);
     setError(problem);
     if (problem) return;
-    setBusy(true);
+    setBusy("Starting…");
     try {
-      const out = await buildPack(scope || null, name.trim() || defaultName, pw || undefined, withVariants);
+      const out = await buildPack(scope || null, name.trim() || defaultName, pw || undefined, withVariants, setBusy);
       const safe =
         (name.trim() || defaultName)
           .replace(/[^a-z0-9]+/gi, "-")
@@ -183,7 +206,7 @@ function PackExport({
     } catch (e) {
       setError(message(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -258,11 +281,12 @@ function PackExport({
       {done && <p className="text-sm text-good">{done}</p>}
       <button
         className="btn btn-primary"
-        disabled={busy || (sel.questions.length === 0 && sel.concepts.length === 0)}
+        disabled={!!busy || (sel.questions.length === 0 && sel.concepts.length === 0)}
         onClick={() => void run()}
       >
         {busy ? "Working…" : "Export pack"}
       </button>
+      <Working label={busy} />
     </Card>
   );
 }
@@ -290,23 +314,24 @@ type ImportState =
 function ImportFile() {
   const [state, setState] = useState<ImportState>({ step: "idle" });
   const [pw, setPw] = useState("");
-  const [busy, setBusy] = useState(false);
+  // What the long job is doing right now, such as "Encrypting…". Empty when nothing is running.
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backupMode, setBackupMode] = useState<"merge" | "replace">("merge");
   const [packOptions, setPackOptions] = useState<PackOptions>({ mode: "update", matchByName: true });
 
   async function open(bytes: Uint8Array, fileName: string, password?: string) {
-    setBusy(true);
+    setBusy("Starting…");
     setError(null);
     try {
-      const container = await decodeFile(bytes, password);
-      const preview = await previewContainer(container);
+      const container = await decodeFile(bytes, password, setBusy);
+      const preview = await previewContainer(container, setBusy);
       setState({ step: "preview", fileName, preview });
       setPw("");
     } catch (e) {
       setError(message(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -326,7 +351,7 @@ function ImportFile() {
   async function run() {
     if (state.step !== "preview") return;
     const p = state.preview;
-    setBusy(true);
+    setBusy("Starting…");
     setError(null);
     try {
       if (p.kind === "backup") {
@@ -339,9 +364,10 @@ function ImportFile() {
             danger: true,
           }))
         ) {
-          setBusy(false);
+          setBusy(null);
           return;
         }
+        setBusy("Saving into this browser…");
         await applyBackup(p, backupMode);
         const c = p.plan.counts;
         setState({
@@ -353,6 +379,7 @@ function ImportFile() {
         });
       } else {
         const plan = planPack(p, packOptions);
+        setBusy("Saving into this browser…");
         await applyPack(p, plan);
         const q = plan.counts.questions;
         setState({
@@ -363,7 +390,7 @@ function ImportFile() {
     } catch (e) {
       setError(message(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -416,10 +443,10 @@ function ImportFile() {
             </div>
             <button
               className="btn btn-primary"
-              disabled={busy || !pw}
+              disabled={!!busy || !pw}
               onClick={() => void open(state.bytes, state.fileName, pw)}
             >
-              {busy ? "Decrypting…" : "Open file"}
+              {busy ? "Opening…" : "Open file"}
             </button>
             <button
               className="btn"
@@ -596,10 +623,11 @@ function ImportFile() {
         })()}
 
       {error && <p className="text-sm text-danger">{error}</p>}
+      <Working label={busy} />
 
       {state.step === "preview" && (
         <div className="flex gap-2">
-          <button className="btn btn-primary" disabled={busy} onClick={() => void run()}>
+          <button className="btn btn-primary" disabled={!!busy} onClick={() => void run()}>
             {busy ? "Importing…" : "Import"}
           </button>
           <button

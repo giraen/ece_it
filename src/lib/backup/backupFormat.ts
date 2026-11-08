@@ -1,4 +1,4 @@
-import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
+import { strFromU8, strToU8, unzip, unzipSync, zip, zipSync, type Unzipped, type Zippable } from "fflate";
 
 /**
  * File layout
@@ -59,7 +59,20 @@ function buf(u8: Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(u8);
 }
 
-export function buildZip(c: Container): Uint8Array {
+/**
+ * Reports what a long job is doing, such as "Encrypting…", so the page can show it. Each step also gives the
+ * browser a moment to draw that text before the work goes on.
+ */
+export type OnStep = (label: string) => void;
+
+/** Shows a step and lets the page draw it before the next piece of work starts. */
+export async function step(onStep: OnStep | undefined, label: string): Promise<void> {
+  if (!onStep) return;
+  onStep(label);
+  await new Promise((r) => setTimeout(r, 0));
+}
+
+function zipFiles(c: Container): Zippable {
   const files: Zippable = {
     "manifest.json": strToU8(JSON.stringify(c.manifest)),
     "data.json": strToU8(JSON.stringify(c.data)),
@@ -70,7 +83,32 @@ export function buildZip(c: Container): Uint8Array {
     ),
   };
   for (const img of c.images) files[`images/${img.id}`] = [img.bytes, { level: 0 }];
-  return zipSync(files);
+  return files;
+}
+
+export function buildZip(c: Container): Uint8Array {
+  return zipSync(zipFiles(c));
+}
+
+/**
+ * The same zip, compressed in a background worker so the page never freezes. Falls back to doing it here when the
+ * browser cannot start a worker.
+ */
+async function buildZipAsync(c: Container): Promise<Uint8Array> {
+  const files = zipFiles(c);
+  try {
+    return await new Promise<Uint8Array>((ok, fail) => zip(files, (err, out) => (err ? fail(err) : ok(out))));
+  } catch {
+    return zipSync(files);
+  }
+}
+
+async function unzipAsync(bytes: Uint8Array): Promise<Unzipped> {
+  try {
+    return await new Promise<Unzipped>((ok, fail) => unzip(bytes, (err, out) => (err ? fail(err) : ok(out))));
+  } catch {
+    return unzipSync(bytes);
+  }
 }
 
 export function readZip(bytes: Uint8Array): Container {
@@ -80,6 +118,10 @@ export function readZip(bytes: Uint8Array): Container {
   } catch {
     throw new BackupError("corrupt", "The file is damaged or is not a backup made by this app.");
   }
+  return containerFrom(files);
+}
+
+function containerFrom(files: Record<string, Uint8Array>): Container {
   try {
     const manifest = JSON.parse(strFromU8(files["manifest.json"])) as Manifest;
     const data = JSON.parse(strFromU8(files["data.json"])) as Record<string, unknown[]>;
@@ -126,8 +168,15 @@ const HEADER_LEN = 6 + 1 + 4 + 16 + 12;
  * Turns a container into file bytes. A full backup always needs a password.
  * A pack is encrypted only when a password is given.
  */
-export async function encodeFile(c: Container, password?: string, iterations = KDF_ITERATIONS): Promise<Uint8Array> {
-  const zip = buildZip(c);
+export async function encodeFile(
+  c: Container,
+  password?: string,
+  iterations = KDF_ITERATIONS,
+  onStep?: OnStep,
+): Promise<Uint8Array> {
+  if (c.manifest.kind === "backup" && !password) throw new BackupError("bad_input", "A full backup needs a password.");
+  await step(onStep, "Compressing…");
+  const zip = await buildZipAsync(c);
   const magic = strToU8(MAGIC);
 
   if (!password) {
@@ -139,6 +188,7 @@ export async function encodeFile(c: Container, password?: string, iterations = K
     return out;
   }
 
+  await step(onStep, "Encrypting with your password…");
   const header = new Uint8Array(HEADER_LEN);
   header.set(magic, 0);
   header[6] = c.manifest.kind === "backup" ? KIND_BACKUP_ENC : KIND_PACK_ENC;
@@ -181,7 +231,7 @@ export function peekFile(bytes: Uint8Array): Peek {
 }
 
 /** Opens a file. Throws `password_needed` or `wrong_password` when the password is missing or wrong. */
-export async function decodeFile(bytes: Uint8Array, password?: string): Promise<Container> {
+export async function decodeFile(bytes: Uint8Array, password?: string, onStep?: OnStep): Promise<Container> {
   const peek = peekFile(bytes);
   let zip: Uint8Array;
 
@@ -195,6 +245,7 @@ export async function decodeFile(bytes: Uint8Array, password?: string): Promise<
     if (iterations < 1 || iterations > MAX_ITERATIONS) throw new BackupError("corrupt", "The file is damaged.");
     const salt = header.slice(11, 27);
     const iv = header.slice(27, 39);
+    await step(onStep, "Checking the password and decrypting…");
     const key = await deriveKey(password, salt, iterations);
     try {
       zip = new Uint8Array(
@@ -209,7 +260,14 @@ export async function decodeFile(bytes: Uint8Array, password?: string): Promise<
     }
   }
 
-  const container = readZip(zip);
+  await step(onStep, "Unpacking…");
+  let files: Unzipped;
+  try {
+    files = await unzipAsync(zip);
+  } catch {
+    throw new BackupError("corrupt", "The file is damaged or is not a backup made by this app.");
+  }
+  const container = containerFrom(files);
   if (container.manifest.kind !== peek.kind) {
     throw new BackupError("corrupt", "The file's type does not match its contents.");
   }

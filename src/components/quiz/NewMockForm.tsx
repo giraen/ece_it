@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { composeBlueprintQuiz } from "@/lib/blueprint";
+import { composeBlueprintQuiz } from "@/lib/quiz/blueprint";
 import type { Blueprint, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
-import { masteryFor } from "@/lib/mastery";
-import { startAttempt } from "@/lib/quiz";
-import { MAX_MINUTES, suggestedMinutes } from "@/lib/quizPlan";
-import { targetSecPerItem } from "@/lib/scoring";
+import { masteryFor } from "@/lib/progress/mastery";
+import { startAttempt } from "@/lib/quiz/quiz";
+import { MAX_MINUTES, suggestedMinutes } from "@/lib/quiz/quizPlan";
+import { targetSecPerItem } from "@/lib/quiz/scoring";
 
 interface Props {
   /** A category. */

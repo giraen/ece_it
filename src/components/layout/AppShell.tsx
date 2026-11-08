@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ensureCategories } from "@/lib/categories";
-import { RECHECK_EVENT, syncRules, type RecheckSummary } from "@/lib/recheck";
+import { ensureCategories } from "@/lib/bank/categories";
+import { RECHECK_EVENT, syncRules, type RecheckSummary } from "@/lib/progress/recheck";
 import { usePathname } from "next/navigation";
 import DialogHost from "./DialogHost";
 import Logo from "./Logo";

@@ -1,5 +1,5 @@
-import { db, type NodeKind, type TreeNode } from "./db";
-import { newId, now } from "./ids";
+import { db, type NodeKind, type TreeNode } from "@/lib/db";
+import { newId, now } from "@/lib/ids";
 import { CHILD_KIND, categoriesOf, childrenOf, subtreeOf } from "./tree";
 
 export async function createNode(

@@ -11,8 +11,8 @@ import {
   useSourceUse,
   useSources,
   type Source,
-} from "@/lib/sources";
-import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/where";
+} from "@/lib/bank/sources";
+import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/bank/where";
 
 interface Props {
   value: string;

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { MLCEngineInterface } from "@mlc-ai/web-llm";
 import { getKey } from "./aiKeys";
-import type { ProviderConfig } from "./db";
+import type { ProviderConfig } from "@/lib/db";
 import { ProviderError, NoProviderError, callWithRotation, type CooldownStore, type LlmRequest } from "./providers";
 
 const COOLDOWN_KEY = "ece:aiCooldowns";

@@ -1,8 +1,8 @@
-import { CONFIG } from "./config";
-import type { NodeKind, Question, QuizAttempt, TreeNode } from "./db";
+import { CONFIG } from "@/lib/config";
+import type { NodeKind, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { quotas, type Mix, type Tier } from "./sourceMix";
-import { groupTags } from "./tagRules";
-import { subtreeOf } from "./tree";
+import { groupTags } from "@/lib/bank/tagRules";
+import { subtreeOf } from "@/lib/bank/tree";
 
 export type Rand = () => number;
 

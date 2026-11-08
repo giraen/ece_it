@@ -5,10 +5,10 @@ import Link from "next/link";
 import type { Choice, DraftQuestion, Question, TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { useNodes, useQuestions, useTagSuggestions } from "@/lib/hooks";
-import { normalizeTags, suggestTags } from "@/lib/questions";
-import { tagUsage, type TagUsage } from "@/lib/tagUsage";
-import { updateDraft } from "@/lib/concepts";
-import { confirmAction } from "@/lib/dialog";
+import { normalizeTags, suggestTags } from "@/lib/bank/questions";
+import { tagUsage, type TagUsage } from "@/lib/bank/tagUsage";
+import { updateDraft } from "@/lib/bank/concepts";
+import { confirmAction } from "@/lib/ui/dialog";
 import {
   STATUS_LABEL,
   combineReference,
@@ -24,7 +24,7 @@ import {
   topicEntries,
   type ExtractStatus,
   type TopicEntry,
-} from "@/lib/extract";
+} from "@/lib/extract/extract";
 import {
   acceptPasted,
   applyTopicToProposals,
@@ -36,22 +36,22 @@ import {
   setPastedTopic,
   setProposedTopic,
   usePasted,
-} from "@/lib/extractStore";
-import { childrenOf, pathOf } from "@/lib/tree";
-import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/sources";
-import { motionReduced } from "@/lib/motion";
-import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/where";
-import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
+} from "@/lib/extract/extractStore";
+import { childrenOf, pathOf } from "@/lib/bank/tree";
+import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/bank/sources";
+import { motionReduced } from "@/lib/ui/motion";
+import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/bank/where";
+import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
 import ExtractBar, { type Toast } from "./ExtractBar";
-import ImageTextarea from "./ImageTextarea";
-import InfoTip from "./InfoTip";
-import LoadingScreen from "./LoadingScreen";
-import ReferenceInput from "./ReferenceInput";
-import RichText from "./RichText";
-import SuggestWrong from "./SuggestWrong";
-import TagInput from "./TagInput";
-import ToolbarGroup from "./ToolbarGroup";
-import TopicPicker from "./TopicPicker";
+import ImageTextarea from "@/components/editor/ImageTextarea";
+import InfoTip from "@/components/ui/InfoTip";
+import LoadingScreen from "@/components/layout/LoadingScreen";
+import ReferenceInput from "@/components/editor/ReferenceInput";
+import RichText from "@/components/ui/RichText";
+import SuggestWrong from "@/components/editor/SuggestWrong";
+import TagInput from "@/components/editor/TagInput";
+import ToolbarGroup from "@/components/editor/ToolbarGroup";
+import TopicPicker from "@/components/bank/TopicPicker";
 
 const MAX_CHOICES = 8;
 const letter = (i: number) => String.fromCharCode(65 + i);

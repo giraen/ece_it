@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import type { NodeKind, TreeNode } from "@/lib/db";
-import { createNode } from "@/lib/nodes";
-import { childrenOf, KIND_LABEL } from "@/lib/tree";
+import { createNode } from "@/lib/bank/nodes";
+import { childrenOf, KIND_LABEL } from "@/lib/bank/tree";
 
 interface SelectProps {
   kind: NodeKind;

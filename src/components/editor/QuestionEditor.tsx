@@ -12,25 +12,25 @@ import {
   validateTemplate,
   type CompDraft,
   type RollResult,
-} from "@/lib/computation";
+} from "@/lib/math/computation";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
-import { confirmAction } from "@/lib/dialog";
-import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/questions";
-import { categoriesOf } from "@/lib/tree";
-import { suggestWrongText, type Ask } from "@/lib/wrongChoices";
+import { confirmAction } from "@/lib/ui/dialog";
+import { deleteQuestions, normalizeTags, saveQuestion } from "@/lib/bank/questions";
+import { categoriesOf } from "@/lib/bank/tree";
+import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
 import ComputationEditor, { blankDraft, RollPreview } from "./ComputationEditor";
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
 import Reference from "./Reference";
 import ReferenceInput from "./ReferenceInput";
-import { keepSourceOnly, loadSources } from "@/lib/sources";
-import RichText from "./RichText";
+import { keepSourceOnly, loadSources } from "@/lib/bank/sources";
+import RichText from "@/components/ui/RichText";
 import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
-import TopicPicker from "./TopicPicker";
+import TopicPicker from "@/components/bank/TopicPicker";
 import VariantReview from "./VariantReview";
-import InfoTip from "./InfoTip";
+import InfoTip from "@/components/ui/InfoTip";
 
 const MIN_CHOICES = 2;
 const MAX_CHOICES = 8;

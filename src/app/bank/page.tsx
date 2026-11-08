@@ -2,11 +2,11 @@
 
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import ConceptList from "@/components/ConceptList";
-import LoadingScreen from "@/components/LoadingScreen";
-import QuestionList from "@/components/QuestionList";
-import TreePanel from "@/components/TreePanel";
-import { useDrafts } from "@/lib/concepts";
+import ConceptList from "@/components/bank/ConceptList";
+import LoadingScreen from "@/components/layout/LoadingScreen";
+import QuestionList from "@/components/bank/QuestionList";
+import TreePanel from "@/components/bank/TreePanel";
+import { useDrafts } from "@/lib/bank/concepts";
 import { useConcepts, useNodes, useQuestions } from "@/lib/hooks";
 
 type Tab = "questions" | "concepts";

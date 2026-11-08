@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useNow } from "@/lib/hooks";
-import { useLastBackup } from "@/lib/lastBackup";
+import { useLastBackup } from "@/lib/backup/lastBackup";
 
 const DAY = 86_400_000;
 

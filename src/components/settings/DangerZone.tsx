@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { emptyBank, eraseEverything, resetCounts, resetProgress, type ResetCounts, type ResetKind } from "@/lib/reset";
+import { emptyBank, eraseEverything, resetCounts, resetProgress, type ResetCounts, type ResetKind } from "@/lib/backup/reset";
 import { formatDate } from "@/lib/format";
-import { useLastBackup } from "@/lib/lastBackup";
+import { useLastBackup } from "@/lib/backup/lastBackup";
 
 const WORD = "RESET";
 

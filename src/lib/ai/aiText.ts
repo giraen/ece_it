@@ -1,4 +1,4 @@
-import { slotsIn } from "./slots";
+import { slotsIn } from "@/lib/math/slots";
 
 /** Anything the model must not touch: a formula or a figure. It is swapped for a token and swapped back afterwards. */
 export interface Token {

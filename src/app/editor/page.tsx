@@ -4,10 +4,10 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import QuestionEditor from "@/components/QuestionEditor";
+import QuestionEditor from "@/components/editor/QuestionEditor";
 import { db } from "@/lib/db";
 import { useNodes } from "@/lib/hooks";
-import LoadingScreen from "@/components/LoadingScreen";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 function EditorLoader() {
   const params = useSearchParams();

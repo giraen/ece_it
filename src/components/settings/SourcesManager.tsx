@@ -11,7 +11,7 @@ import {
   useSourceUse,
   useSources,
   type Source,
-} from "@/lib/sources";
+} from "@/lib/bank/sources";
 
 type Draft = Omit<Source, "id" | "createdAt"> & { id?: string };
 type Kind = Source["kind"];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { MoonIcon, SunIcon } from "./icons";
+import { MoonIcon, SunIcon } from "@/components/ui/icons";
 
 const KEY = "ece:theme";
 

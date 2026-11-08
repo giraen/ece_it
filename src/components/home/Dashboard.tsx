@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { computeDashboard, EXPIRING_DAYS } from "@/lib/dashboard";
+import { computeDashboard, EXPIRING_DAYS } from "@/lib/progress/dashboard";
 import { formatPercent } from "@/lib/format";
 import { useAttempts, useNodes, useNow, useQuestions } from "@/lib/hooks";
-import { pathOf } from "@/lib/tree";
-import BackupStatus from "./BackupStatus";
-import InfoTip from "./InfoTip";
-import PracticeTag from "./PracticeTag";
+import { pathOf } from "@/lib/bank/tree";
+import BackupStatus from "@/components/settings/BackupStatus";
+import InfoTip from "@/components/ui/InfoTip";
+import PracticeTag from "@/components/ui/PracticeTag";
 
 function Tile({
   href,

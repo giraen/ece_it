@@ -1,6 +1,6 @@
-import { db } from "./db";
-import { ensureCategories } from "./categories";
-import { clearCooldowns } from "./llmClient";
+import { db } from "@/lib/db";
+import { ensureCategories } from "@/lib/bank/categories";
+import { clearCooldowns } from "@/lib/ai/llmClient";
 import { imageIdsIn } from "./share";
 
 export type ResetKind = "progress" | "bank" | "everything";

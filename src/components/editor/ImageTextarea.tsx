@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useContext, useLayoutEffect, useRef, useState } from "react";
-import { storeImage } from "@/lib/images";
-import { continueList, indentList, wrapSelection, type Edit } from "@/lib/mathEdit";
+import { storeImage } from "@/lib/bank/images";
+import { continueList, indentList, wrapSelection, type Edit } from "@/lib/math/mathEdit";
 import MathToolbar from "./MathToolbar";
 import { ToolbarGroupContext } from "./ToolbarGroup";
 

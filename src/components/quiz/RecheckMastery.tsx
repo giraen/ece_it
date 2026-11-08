@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { recheckMastery } from "@/lib/recheck";
+import { recheckMastery } from "@/lib/progress/recheck";
 
 /** Judges a quiz again under the rules as they are now. It can give mastery, and it can take it away. */
 export default function RecheckMastery({ id }: { id: string }) {

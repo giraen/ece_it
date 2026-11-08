@@ -4,18 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Concept, TreeNode } from "@/lib/db";
-import { deleteConcept, saveConcept, titleFrom } from "@/lib/concepts";
+import { deleteConcept, saveConcept, titleFrom } from "@/lib/bank/concepts";
 import { useTagSuggestions } from "@/lib/hooks";
 import { newId, now } from "@/lib/ids";
-import { confirmAction } from "@/lib/dialog";
-import DraftReview from "./DraftReview";
-import ImageTextarea from "./ImageTextarea";
-import Reference from "./Reference";
-import ReferenceInput from "./ReferenceInput";
-import RichText from "./RichText";
-import TagInput from "./TagInput";
+import { confirmAction } from "@/lib/ui/dialog";
+import DraftReview from "@/components/editor/DraftReview";
+import ImageTextarea from "@/components/editor/ImageTextarea";
+import Reference from "@/components/editor/Reference";
+import ReferenceInput from "@/components/editor/ReferenceInput";
+import RichText from "@/components/ui/RichText";
+import TagInput from "@/components/editor/TagInput";
 import TopicPicker from "./TopicPicker";
-import InfoTip from "./InfoTip";
+import InfoTip from "@/components/ui/InfoTip";
 
 interface Props {
   /** The concept being edited, or null for a new one. */

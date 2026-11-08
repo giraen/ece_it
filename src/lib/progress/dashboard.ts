@@ -1,6 +1,6 @@
-import type { Question, QuizAttempt, TreeNode } from "./db";
+import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { masteryFor, type MasteryInfo } from "./mastery";
-import { childrenOf, subtreeOf } from "./tree";
+import { childrenOf, subtreeOf } from "@/lib/bank/tree";
 
 /** Mastery that runs out within this many days counts as "expiring". */
 export const EXPIRING_DAYS = 3;

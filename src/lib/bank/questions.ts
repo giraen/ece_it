@@ -1,5 +1,5 @@
-import { db, type Question } from "./db";
-import { now } from "./ids";
+import { db, type Question } from "@/lib/db";
+import { now } from "@/lib/ids";
 
 /** What a reworded variant depends on. If any of this changes, the variants no longer match the question. */
 function answerKey(q: Question): string {

@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import LoadingScreen from "./LoadingScreen";
-import { byTopic, calibration, categorySeries, levelSeries, observations, summarize } from "@/lib/analytics";
-import { FIXED_CATEGORIES } from "@/lib/categories";
+import LoadingScreen from "@/components/layout/LoadingScreen";
+import { byTopic, calibration, categorySeries, levelSeries, observations, summarize } from "@/lib/progress/analytics";
+import { FIXED_CATEGORIES } from "@/lib/bank/categories";
 import { CONFIG } from "@/lib/config";
 import { formatPercent, formatRatio, formatSpent } from "@/lib/format";
 import { useAttempts } from "@/lib/hooks";
 import { useMasteryBar } from "@/lib/preferences";
-import { SURENESS_LABEL } from "@/lib/scoring";
+import { SURENESS_LABEL } from "@/lib/quiz/scoring";
 import CreditChart from "./CreditChart";
-import Sparkline from "./Sparkline";
-import InfoTip from "./InfoTip";
+import Sparkline from "@/components/ui/Sparkline";
+import InfoTip from "@/components/ui/InfoTip";
 
 function Tile({ value, label }: { value: string; label: string }) {
   return (

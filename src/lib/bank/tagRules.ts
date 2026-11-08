@@ -1,4 +1,4 @@
-import { CONFIG } from "./config";
+import { CONFIG } from "@/lib/config";
 
 const EXEMPT = new Set<string>(CONFIG.exemptTags);
 

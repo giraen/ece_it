@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type ProviderConfig, type Variant } from "./db";
-import { now } from "./ids";
+import { db, type ProviderConfig, type Variant } from "@/lib/db";
+import { now } from "@/lib/ids";
 import { DEFAULT_PROVIDERS } from "./providers";
 
 const KEY = "ai.providers";

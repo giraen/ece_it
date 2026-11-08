@@ -1,7 +1,7 @@
 "use client";
 
-import SettingsSubpage from "@/components/SettingsSubpage";
-import SourcesManager from "@/components/SourcesManager";
+import SettingsSubpage from "@/components/settings/SettingsSubpage";
+import SourcesManager from "@/components/settings/SourcesManager";
 
 export default function Page() {
   return (

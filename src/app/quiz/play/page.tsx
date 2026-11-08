@@ -2,8 +2,8 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import QuizRunner from "@/components/QuizRunner";
-import LoadingScreen from "@/components/LoadingScreen";
+import QuizRunner from "@/components/quiz/QuizRunner";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 function Loader() {
   const id = useSearchParams().get("id");

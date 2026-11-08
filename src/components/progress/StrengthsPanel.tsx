@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { rankStandings, standings, type Obs, type Ranking, type Standing, type StandingKind } from "@/lib/analytics";
-import { FIXED_CATEGORIES } from "@/lib/categories";
+import { rankStandings, standings, type Obs, type Ranking, type Standing, type StandingKind } from "@/lib/progress/analytics";
+import { FIXED_CATEGORIES } from "@/lib/bank/categories";
 import { CONFIG } from "@/lib/config";
 import { formatPercent, formatRatio } from "@/lib/format";
-import InfoTip from "./InfoTip";
+import InfoTip from "@/components/ui/InfoTip";
 
 interface ListInfo {
   id: Ranking;

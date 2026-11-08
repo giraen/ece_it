@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useKeyIds } from "@/lib/aiKeys";
-import { useProviders } from "@/lib/aiStore";
-import { makeAsk } from "@/lib/llmClient";
-import type { Ask } from "@/lib/wrongChoices";
+import { useKeyIds } from "@/lib/ai/aiKeys";
+import { useProviders } from "@/lib/ai/aiStore";
+import { makeAsk } from "@/lib/ai/llmClient";
+import type { Ask } from "@/lib/ai/wrongChoices";
 
 interface Props {
   /** Why the button cannot be used right now, or null when it can. */

@@ -1,4 +1,4 @@
-import { EXPIRING_DAYS, type ExpiryMark } from "@/lib/dashboard";
+import { EXPIRING_DAYS, type ExpiryMark } from "@/lib/progress/dashboard";
 
 /** One round "!" badge. It shows a number when more than one row is behind it. */
 export function Badge({ tone, total, text }: { tone: "expired" | "soon"; total: number; text: string }) {

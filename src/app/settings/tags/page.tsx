@@ -1,7 +1,7 @@
 "use client";
 
-import SettingsSubpage from "@/components/SettingsSubpage";
-import TagManager from "@/components/TagManager";
+import SettingsSubpage from "@/components/settings/SettingsSubpage";
+import TagManager from "@/components/settings/TagManager";
 
 export default function Page() {
   return (

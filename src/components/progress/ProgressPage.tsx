@@ -2,11 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { observations } from "@/lib/analytics";
+import { observations } from "@/lib/progress/analytics";
 import { useAttempts } from "@/lib/hooks";
 import { useMasteryBar } from "@/lib/preferences";
 import Analytics from "./Analytics";
-import LoadingScreen from "./LoadingScreen";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 import MasteryOverview from "./MasteryOverview";
 import StrengthsPanel from "./StrengthsPanel";
 

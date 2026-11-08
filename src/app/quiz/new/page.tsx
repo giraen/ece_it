@@ -3,10 +3,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import NewMockForm from "@/components/NewMockForm";
-import NewQuizForm from "@/components/NewQuizForm";
+import NewMockForm from "@/components/quiz/NewMockForm";
+import NewQuizForm from "@/components/quiz/NewQuizForm";
 import { useAttempts, useBlueprint, useNodes, useNow, useQuestions } from "@/lib/hooks";
-import LoadingScreen from "@/components/LoadingScreen";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 function Loader() {
   const id = useSearchParams().get("node");

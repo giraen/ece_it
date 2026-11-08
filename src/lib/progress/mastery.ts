@@ -1,6 +1,6 @@
-import { CONFIG } from "./config";
-import type { NodeKind, QuizAttempt, TreeNode } from "./db";
-import { childrenOf } from "./tree";
+import { CONFIG } from "@/lib/config";
+import type { NodeKind, QuizAttempt, TreeNode } from "@/lib/db";
+import { childrenOf } from "@/lib/bank/tree";
 
 export type MasteryStatus = "not_yet" | "mastered" | "expired";
 

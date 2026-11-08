@@ -4,15 +4,15 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Question, TreeNode } from "@/lib/db";
-import { renameTag } from "@/lib/questions";
-import { askText } from "@/lib/dialog";
-import { pathOf, subtreeOf } from "@/lib/tree";
-import { UNTAGGED, matchesTags, narrowedCounts, toggleTag } from "@/lib/tagFilter";
-import { exemptOnlyFirst, isExemptTag } from "@/lib/tagRules";
-import { usePagination } from "@/lib/usePagination";
-import Pagination from "./Pagination";
-import Reference from "./Reference";
-import RichText from "./RichText";
+import { renameTag } from "@/lib/bank/questions";
+import { askText } from "@/lib/ui/dialog";
+import { pathOf, subtreeOf } from "@/lib/bank/tree";
+import { UNTAGGED, matchesTags, narrowedCounts, toggleTag } from "@/lib/bank/tagFilter";
+import { exemptOnlyFirst, isExemptTag } from "@/lib/bank/tagRules";
+import { usePagination } from "@/lib/ui/usePagination";
+import Pagination from "@/components/ui/Pagination";
+import Reference from "@/components/editor/Reference";
+import RichText from "@/components/ui/RichText";
 import SelectionBar from "./SelectionBar";
 
 /** Pictures become a short marker, so a row stays compact. */

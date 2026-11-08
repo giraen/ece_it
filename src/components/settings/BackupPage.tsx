@@ -12,19 +12,19 @@ import {
   previewContainer,
   today,
   type Preview,
-} from "@/lib/backup";
-import { BackupError, decodeFile, peekFile, type FileKind } from "@/lib/backupFormat";
+} from "@/lib/backup/backup";
+import { BackupError, decodeFile, peekFile, type FileKind } from "@/lib/backup/backupFormat";
 import type { Blueprint, Concept, Question, TreeNode, Variant } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { useBlueprints, useConcepts, useNodes, useQuestions, useVariants } from "@/lib/hooks";
-import { markBackup } from "@/lib/lastBackup";
-import type { MergeCounts, PackOptions } from "@/lib/merge";
-import { selectPackContent } from "@/lib/share";
-import { pathOf } from "@/lib/tree";
-import { confirmAction } from "@/lib/dialog";
+import { markBackup } from "@/lib/backup/lastBackup";
+import type { MergeCounts, PackOptions } from "@/lib/backup/merge";
+import { selectPackContent } from "@/lib/backup/share";
+import { pathOf } from "@/lib/bank/tree";
+import { confirmAction } from "@/lib/ui/dialog";
 import BackupStatus from "./BackupStatus";
-import PasswordInput from "./PasswordInput";
-import InfoTip from "./InfoTip";
+import PasswordInput from "@/components/ui/PasswordInput";
+import InfoTip from "@/components/ui/InfoTip";
 
 const MIN_PASSWORD = 8;
 

@@ -10,7 +10,7 @@ import {
   tagStats,
   type TagSnapshot,
   type TagStat,
-} from "@/lib/tagAdmin";
+} from "@/lib/bank/tagAdmin";
 
 type Sort = "most" | "least" | "name";
 

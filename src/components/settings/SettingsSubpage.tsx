@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import InfoTip from "./InfoTip";
+import InfoTip from "@/components/ui/InfoTip";
 
 interface Props {
   title: string;

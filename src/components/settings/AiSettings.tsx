@@ -2,17 +2,17 @@
 
 import { useRef, useState } from "react";
 import type { ProviderConfig } from "@/lib/db";
-import { forgetAllKeys, forgetKey, readKeyFromText, setKey, setRemember, useKeyIds, useRemember } from "@/lib/aiKeys";
+import { forgetAllKeys, forgetKey, readKeyFromText, setKey, setRemember, useKeyIds, useRemember } from "@/lib/ai/aiKeys";
 import { formatDateTime } from "@/lib/format";
 import { useAttempts, useNow, useQuestions, useVariants } from "@/lib/hooks";
 import { newId } from "@/lib/ids";
-import { saveProviders, useProviders } from "@/lib/aiStore";
-import { planTopUp, TARGET_UNSEEN } from "@/lib/generator";
-import { clearCooldowns, localCooldowns, makeAsk, setWebLLMProgress, useCooldownVersion } from "@/lib/llmClient";
-import { NoProviderError } from "@/lib/providers";
-import { runGeneration, type RunControl, type RunEvent } from "@/lib/runGeneration";
-import { servedVariantIds } from "@/lib/serve";
-import InfoTip from "./InfoTip";
+import { saveProviders, useProviders } from "@/lib/ai/aiStore";
+import { planTopUp, TARGET_UNSEEN } from "@/lib/ai/generator";
+import { clearCooldowns, localCooldowns, makeAsk, setWebLLMProgress, useCooldownVersion } from "@/lib/ai/llmClient";
+import { NoProviderError } from "@/lib/ai/providers";
+import { runGeneration, type RunControl, type RunEvent } from "@/lib/ai/runGeneration";
+import { servedVariantIds } from "@/lib/quiz/serve";
+import InfoTip from "@/components/ui/InfoTip";
 
 function Card({ title, info, children }: { title: string; info?: React.ReactNode; children: React.ReactNode }) {
   return (

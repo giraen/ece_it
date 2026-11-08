@@ -1,5 +1,5 @@
-import { CONFIG } from "./config";
-import type { Sureness } from "./db";
+import { CONFIG } from "@/lib/config";
+import type { Sureness } from "@/lib/db";
 
 // The type lives in db.ts, next to the data it describes. It is re-exported here for the code that scores answers.
 export type { Sureness };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ALL_KEY, type CategorySeries } from "@/lib/analytics";
+import { ALL_KEY, type CategorySeries } from "@/lib/progress/analytics";
 import {
   chartPoints,
   fitRange,
@@ -11,7 +11,7 @@ import {
   type ChartPoint,
   type Measure,
   type TimeAxis,
-} from "@/lib/chartTime";
+} from "@/lib/progress/chartTime";
 import { CONFIG } from "@/lib/config";
 import { formatPercent } from "@/lib/format";
 

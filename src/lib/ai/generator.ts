@@ -13,10 +13,10 @@ import {
   solveMessages,
   tokensIn,
 } from "./aiText";
-import { shuffle } from "./compose";
-import type { Concept, DraftQuestion, ProviderConfig, Question, Variant } from "./db";
+import { shuffle } from "@/lib/quiz/compose";
+import type { Concept, DraftQuestion, ProviderConfig, Question, Variant } from "@/lib/db";
 import { NoProviderError, type LlmRequest } from "./providers";
-import { slotsIn } from "./slots";
+import { slotsIn } from "@/lib/math/slots";
 
 /** A question is topped up when it has fewer than this many unseen approved variants (or approved wordings). */
 export const TARGET_UNSEEN = 3;

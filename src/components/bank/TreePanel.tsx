@@ -12,9 +12,9 @@ import {
   setSubjectCategories,
   unlinkSubject,
   countConceptsUnder,
-} from "@/lib/nodes";
-import { categoriesOf, childrenOf, KIND_LABEL, subtreeOf } from "@/lib/tree";
-import { confirmAction } from "@/lib/dialog";
+} from "@/lib/bank/nodes";
+import { categoriesOf, childrenOf, KIND_LABEL, subtreeOf } from "@/lib/bank/tree";
+import { confirmAction } from "@/lib/ui/dialog";
 
 // `at` identifies one place in the tree. A shared subject appears under several categories, so its id alone is not enough.
 type Editing =

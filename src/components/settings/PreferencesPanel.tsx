@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { CONFIG } from "@/lib/config";
 import { MASTERY_BAR_MAX, MASTERY_BAR_MIN, cleanMasteryBar, saveMasteryBar, useMasteryBar } from "@/lib/preferences";
-import { setFullMotion, useFullMotion } from "@/lib/motion";
-import { syncRules } from "@/lib/recheck";
-import InfoTip from "./InfoTip";
+import { setFullMotion, useFullMotion } from "@/lib/ui/motion";
+import { syncRules } from "@/lib/progress/recheck";
+import InfoTip from "@/components/ui/InfoTip";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();

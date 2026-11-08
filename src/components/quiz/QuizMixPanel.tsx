@@ -10,7 +10,7 @@ import {
   sharesOf,
   useSourceMix,
   type Mix,
-} from "@/lib/sourceMix";
+} from "@/lib/quiz/sourceMix";
 
 const same = (a: Mix, b: Mix) => TIERS.every((t) => a[t.id] === b[t.id]);
 

@@ -3,14 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Question, Variant } from "@/lib/db";
-import { slotsIn } from "@/lib/slots";
-import { updateVariant, useProviders, useVariantsFor } from "@/lib/aiStore";
-import { useKeyIds } from "@/lib/aiKeys";
-import { generateForQuestion, type RunEvent } from "@/lib/runGeneration";
+import { slotsIn } from "@/lib/math/slots";
+import { updateVariant, useProviders, useVariantsFor } from "@/lib/ai/aiStore";
+import { useKeyIds } from "@/lib/ai/aiKeys";
+import { generateForQuestion, type RunEvent } from "@/lib/ai/runGeneration";
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
-import RichText from "./RichText";
-import InfoTip from "./InfoTip";
+import RichText from "@/components/ui/RichText";
+import InfoTip from "@/components/ui/InfoTip";
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 

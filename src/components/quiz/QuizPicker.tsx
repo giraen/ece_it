@@ -5,10 +5,10 @@ import Link from "next/link";
 import { CONFIG } from "@/lib/config";
 import type { Blueprint, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate } from "@/lib/format";
-import { EXPIRING_DAYS, expiryMarks, expirySummary, type ExpiryMark } from "@/lib/dashboard";
-import { treeMastery, type TreeMastery } from "@/lib/mastery";
-import { childrenOf, subtreeOf } from "@/lib/tree";
-import { ExpirySummary, ExpiryWarn } from "./ExpiryBadges";
+import { EXPIRING_DAYS, expiryMarks, expirySummary, type ExpiryMark } from "@/lib/progress/dashboard";
+import { treeMastery, type TreeMastery } from "@/lib/progress/mastery";
+import { childrenOf, subtreeOf } from "@/lib/bank/tree";
+import { ExpirySummary, ExpiryWarn } from "@/components/ui/ExpiryBadges";
 
 const DAY = 86_400_000;
 

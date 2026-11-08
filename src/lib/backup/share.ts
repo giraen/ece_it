@@ -1,5 +1,5 @@
-import type { Blueprint, Concept, Question, TreeNode, Variant } from "./db";
-import { subtreeOf } from "./tree";
+import type { Blueprint, Concept, Question, TreeNode, Variant } from "@/lib/db";
+import { subtreeOf } from "@/lib/bank/tree";
 
 const IMG = /img:([0-9a-f]{8,64})/g;
 

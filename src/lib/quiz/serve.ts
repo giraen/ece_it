@@ -1,5 +1,5 @@
-import type { QuizAttempt, Question, Variant } from "./db";
-import { slotsIn } from "./slots";
+import type { QuizAttempt, Question, Variant } from "@/lib/db";
+import { slotsIn } from "@/lib/math/slots";
 
 export const ORIGINAL = "original";
 

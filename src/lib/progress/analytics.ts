@@ -1,7 +1,7 @@
-import { CONFIG } from "./config";
-import type { QuizAttempt } from "./db";
-import { median, SURENESS_ORDER, type Sureness } from "./scoring";
-import { isExemptTag } from "./tagRules";
+import { CONFIG } from "@/lib/config";
+import type { QuizAttempt } from "@/lib/db";
+import { median, SURENESS_ORDER, type Sureness } from "@/lib/quiz/scoring";
+import { isExemptTag } from "@/lib/bank/tagRules";
 
 /** One question as it was answered in one submitted quiz. */
 export interface Obs {

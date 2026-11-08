@@ -1,5 +1,5 @@
-import { CONFIG } from "./config";
-import type { AttemptItem, NodeKind, Question } from "./db";
+import { CONFIG } from "@/lib/config";
+import type { AttemptItem, NodeKind, Question } from "@/lib/db";
 
 /** What a quiz on a topic or subject may look like, given how many questions are available. */
 export interface QuizPlan {

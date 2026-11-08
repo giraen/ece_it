@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
-import { useSources } from "@/lib/sources";
-import { tagStats } from "@/lib/tagAdmin";
+import { useSources } from "@/lib/bank/sources";
+import { tagStats } from "@/lib/bank/tagAdmin";
 
 const card =
   "block rounded-md border border-line bg-surface p-4 hover:bg-paper focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none";

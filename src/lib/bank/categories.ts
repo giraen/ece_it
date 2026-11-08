@@ -1,5 +1,5 @@
-import { db } from "./db";
-import { now } from "./ids";
+import { db } from "@/lib/db";
+import { now } from "@/lib/ids";
 
 /** The four categories of the board exam. They are always there. */
 export const FIXED_CATEGORIES = [

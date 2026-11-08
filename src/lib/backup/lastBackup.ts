@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { now } from "./ids";
+import { now } from "@/lib/ids";
 
 const KEY = "ece:lastBackupAt";
 const EVENT = "ece:lastBackup";

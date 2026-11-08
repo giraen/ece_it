@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
 import { useImageUrl } from "@/lib/hooks";
-import { rehypeTypedMath } from "@/lib/mathText";
+import { rehypeTypedMath } from "@/lib/math/mathText";
 
 // Tables, checklists and ~~strikethrough~~; a single line break in the text stays a line break, like Obsidian.
 const remarkPlugins: Options["remarkPlugins"] = [remarkMath, [remarkGfm, { singleTilde: false }], remarkBreaks];

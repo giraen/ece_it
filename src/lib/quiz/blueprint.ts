@@ -1,7 +1,7 @@
 import { composeQuiz, shuffle, type History, type Rand, type SourceMix } from "./compose";
-import type { Blueprint, Question, TreeNode } from "./db";
+import type { Blueprint, Question, TreeNode } from "@/lib/db";
 import { masteryEligibility } from "./quizPlan";
-import { pathOf, subtreeOf } from "./tree";
+import { pathOf, subtreeOf } from "@/lib/bank/tree";
 
 /** Splits `total` across the percentages so the whole numbers add up to exactly `total` (largest remainder). */
 export function allocate(total: number, percents: number[]): number[] {

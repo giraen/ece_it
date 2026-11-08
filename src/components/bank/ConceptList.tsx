@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Concept, DraftQuestion, TreeNode } from "@/lib/db";
-import { pathOf, subtreeOf } from "@/lib/tree";
-import { usePagination } from "@/lib/usePagination";
-import Pagination from "./Pagination";
-import { useKeyIds } from "@/lib/aiKeys";
-import { useProviders } from "@/lib/aiStore";
-import { draftCounts } from "@/lib/concepts";
-import { draftMany, type RunControl, type RunEvent } from "@/lib/runGeneration";
-import InfoTip from "./InfoTip";
-import Reference from "./Reference";
-import RichText from "./RichText";
+import { pathOf, subtreeOf } from "@/lib/bank/tree";
+import { usePagination } from "@/lib/ui/usePagination";
+import Pagination from "@/components/ui/Pagination";
+import { useKeyIds } from "@/lib/ai/aiKeys";
+import { useProviders } from "@/lib/ai/aiStore";
+import { draftCounts } from "@/lib/bank/concepts";
+import { draftMany, type RunControl, type RunEvent } from "@/lib/ai/runGeneration";
+import InfoTip from "@/components/ui/InfoTip";
+import Reference from "@/components/editor/Reference";
+import RichText from "@/components/ui/RichText";
 
 /** A short plain-text taste of a note, with pictures shown as [image]. */
 const excerpt = (body: string) =>

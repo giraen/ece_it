@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import ProgressPage from "@/components/ProgressPage";
-import LoadingScreen from "@/components/LoadingScreen";
+import ProgressPage from "@/components/progress/ProgressPage";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 export default function Page() {
   return (

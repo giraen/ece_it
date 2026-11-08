@@ -1,4 +1,4 @@
-import { db, type Concept, type ProviderConfig, type Question, type Variant } from "./db";
+import { db, type Concept, type ProviderConfig, type Question, type Variant } from "@/lib/db";
 import {
   generateConcept,
   generateDrafts,
@@ -8,10 +8,10 @@ import {
   type GenDeps,
   type GenResult,
 } from "./generator";
-import { saveDrafts } from "./concepts";
+import { saveDrafts } from "@/lib/bank/concepts";
 import { makeAsk } from "./llmClient";
 import { saveVariants } from "./aiStore";
-import { servedVariantIds } from "./serve";
+import { servedVariantIds } from "@/lib/quiz/serve";
 
 export interface RunEvent {
   kind: "info" | "ok" | "warn" | "stop";
@@ -38,7 +38,7 @@ function summarize(r: GenResult): string {
 
 async function usableCheck(questions: Question[]) {
   if (!questions.some((q) => q.type === "computation")) return () => true;
-  const comp = await import("./computation");
+  const comp = await import("@/lib/math/computation");
   return (q: Question) => comp.isUsable(q);
 }
 

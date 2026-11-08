@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { countAvailable } from "@/lib/compose";
+import { countAvailable } from "@/lib/quiz/compose";
 import type { TreeNode } from "@/lib/db";
-import { EXPIRING_DAYS, expiryMarks, expirySummary, type ExpiryMark } from "@/lib/dashboard";
-import { ExpirySummary, ExpiryWarn } from "./ExpiryBadges";
+import { EXPIRING_DAYS, expiryMarks, expirySummary, type ExpiryMark } from "@/lib/progress/dashboard";
+import { ExpirySummary, ExpiryWarn } from "@/components/ui/ExpiryBadges";
 import { formatCountdown, formatDate } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
-import { treeMastery, type TreeMastery } from "@/lib/mastery";
-import { childrenOf } from "@/lib/tree";
+import { treeMastery, type TreeMastery } from "@/lib/progress/mastery";
+import { childrenOf } from "@/lib/bank/tree";
 import { CONFIG } from "@/lib/config";
-import InfoTip from "./InfoTip";
-import LoadingScreen from "./LoadingScreen";
+import InfoTip from "@/components/ui/InfoTip";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 const DAY = 86_400_000;
 

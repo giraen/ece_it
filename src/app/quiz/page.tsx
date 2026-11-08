@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import QuizPicker from "@/components/QuizPicker";
+import QuizPicker from "@/components/quiz/QuizPicker";
 import { formatDateTime } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
-import { abandonAttempt, isComplete } from "@/lib/quiz";
-import { confirmAction } from "@/lib/dialog";
-import InfoTip from "@/components/InfoTip";
-import PracticeTag from "@/components/PracticeTag";
-import LoadingScreen from "@/components/LoadingScreen";
+import { abandonAttempt, isComplete } from "@/lib/quiz/quiz";
+import { confirmAction } from "@/lib/ui/dialog";
+import InfoTip from "@/components/ui/InfoTip";
+import PracticeTag from "@/components/ui/PracticeTag";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 export default function QuizPage() {
   const nodes = useNodes();

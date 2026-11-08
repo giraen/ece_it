@@ -1,6 +1,6 @@
-import { db, type BlueprintEntry } from "./db";
+import { db, type BlueprintEntry } from "@/lib/db";
 import { blueprintProblems } from "./blueprint";
-import { now } from "./ids";
+import { now } from "@/lib/ids";
 
 /** Saves the blueprint for a category, replacing any earlier one. Throws with the first problem found. */
 export async function saveBlueprint(categoryId: string, totalItems: number, entries: BlueprintEntry[]): Promise<void> {

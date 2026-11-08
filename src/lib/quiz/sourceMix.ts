@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "./db";
-import { now } from "./ids";
-import { splitReference, type Source } from "./sources";
+import { db } from "@/lib/db";
+import { now } from "@/lib/ids";
+import { splitReference, type Source } from "@/lib/bank/sources";
 
 /**
  * The four groups quizzes are mixed from, from the most to the least wanted:

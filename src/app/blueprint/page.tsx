@@ -3,9 +3,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import BlueprintEditor from "@/components/BlueprintEditor";
+import BlueprintEditor from "@/components/bank/BlueprintEditor";
 import { useBlueprint, useNodes, useQuestions } from "@/lib/hooks";
-import LoadingScreen from "@/components/LoadingScreen";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 function Loader() {
   const id = useSearchParams().get("category");

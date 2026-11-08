@@ -1,8 +1,8 @@
 import { extractJson, normalize } from "./aiText";
-import { recipeProblem, screenFormulas } from "./computation";
-import type { ComputationTemplate, ProviderConfig } from "./db";
+import { recipeProblem, screenFormulas } from "@/lib/math/computation";
+import type { ComputationTemplate, ProviderConfig } from "@/lib/db";
 import { NoProviderError, type LlmRequest } from "./providers";
-import { slotsIn } from "./slots";
+import { slotsIn } from "@/lib/math/slots";
 
 /** Sends a request to the best available AI provider. Throws NoProviderError when none can answer. */
 export type Ask = (req: LlmRequest) => Promise<{ content: string; provider: ProviderConfig }>;

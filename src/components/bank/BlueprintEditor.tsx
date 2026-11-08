@@ -3,14 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { allocate, blueprintProblems } from "@/lib/blueprint";
-import { countAvailable } from "@/lib/compose";
+import { allocate, blueprintProblems } from "@/lib/quiz/blueprint";
+import { countAvailable } from "@/lib/quiz/compose";
 import type { Blueprint, Question, TreeNode } from "@/lib/db";
-import { deleteBlueprint, saveBlueprint } from "@/lib/blueprints";
+import { deleteBlueprint, saveBlueprint } from "@/lib/quiz/blueprints";
 import { newId } from "@/lib/ids";
-import { confirmAction } from "@/lib/dialog";
-import { childrenOf, pathOf } from "@/lib/tree";
-import InfoTip from "./InfoTip";
+import { confirmAction } from "@/lib/ui/dialog";
+import { childrenOf, pathOf } from "@/lib/bank/tree";
+import InfoTip from "@/components/ui/InfoTip";
 
 interface Row {
   id: string;

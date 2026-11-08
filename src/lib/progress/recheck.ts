@@ -1,11 +1,11 @@
-import { CONFIG } from "./config";
-import { db, type QuizAttempt } from "./db";
-import { formatDate, formatPercent } from "./format";
-import { now } from "./ids";
+import { CONFIG } from "@/lib/config";
+import { db, type QuizAttempt } from "@/lib/db";
+import { formatDate, formatPercent } from "@/lib/format";
+import { now } from "@/lib/ids";
 import { awardsMastery, expiryFor } from "./mastery";
-import { loadMasteryBar } from "./preferences";
-import { masteryEligibility } from "./quizPlan";
-import { evaluatePass, overallStats } from "./scoring";
+import { loadMasteryBar } from "@/lib/preferences";
+import { masteryEligibility } from "@/lib/quiz/quizPlan";
+import { evaluatePass, overallStats } from "@/lib/quiz/scoring";
 
 /** A finished quiz that mastery can be judged on. A practice quiz never counts, and an unfinished one has no score. */
 export function canRecheck(a: QuizAttempt): boolean {

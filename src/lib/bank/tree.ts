@@ -1,4 +1,4 @@
-import type { NodeKind, TreeNode } from "./db";
+import type { NodeKind, TreeNode } from "@/lib/db";
 
 export const CHILD_KIND: Record<NodeKind, NodeKind | null> = {
   category: "subject",

@@ -3,14 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Concept, DraftQuestion } from "@/lib/db";
-import { useKeyIds } from "@/lib/aiKeys";
-import { useProviders } from "@/lib/aiStore";
-import { acceptDraft, updateDraft, useDraftsFor } from "@/lib/concepts";
-import { draftFromConcept, type RunEvent } from "@/lib/runGeneration";
+import { useKeyIds } from "@/lib/ai/aiKeys";
+import { useProviders } from "@/lib/ai/aiStore";
+import { acceptDraft, updateDraft, useDraftsFor } from "@/lib/bank/concepts";
+import { draftFromConcept, type RunEvent } from "@/lib/ai/runGeneration";
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
-import RichText from "./RichText";
-import InfoTip from "./InfoTip";
+import RichText from "@/components/ui/RichText";
+import InfoTip from "@/components/ui/InfoTip";
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 

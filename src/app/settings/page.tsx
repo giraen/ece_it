@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import SettingsPage from "@/components/SettingsPage";
-import LoadingScreen from "@/components/LoadingScreen";
+import SettingsPage from "@/components/settings/SettingsPage";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 export default function Page() {
   return (

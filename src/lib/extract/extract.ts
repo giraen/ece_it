@@ -1,6 +1,6 @@
-import type { Choice, DraftQuestion, TreeNode } from "./db";
-import { newId } from "./ids";
-import { childrenOf } from "./tree";
+import type { Choice, DraftQuestion, TreeNode } from "@/lib/db";
+import { newId } from "@/lib/ids";
+import { childrenOf } from "@/lib/bank/tree";
 
 /** Questions read from pasted text are kept as drafts under this concept id, so they use the same review storage. */
 export const EXTRACT_CONCEPT = "extract";

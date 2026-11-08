@@ -8,8 +8,8 @@ import {
   type SettingRow,
   type TreeNode,
   type Variant,
-} from "./db";
-import { now } from "./ids";
+} from "@/lib/db";
+import { now } from "@/lib/ids";
 import {
   planBackupMerge,
   planPackImport,

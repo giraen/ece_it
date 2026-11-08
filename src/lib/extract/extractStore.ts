@@ -1,11 +1,11 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type DraftQuestion } from "./db";
+import { db, type DraftQuestion } from "@/lib/db";
 import { EXTRACT_CONCEPT, extractStatus, normName, parseTopicPath } from "./extract";
-import { newId, now } from "./ids";
-import { normalizeTags, saveQuestion } from "./questions";
-import { saveDrafts } from "./concepts";
-import { createNode } from "./nodes";
-import { childrenOf } from "./tree";
+import { newId, now } from "@/lib/ids";
+import { normalizeTags, saveQuestion } from "@/lib/bank/questions";
+import { saveDrafts } from "@/lib/bank/concepts";
+import { createNode } from "@/lib/bank/nodes";
+import { childrenOf } from "@/lib/bank/tree";
 
 /** Questions read from pasted text that are waiting for review, in the order they were pasted. */
 export function usePasted(): DraftQuestion[] | undefined {

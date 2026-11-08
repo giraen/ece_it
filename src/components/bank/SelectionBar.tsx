@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Question } from "@/lib/db";
-import { restoreQuestions, snapshotQuestions } from "@/lib/bulk";
-import { addTag, deleteQuestions, removeTag, setReferences } from "@/lib/questions";
-import { joinReference, sourceLabel, splitReference, useSources } from "@/lib/sources";
-import { tagSections, tagUsage } from "@/lib/tagUsage";
-import ReferenceInput from "./ReferenceInput";
+import { restoreQuestions, snapshotQuestions } from "@/lib/bank/bulk";
+import { addTag, deleteQuestions, removeTag, setReferences } from "@/lib/bank/questions";
+import { joinReference, sourceLabel, splitReference, useSources } from "@/lib/bank/sources";
+import { tagSections, tagUsage } from "@/lib/bank/tagUsage";
+import ReferenceInput from "@/components/editor/ReferenceInput";
 
 interface Props {
   /** The selected questions that are in view. */

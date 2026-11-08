@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { answerDialog, currentDialog, subscribeDialogs, type Request } from "@/lib/dialog";
+import { answerDialog, currentDialog, subscribeDialogs, type Request } from "@/lib/ui/dialog";
 
 const FOCUSABLE =
   "button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled])";
 
 /**
- * Draws the questions the app asks (see lib/dialog.ts) as a window over the page, in place of the browser's own
+ * Draws the questions the app asks (see lib/ui/dialog.ts) as a window over the page, in place of the browser's own
  * pop-ups. Escape or a click outside cancels. Tab stays inside, and focus returns to where it was.
  */
 export default function DialogHost() {

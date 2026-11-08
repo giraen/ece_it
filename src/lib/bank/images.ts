@@ -1,5 +1,5 @@
-import { db } from "./db";
-import { now } from "./ids";
+import { db } from "@/lib/db";
+import { now } from "@/lib/ids";
 
 const MAX_WIDTH = 1200;
 

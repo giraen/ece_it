@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import LoadingScreen from "@/components/LoadingScreen";
+import LoadingScreen from "@/components/layout/LoadingScreen";
 
 // The examples roll random numbers, so the page is drawn in the browser only.
-const HelpPage = dynamic(() => import("@/components/HelpPage"), {
+const HelpPage = dynamic(() => import("@/components/help/HelpPage"), {
   ssr: false,
   loading: () => <LoadingScreen />,
 });

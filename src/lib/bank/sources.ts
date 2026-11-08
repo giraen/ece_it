@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "./db";
-import { newId, now } from "./ids";
+import { db } from "@/lib/db";
+import { newId, now } from "@/lib/ids";
 
 /**
  * A past quiz, book, website or video that questions and concepts come from, or any other kind of source, such as

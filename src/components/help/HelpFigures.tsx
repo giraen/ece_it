@@ -2,17 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { CONFIG } from "@/lib/config";
-import { rollQuestion } from "@/lib/computation";
+import { rollQuestion } from "@/lib/math/computation";
 import type { ComputationTemplate } from "@/lib/db";
 import { formatPercent } from "@/lib/format";
-import { SURENESS_LABEL, SURENESS_ORDER } from "@/lib/scoring";
-import { RollPreview } from "./ComputationEditor";
-import ImageTextarea from "./ImageTextarea";
-import PracticeTag from "./PracticeTag";
-import Reference from "./Reference";
-import RichText from "./RichText";
-import Sparkline from "./Sparkline";
-import ToolbarGroup from "./ToolbarGroup";
+import { SURENESS_LABEL, SURENESS_ORDER } from "@/lib/quiz/scoring";
+import { RollPreview } from "@/components/editor/ComputationEditor";
+import ImageTextarea from "@/components/editor/ImageTextarea";
+import PracticeTag from "@/components/ui/PracticeTag";
+import Reference from "@/components/editor/Reference";
+import RichText from "@/components/ui/RichText";
+import Sparkline from "@/components/ui/Sparkline";
+import ToolbarGroup from "@/components/editor/ToolbarGroup";
 
 /**
  * Pictures for the Help page. Some are live: the text boxes, the maths, and the rolled question are the real parts of

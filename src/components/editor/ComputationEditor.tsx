@@ -2,13 +2,13 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import type { AnswerFormat, Given, ValueRule } from "@/lib/db";
-import { recipeProblem, slotsIn, type CompDraft, type RollResult } from "@/lib/computation";
-import { suggestWrongFormulas, suggestWrongText, type Ask } from "@/lib/wrongChoices";
+import { recipeProblem, slotsIn, type CompDraft, type RollResult } from "@/lib/math/computation";
+import { suggestWrongFormulas, suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
 import { newId } from "@/lib/ids";
 import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
-import RichText from "./RichText";
-import InfoTip from "./InfoTip";
+import RichText from "@/components/ui/RichText";
+import InfoTip from "@/components/ui/InfoTip";
 import SuggestWrong from "./SuggestWrong";
 
 const letter = (i: number) => String.fromCharCode(65 + i);

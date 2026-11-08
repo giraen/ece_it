@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useRef, useState, type ReactNode } from "react";
-import type { Edit } from "@/lib/mathEdit";
+import type { Edit } from "@/lib/math/mathEdit";
 import MathToolbar from "./MathToolbar";
 
 type Action = (text: string, s: number, e: number) => Edit;

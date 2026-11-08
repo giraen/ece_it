@@ -9,7 +9,7 @@ import {
   prefixLines,
   wrapSelection,
   type Edit,
-} from "@/lib/mathEdit";
+} from "@/lib/math/mathEdit";
 
 type Action = (text: string, s: number, e: number) => Edit;
 

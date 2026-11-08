@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
-import { masteryFor } from "@/lib/mastery";
-import { startAttempt } from "@/lib/quiz";
-import { MAX_MINUTES, itemsProblem, planFor, suggestedMinutes, withCopies } from "@/lib/quizPlan";
-import { targetSecPerItem } from "@/lib/scoring";
-import { pathOf, subtreeOf } from "@/lib/tree";
-import InfoTip from "./InfoTip";
+import { masteryFor } from "@/lib/progress/mastery";
+import { startAttempt } from "@/lib/quiz/quiz";
+import { MAX_MINUTES, itemsProblem, planFor, suggestedMinutes, withCopies } from "@/lib/quiz/quizPlan";
+import { targetSecPerItem } from "@/lib/quiz/scoring";
+import { pathOf, subtreeOf } from "@/lib/bank/tree";
+import InfoTip from "@/components/ui/InfoTip";
 
 interface Props {
   /** A topic or a subject. */

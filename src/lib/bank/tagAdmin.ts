@@ -1,5 +1,5 @@
-import { db } from "./db";
-import { now } from "./ids";
+import { db } from "@/lib/db";
+import { now } from "@/lib/ids";
 import { normalizeTags } from "./questions";
 
 /** One tag as the tag manager lists it. Capital letters do not make a different tag. */

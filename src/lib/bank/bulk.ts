@@ -1,5 +1,5 @@
-import { db, type Question } from "./db";
-import { now } from "./ids";
+import { db, type Question } from "@/lib/db";
+import { now } from "@/lib/ids";
 
 /** A copy of the given questions as they are now, so a bulk change can be undone. */
 export async function snapshotQuestions(ids: string[]): Promise<Question[]> {

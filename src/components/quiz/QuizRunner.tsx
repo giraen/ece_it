@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { formatDuration } from "@/lib/format";
 import type { AttemptItem } from "@/lib/db";
 import { useAttempt } from "@/lib/hooks";
-import { abandonAttempt, isComplete, saveTime, setCurrentIndex, submitAttempt } from "@/lib/quiz";
-import { confirmAction } from "@/lib/dialog";
+import { abandonAttempt, isComplete, saveTime, setCurrentIndex, submitAttempt } from "@/lib/quiz/quiz";
+import { confirmAction } from "@/lib/ui/dialog";
 import QuestionPane from "./QuestionPane";
-import PracticeTag from "./PracticeTag";
-import { CloseIcon, GridIcon } from "./icons";
+import PracticeTag from "@/components/ui/PracticeTag";
+import { CloseIcon, GridIcon } from "@/components/ui/icons";
 
 function Redirect({ to, text }: { to: string; text: string }) {
   const router = useRouter();

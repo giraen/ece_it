@@ -1,4 +1,4 @@
-import type { ProviderConfig } from "./db";
+import type { ProviderConfig } from "@/lib/db";
 
 export type Purpose = "concept" | "frames" | "solve";
 

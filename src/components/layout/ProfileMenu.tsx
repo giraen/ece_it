@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserIcon } from "./icons";
+import { UserIcon } from "@/components/ui/icons";
 
 // `match` lists the pages that belong to each item, so the profile button lights up while you are inside any of them.
 const ITEMS = [

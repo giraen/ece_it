@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DraftQuestion, Question, TreeNode } from "@/lib/db";
-import { patchPasted, setPastedTopic } from "@/lib/extractStore";
-import { normalizeTags } from "@/lib/questions";
-import { joinReference, sourceLabel, splitReference, type Source } from "@/lib/sources";
-import { tagSections, tagUsage } from "@/lib/tagUsage";
-import ReferenceInput from "./ReferenceInput";
-import TopicPicker from "./TopicPicker";
+import { patchPasted, setPastedTopic } from "@/lib/extract/extractStore";
+import { normalizeTags } from "@/lib/bank/questions";
+import { joinReference, sourceLabel, splitReference, type Source } from "@/lib/bank/sources";
+import { tagSections, tagUsage } from "@/lib/bank/tagUsage";
+import ReferenceInput from "@/components/editor/ReferenceInput";
+import TopicPicker from "@/components/bank/TopicPicker";
 
 export interface Toast {
   message: string;

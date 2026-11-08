@@ -1,16 +1,16 @@
 import { composeBlueprintQuiz } from "./blueprint";
 import { composeQuiz, historyFrom, separateCopies, shuffle, type SourceMix } from "./compose";
-import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
-import { formatCountdown } from "./format";
-import { newId, now } from "./ids";
-import { masteryFor } from "./mastery";
-import { loadMasteryBar } from "./preferences";
+import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, type Variant } from "@/lib/db";
+import { formatCountdown } from "@/lib/format";
+import { newId, now } from "@/lib/ids";
+import { masteryFor } from "@/lib/progress/mastery";
+import { loadMasteryBar } from "@/lib/preferences";
 import { loadSourceMix, tierOfReference } from "./sourceMix";
-import { loadSources } from "./sources";
+import { loadSources } from "@/lib/bank/sources";
 import { pickVariant, serveCounts, usableFrames } from "./serve";
 import { MAX_MINUTES, itemsProblem, masteryEligibility, planFor, withCopies } from "./quizPlan";
 import { evaluatePass, itemCredit, overallStats, targetSecPerItem, type Sureness } from "./scoring";
-import { pathOf, subtreeOf } from "./tree";
+import { pathOf, subtreeOf } from "@/lib/bank/tree";
 
 /** What the quiz shows for a question. For a computation question this is one roll of fresh numbers. */
 interface Shown {
@@ -62,7 +62,7 @@ function buildItem(
   };
 }
 
-type Computation = typeof import("./computation");
+type Computation = typeof import("@/lib/math/computation");
 
 /**
  * What a quiz shows for a question. It never waits on an AI: it uses a rewording that was already made and checked,
@@ -131,7 +131,7 @@ export async function startAttempt(
   const variantsOf = new Map<string, Variant[]>();
   for (const v of approved) variantsOf.set(v.questionId, [...(variantsOf.get(v.questionId) ?? []), v]);
   // The formula engine is only loaded when there is a computation question to roll.
-  const comp = everyQuestion.some((q) => q.type === "computation") ? await import("./computation") : null;
+  const comp = everyQuestion.some((q) => q.type === "computation") ? await import("@/lib/math/computation") : null;
   // A computation recipe that cannot produce a question is left out rather than breaking the quiz.
   const usable = comp ? everyQuestion.filter((q) => q.type !== "computation" || comp.isUsable(q)) : everyQuestion;
 

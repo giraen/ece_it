@@ -1,14 +1,14 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { EVERY_TIER_FROM } from "@/lib/sourceMix";
+import { EVERY_TIER_FROM } from "@/lib/quiz/sourceMix";
 import AiSettings from "./AiSettings";
 import BackupPage from "./BackupPage";
 import DangerZone from "./DangerZone";
-import InfoTip from "./InfoTip";
+import InfoTip from "@/components/ui/InfoTip";
 import LibraryLinks from "./LibraryLinks";
 import PreferencesPanel from "./PreferencesPanel";
-import QuizMixPanel from "./QuizMixPanel";
+import QuizMixPanel from "@/components/quiz/QuizMixPanel";
 import StorageStatus from "./StorageStatus";
 
 const JUMPS = [

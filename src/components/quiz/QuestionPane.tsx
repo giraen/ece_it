@@ -3,10 +3,10 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { AttemptItem } from "@/lib/db";
 import { formatDuration } from "@/lib/format";
-import { confirmItem, isComplete, saveTime, setSelection, setSureness } from "@/lib/quiz";
-import { SURENESS_LABEL, SURENESS_ORDER, type Sureness } from "@/lib/scoring";
-import { useStopwatch } from "@/lib/useStopwatch";
-import RichText from "./RichText";
+import { confirmItem, isComplete, saveTime, setSelection, setSureness } from "@/lib/quiz/quiz";
+import { SURENESS_LABEL, SURENESS_ORDER, type Sureness } from "@/lib/quiz/scoring";
+import { useStopwatch } from "@/lib/ui/useStopwatch";
+import RichText from "@/components/ui/RichText";
 
 const LETTERS = "ABCDEFGH";
 const SURENESS_KEYS: Record<string, Sureness> = { s: "sure", w: "wise_guess", n: "not_sure", j: "just_guessed" };

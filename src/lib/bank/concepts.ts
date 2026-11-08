@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Concept, type DraftQuestion } from "./db";
-import { newId, now } from "./ids";
+import { db, type Concept, type DraftQuestion } from "@/lib/db";
+import { newId, now } from "@/lib/ids";
 import { normalizeTags, saveQuestion } from "./questions";
 
 /** A short name for a concept, taken from the first line of its text. */

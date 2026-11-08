@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartIcon, CloseIcon, HomeIcon, MoreIcon, QuizIcon } from "./icons";
+import { ChartIcon, CloseIcon, HomeIcon, MoreIcon, QuizIcon } from "@/components/ui/icons";
 
 const TABS = [
   { href: "/", label: "Home", icon: HomeIcon, match: [] as string[] },

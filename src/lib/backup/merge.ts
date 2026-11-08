@@ -1,4 +1,4 @@
-import type { Blueprint, Concept, DraftQuestion, Question, QuizAttempt, SettingRow, TreeNode, Variant } from "./db";
+import type { Blueprint, Concept, DraftQuestion, Question, QuizAttempt, SettingRow, TreeNode, Variant } from "@/lib/db";
 
 /** Every table that travels in a full backup. */
 export interface Tables {

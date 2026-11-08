@@ -1,7 +1,7 @@
 import { create, all } from "mathjs";
-import { CONFIG } from "./config";
+import { CONFIG } from "@/lib/config";
 import { SLOT, slotsIn } from "./slots";
-import type { AnswerFormat, Choice, ComputationTemplate, Derived, Given, Question, ValueRule } from "./db";
+import type { AnswerFormat, Choice, ComputationTemplate, Derived, Given, Question, ValueRule } from "@/lib/db";
 
 // ---------------------------------------------------------------------------------------------
 // A locked-down formula evaluator

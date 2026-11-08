@@ -3,8 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
-import { normalizeTags } from "@/lib/questions";
-import { tagSections, tagUsage, type TagRow, type TagUsage } from "@/lib/tagUsage";
+import { normalizeTags } from "@/lib/bank/questions";
+import { tagSections, tagUsage, type TagRow, type TagUsage } from "@/lib/bank/tagUsage";
 
 interface Props {
   value: string[];

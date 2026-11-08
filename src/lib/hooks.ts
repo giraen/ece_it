@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
    import { db, type Blueprint, type Concept, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
-import { imageUrl } from "./images";
-import { suggestTags } from "./questions";
+import { imageUrl } from "@/lib/bank/images";
+import { suggestTags } from "@/lib/bank/questions";
 import { now } from "./ids";
 
 /** The categories, subjects, and topics, kept up to date. `undefined` for a moment while the first read happens. */

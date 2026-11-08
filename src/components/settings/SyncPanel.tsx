@@ -112,9 +112,9 @@ export default function SyncPanel() {
     return (
       <div className="card space-y-4 p-5">
         <p className="text-sm">
-          Keep your laptop and phone the same: the bank, your quizzes and results, and your settings. Changes are sent
-          by themselves a few seconds after you make them. Everything is encrypted on your device before it leaves, with
-          a code only your devices know.
+          Keep your laptop and phone the same: the bank, your quizzes and results, and your settings. It works like a
+          backup kept in the cloud: each device downloads the latest copy and merges it in, then saves a new copy with
+          its own changes. Everything is encrypted on your device before it leaves, with a code only your devices know.
         </p>
 
         {linkCode ? (
@@ -211,7 +211,9 @@ export default function SyncPanel() {
       <div className="flex flex-wrap items-center gap-3">
         <span
           aria-hidden="true"
-          className={`size-2.5 rounded-full ${status.error ? "bg-priority-solid" : status.running ? "bg-accent motion-safe:animate-pulse" : "bg-good"}`}
+          className={`size-2.5 rounded-full ${
+            status.running ? "bg-accent motion-safe:animate-pulse" : status.error ? "bg-priority-solid" : "bg-good"
+          }`}
         />
         <p className="min-w-0 flex-1 text-sm" role="status" aria-live="polite">
           {status.running
@@ -224,7 +226,26 @@ export default function SyncPanel() {
           Sync now
         </button>
       </div>
+      {status.running && (
+        <div className="space-y-2">
+          <div className="h-1.5 overflow-hidden rounded-full bg-track" aria-hidden="true">
+            {status.progress === undefined ? (
+              <div className="h-full w-1/3 rounded-full bg-accent motion-safe:animate-pulse" />
+            ) : (
+              <div
+                className="h-full rounded-full bg-accent transition-[width]"
+                style={{ width: `${Math.max(4, status.progress * 100)}%` }}
+              />
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            You can keep using the site. If the page is closed or reloaded before it finishes, nothing is lost: the next
+            sync starts again, and images already sent or received are not repeated.
+          </p>
+        </div>
+      )}
       {status.error && !status.running && <p className="text-sm text-priority">{status.error}</p>}
+      {status.note && !status.running && <p className="text-sm text-muted">{status.note}</p>}
 
       <div className="space-y-3 border-t border-line pt-4">
         <div className="flex items-center gap-1">

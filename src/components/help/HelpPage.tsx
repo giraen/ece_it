@@ -135,8 +135,8 @@ export default function HelpPage() {
             On a phone, the tabs at the bottom open <Btn>Home</Btn>, <Btn>Quiz</Btn>, <Btn>Progress</Btn>, and{" "}
             <Btn>More</Btn>. You can take quizzes and see your progress there. Writing and organising questions (the
             Bank, Extract, the editor, and blueprints) needs a computer. To have the same bank on both, turn on{" "}
-            <Btn>Sync</Btn> in Settings on your computer, then scan its QR code with your phone. After that every change
-            on either one, a quiz, an edit, or a setting, reaches the other by itself a few seconds later.
+            <Btn>Sync</Btn> in Settings on your computer, then scan its QR code with your phone. After that a finished
+            quiz, an edit, or a setting on either one reaches the other by itself.
           </P>
         </Section>
 
@@ -462,10 +462,13 @@ export default function HelpPage() {
           <P>
             <strong>Sync</strong> (at the top of Settings) keeps your devices the same: the bank, images, quizzes and
             results, and your settings and theme. Turn it on on one device, then add the others by scanning its QR code
-            or typing its code. Changes go out by themselves a few seconds after you make them, and when you open the
-            site; the cloud button in the header syncs at once. Everything is encrypted on your device with the code
-            before it is sent, so only devices that know the code can read it. Your AI keys are not synced. The resets
-            in the Danger zone only empty the device you do them on, and turn sync off there first.
+            or typing its code. It works like a backup kept in the cloud: a sync downloads the newest copy if another
+            device saved one and merges it in, the same way a backup Merge does, then saves a new copy with this
+            device&apos;s changes. It runs by itself when you open the site, when you finish a quiz, a minute after
+            other changes, and when you leave the site; the cloud button in the header syncs at once. Pictures are sent
+            once each. Everything is encrypted on your device with the code before it is sent, so only devices that know
+            the code can read it. Your AI keys are not synced. The resets in the Danger zone only empty the device you do
+            them on, and turn sync off there first.
           </P>
           <P>
             Open <Btn>Settings</Btn> and find <strong>Backup and sharing</strong>.

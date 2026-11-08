@@ -94,7 +94,7 @@ export function buildZip(c: Container): Uint8Array {
  * The same zip, compressed in a background worker so the page never freezes. Falls back to doing it here when the
  * browser cannot start a worker.
  */
-async function buildZipAsync(c: Container): Promise<Uint8Array> {
+export async function buildZipAsync(c: Container): Promise<Uint8Array> {
   const files = zipFiles(c);
   try {
     return await new Promise<Uint8Array>((ok, fail) => zip(files, (err, out) => (err ? fail(err) : ok(out))));
@@ -109,6 +109,17 @@ async function unzipAsync(bytes: Uint8Array): Promise<Unzipped> {
   } catch {
     return unzipSync(bytes);
   }
+}
+
+/** Opens a zip made by buildZip, in a background worker when the browser allows. */
+export async function readZipAsync(bytes: Uint8Array): Promise<Container> {
+  let files: Unzipped;
+  try {
+    files = await unzipAsync(bytes);
+  } catch {
+    throw new BackupError("corrupt", "The file is damaged or is not a backup made by this app.");
+  }
+  return containerFrom(files);
 }
 
 export function readZip(bytes: Uint8Array): Container {

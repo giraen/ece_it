@@ -1,33 +1,38 @@
 import { db, type StoredImage, type TreeNode } from "@/lib/db";
 import { FIXED_CATEGORIES } from "@/lib/bank/categories";
-import { mergeById } from "@/lib/backup/merge";
+import { loadTables, tablesFrom } from "@/lib/backup/backup";
+import { buildZipAsync, readZipAsync, type Container } from "@/lib/backup/backupFormat";
+import { planBackupMerge } from "@/lib/backup/merge";
 import { now } from "@/lib/ids";
-import { keyOf, open, openJson, seal, sealJson, spaceOf } from "./crypto";
+import { keyOf, open, seal, spaceOf } from "./crypto";
 import { applyPrefs, readPrefs, type DevicePrefs } from "./devicePrefs";
-import { loadConfig, loadPushed, saveConfig, savePushed, setStatus, type SyncConfig } from "./syncState";
+import {
+  loadChanges,
+  loadCloudImages,
+  loadConfig,
+  loadImageMeta,
+  saveChanges,
+  saveImageMeta,
+  saveCloudImages,
+  saveConfig,
+  setStatus,
+  type SyncConfig,
+} from "./syncState";
 
 /**
- * Two-way sync through the site's /api/sync route, which stores everything in Supabase.
+ * Sync works like a backup kept in the cloud.
  *
- * Every item is encrypted here before it is sent, and the server only stores the scrambled text. A sync:
- * 1. Pulls what other devices sent since last time, and merges it in with the same rule a backup Merge uses: the
- *    newer copy of each item wins, and a deletion is just a newer copy with deletedAt.
- * 2. Sends every item that changed here since the server last had it.
- * Images are sent as their own encrypted files, before the item that names them.
+ * The cloud holds one copy of everything, encrypted on the device with the sync code, plus each image once as its
+ * own file. A sync:
+ * 1. Asks which version of the copy the cloud has. If it is newer than the one this device last saw, it downloads it
+ *    and merges it in with the same rule as a backup Merge: the newer copy of each item wins.
+ * 2. If anything changed on this device since it last saved, it sends any new images, then saves a fresh copy.
+ *    The cloud only takes it if no other device saved in the meantime; if one did, this device merges that copy
+ *    first and tries again. So no device ever overwrites another's work.
+ *
+ * A sync that is cut short (the tab closed, the page reloaded, the connection dropped) changes nothing in the cloud;
+ * the next one simply runs again. Images already sent or received are kept, so those are not repeated.
  */
-
-/** The database tables that sync, in the order they are applied. */
-const TABLES = ["nodes", "questions", "blueprints", "attempts", "variants", "settings", "concepts", "drafts"] as const;
-type TableKind = (typeof TABLES)[number];
-type Kind = TableKind | "images" | "prefs";
-
-interface Row {
-  kind: Kind;
-  id: string;
-  updated_at: number;
-  data: string;
-  seq?: number;
-}
 
 interface ImageMeta {
   id: string;
@@ -37,13 +42,23 @@ interface ImageMeta {
   createdAt: number;
 }
 
-const PULL_PAGE = 500;
-/** Each push stays well under the 4.5 MB a Vercel function accepts. */
-const PUSH_BYTES = 2_500_000;
-/** The biggest single image sync sends. Bigger ones stay on the device they were added on. */
-export const MAX_IMAGE_BYTES = 4_000_000;
+interface Head {
+  version: number;
+  upload?: string;
+  parts?: number;
+}
+
+/** Each part of the copy stays under the 4.5 MB a Vercel function passes on. */
+const PART_BYTES = 3_500_000;
+/** The biggest image sync sends (after encryption it must still fit in one part). */
+const MAX_IMAGE_BYTES = 3_500_000;
+const IMAGES_AT_ONCE = 4;
+const MAX_TRIES = 4;
 
 export class SyncError extends Error {}
+
+/** True while a downloaded copy is being written in, so those writes are not counted as changes made here. */
+export let applyingRemote = false;
 
 async function api<T>(body: unknown): Promise<T> {
   let res: Response;
@@ -61,36 +76,71 @@ async function api<T>(body: unknown): Promise<T> {
   return json;
 }
 
-const imageUrl = (space: string, id: string) =>
-  `/api/sync/image?space=${encodeURIComponent(space)}&id=${encodeURIComponent(id)}`;
-
-async function uploadImage(space: string, key: CryptoKey, img: StoredImage): Promise<boolean> {
-  const bytes = new Uint8Array(await img.blob.arrayBuffer());
-  if (bytes.length > MAX_IMAGE_BYTES) return false;
-  const sealed = await seal(key, bytes);
-  const res = await fetch(imageUrl(space, img.id), {
-    method: "PUT",
-    headers: { "Content-Type": "application/octet-stream" },
-    body: new Blob([new Uint8Array(sealed)]),
-  }).catch(() => null);
-  return !!res?.ok;
+async function fetchBytes(url: string): Promise<Uint8Array> {
+  const res = await fetch(url).catch(() => null);
+  if (!res) throw new SyncError("You seem to be offline. Sync will try again when you are back online.");
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new SyncError(json.error ?? `The sync server answered ${res.status}.`);
+  }
+  return new Uint8Array(await res.arrayBuffer());
 }
 
-async function downloadImage(space: string, key: CryptoKey, meta: ImageMeta): Promise<boolean> {
-  const res = await fetch(imageUrl(space, meta.id)).catch(() => null);
-  if (!res?.ok) return false;
-  try {
-    const bytes = await open(key, new Uint8Array(await res.arrayBuffer()));
-    await db.images.put({ ...meta, blob: new Blob([new Uint8Array(bytes)], { type: meta.mime }) });
-    return true;
-  } catch {
-    return false;
+async function putBytes(url: string, bytes: Uint8Array): Promise<void> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: new Blob([new Uint8Array(bytes)]),
+  }).catch(() => null);
+  if (!res) throw new SyncError("You seem to be offline. Sync will try again when you are back online.");
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new SyncError(json.error ?? `The sync server answered ${res.status}.`);
   }
+}
+
+const q = (o: Record<string, string | number>) =>
+  new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])).toString();
+
+/** Runs `fn` on every item, a few at a time. */
+async function inParallel<T>(items: T[], at: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(at, items.length) }, async () => {
+      while (next < items.length) await fn(items[next++]);
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Downloading and merging
+// ---------------------------------------------------------------------------------------------
+
+async function download(space: string, key: CryptoKey, h: Head): Promise<Container> {
+  const parts: Uint8Array[] = [];
+  for (let i = 0; i < (h.parts ?? 0); i++) {
+    setStatus({ step: "Downloading the latest copy…", progress: i / (h.parts ?? 1) });
+    parts.push(await fetchBytes(`/api/sync/part?${q({ space, upload: h.upload!, n: i })}`));
+  }
+  setStatus({ step: "Opening it…", progress: undefined });
+  const all = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    all.set(p, at);
+    at += p.length;
+  }
+  let zip: Uint8Array;
+  try {
+    zip = await open(key, all);
+  } catch {
+    throw new SyncError("The cloud copy could not be opened with this sync code.");
+  }
+  return readZipAsync(zip);
 }
 
 /**
  * The four fixed categories are made on every device, so two devices that each started on their own can end up with
- * two MATH categories after a sync. This keeps the one that holds things and removes the empty copies.
+ * two MATH categories after a merge. This keeps the one that holds things and removes the empty copies.
  */
 async function tidyCategories(): Promise<void> {
   const nodes = (await db.nodes.toArray()).filter((n) => !n.deletedAt);
@@ -107,137 +157,138 @@ async function tidyCategories(): Promise<void> {
   }
 }
 
-async function pull(
-  cfg: SyncConfig,
-  space: string,
-  key: CryptoKey,
-  pushed: Record<string, number>,
-  waiting: Set<string>,
-): Promise<number> {
-  let since = cfg.lastSeq;
-  const incoming = new Map<Kind, { id: string; updatedAt: number; value: unknown }[]>();
-  for (;;) {
-    const { rows } = await api<{ rows: Row[] }>({ action: "pull", space, since, limit: PULL_PAGE });
-    for (const r of rows) {
-      since = Math.max(since, r.seq ?? since);
+/** Merges a downloaded copy in. Returns the images it lists, which the cloud has. */
+async function mergeIn(c: Container): Promise<ImageMeta[]> {
+  setStatus({ step: "Merging it into this device…", progress: undefined });
+  const incoming = tablesFrom(c);
+  const plan = planBackupMerge(await loadTables(), incoming);
+  const p = plan.puts;
+  const count = Object.values(p).reduce((s, list) => s + list.length, 0);
+  if (count) {
+    applyingRemote = true;
+    try {
+      await db.transaction(
+        "rw",
+        [db.nodes, db.questions, db.blueprints, db.attempts, db.variants, db.settings, db.concepts, db.drafts],
+        async () => {
+          await db.nodes.bulkPut(p.nodes);
+          await db.questions.bulkPut(p.questions);
+          await db.blueprints.bulkPut(p.blueprints);
+          await db.attempts.bulkPut(p.attempts);
+          await db.variants.bulkPut(p.variants);
+          await db.settings.bulkPut(p.settings);
+          await db.concepts.bulkPut(p.concepts);
+          await db.drafts.bulkPut(p.drafts);
+        },
+      );
+    } finally {
+      applyingRemote = false;
+    }
+    await tidyCategories();
+  }
+  const prefs = (c.data.prefs?.[0] ?? null) as DevicePrefs | null;
+  if (prefs && prefs.updatedAt > readPrefs().updatedAt) applyPrefs(prefs);
+  return (c.data.imageMeta ?? []) as ImageMeta[];
+}
+
+/** Fetches the images the cloud has that this device does not. Each is saved as it arrives. */
+async function receiveImages(space: string, key: CryptoKey, metas: ImageMeta[], cloud: Set<string>): Promise<number> {
+  const have = new Set((await db.images.toCollection().primaryKeys()) as string[]);
+  const missing = metas.filter((m) => !have.has(m.id));
+  let done = 0;
+  let failed = 0;
+  await inParallel(missing, IMAGES_AT_ONCE, async (m) => {
+    try {
+      const bytes = await open(key, await fetchBytes(`/api/sync/image?${q({ space, id: m.id })}`));
+      applyingRemote = true;
       try {
-        const value = await openJson<unknown>(key, r.data);
-        incoming.set(r.kind, [...(incoming.get(r.kind) ?? []), { id: r.id, updatedAt: r.updated_at, value }]);
-      } catch {
-        // An item this code cannot open. It cannot be ours, so it is skipped.
+        await db.images.put({ ...m, blob: new Blob([new Uint8Array(bytes)], { type: m.mime }) });
+      } finally {
+        applyingRemote = false;
+      }
+      cloud.add(m.id);
+    } catch {
+      failed++;
+    }
+    setStatus({ step: `Downloading images… ${++done} of ${missing.length}`, progress: done / missing.length });
+  });
+  saveCloudImages(cloud);
+  return failed;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Saving a copy
+// ---------------------------------------------------------------------------------------------
+
+/** Sends the images the cloud does not have yet. Returns how many are too big to sync. */
+async function sendImages(space: string, key: CryptoKey, cloud: Set<string>): Promise<number> {
+  const ids = ((await db.images.toCollection().primaryKeys()) as string[]).filter((id) => !cloud.has(id));
+  let done = 0;
+  let tooBig = 0;
+  await inParallel(ids, IMAGES_AT_ONCE, async (id) => {
+    const img = (await db.images.get(id)) as StoredImage | undefined;
+    if (img) {
+      const bytes = new Uint8Array(await img.blob.arrayBuffer());
+      if (bytes.length > MAX_IMAGE_BYTES) tooBig++;
+      else {
+        await putBytes(`/api/sync/image?${q({ space, id })}`, await seal(key, bytes));
+        cloud.add(id);
+        saveCloudImages(cloud);
       }
     }
-    setStatus({ step: "Receiving changes…" });
-    if (rows.length < PULL_PAGE) break;
-  }
-
-  let applied = 0;
-  for (const kind of TABLES) {
-    const got = incoming.get(kind);
-    if (!got?.length) continue;
-    const table = db.table(kind);
-    const local = (await table.bulkGet(got.map((g) => g.id))).filter(Boolean) as { id: string; updatedAt: number }[];
-    const { puts } = mergeById(
-      local,
-      got.map((g) => g.value as { id: string; updatedAt: number }),
-    );
-    if (puts.length) await table.bulkPut(puts);
-    applied += puts.length;
-    for (const g of got) pushed[`${kind}:${g.id}`] = g.updatedAt;
-  }
-
-  for (const g of incoming.get("images") ?? []) {
-    pushed[`images:${g.id}`] = g.updatedAt;
-    if (!(await db.images.get(g.id))) waiting.add(JSON.stringify(g.value));
-  }
-
-  const prefs = incoming.get("prefs")?.find((g) => g.id === "device");
-  if (prefs) {
-    pushed["prefs:device"] = prefs.updatedAt;
-    if (prefs.updatedAt > readPrefs().updatedAt) applyPrefs(prefs.value as DevicePrefs);
-  }
-
-  if (applied) await tidyCategories();
-  return since;
+    setStatus({ step: `Uploading images… ${++done} of ${ids.length}`, progress: done / ids.length });
+  });
+  return tooBig;
 }
 
-async function push(
+function randomName(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Builds a copy of everything here, sends it, and asks the cloud to make it current. */
+async function saveCopy(
   space: string,
   key: CryptoKey,
-  pushed: Record<string, number>,
-): Promise<{ sent: number; skipped: number }> {
-  const rows: Row[] = [];
-  for (const kind of TABLES) {
-    const all = (await db.table(kind).toArray()) as { id: string; updatedAt: number }[];
-    for (const r of all) {
-      if (pushed[`${kind}:${r.id}`] === r.updatedAt) continue;
-      rows.push({ kind, id: r.id, updated_at: r.updatedAt, data: await sealJson(key, r) });
-    }
-  }
-
-  // Images first, so no item ever points at a picture the server does not have yet.
-  let skipped = 0;
-  const imageIds = (await db.images.toCollection().primaryKeys()) as string[];
-  const newImages = imageIds.filter((id) => pushed[`images:${id}`] === undefined);
-  let n = 0;
-  for (const id of newImages) {
-    const img = await db.images.get(id);
-    if (!img) continue;
-    setStatus({ step: `Sending images… ${++n} of ${newImages.length}` });
-    if (!(await uploadImage(space, key, img))) {
-      skipped++;
-      continue;
-    }
-    const meta: ImageMeta = { id, mime: img.mime, width: img.width, height: img.height, createdAt: img.createdAt };
-    rows.push({ kind: "images", id, updated_at: img.createdAt, data: await sealJson(key, meta) });
-  }
-
-  const prefs = readPrefs();
-  if (prefs.updatedAt > 0 && pushed["prefs:device"] !== prefs.updatedAt) {
-    rows.push({ kind: "prefs", id: "device", updated_at: prefs.updatedAt, data: await sealJson(key, prefs) });
-  }
-
-  // Send in batches small enough for the server.
-  let batch: Row[] = [];
-  let size = 0;
-  let sent = 0;
-  const flush = async () => {
-    if (!batch.length) return;
-    setStatus({ step: `Sending changes… ${sent + batch.length} of ${rows.length}` });
-    await api({ action: "push", space, rows: batch });
-    for (const r of batch) pushed[`${r.kind}:${r.id}`] = r.updated_at;
-    savePushed(pushed);
-    sent += batch.length;
-    batch = [];
-    size = 0;
+  expected: number,
+  cloud: Set<string>,
+  knownMeta: ImageMeta[],
+): Promise<{ ok: boolean; version: number }> {
+  setStatus({ step: "Packing everything up…", progress: undefined });
+  const tables = await loadTables();
+  // Every image the cloud has, described here so the other devices know to fetch it.
+  const metas = new Map(knownMeta.filter((m) => cloud.has(m.id)).map((m) => [m.id, m]));
+  await db.images.each((i) => {
+    if (cloud.has(i.id))
+      metas.set(i.id, { id: i.id, mime: i.mime, width: i.width, height: i.height, createdAt: i.createdAt });
+  });
+  const container: Container = {
+    manifest: { app: "ece-review", format: 1, kind: "backup", createdAt: now(), counts: {} },
+    data: { ...tables, prefs: [readPrefs()], imageMeta: [...metas.values()] },
+    images: [],
   };
-  for (const r of rows) {
-    if (size + r.data.length > PUSH_BYTES) await flush();
-    batch.push(r);
-    size += r.data.length + 100;
+  const sealed = await seal(key, await buildZipAsync(container));
+
+  const upload = randomName();
+  const parts = Math.max(1, Math.ceil(sealed.length / PART_BYTES));
+  for (let i = 0; i < parts; i++) {
+    setStatus({ step: "Uploading…", progress: i / parts });
+    await putBytes(
+      `/api/sync/part?${q({ space, upload, n: i })}`,
+      sealed.subarray(i * PART_BYTES, Math.min(sealed.length, (i + 1) * PART_BYTES)),
+    );
   }
-  await flush();
-  return { sent, skipped };
+  setStatus({ step: "Finishing…", progress: undefined });
+  return api<{ ok: boolean; version: number }>({
+    action: "commit",
+    space,
+    expected,
+    upload,
+    parts,
+    size: sealed.length,
+  });
 }
 
-const WAITING = "ece:syncWaitingImages";
-
-function loadWaiting(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(WAITING) ?? "[]") as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveWaiting(w: Set<string>): void {
-  try {
-    if (w.size) localStorage.setItem(WAITING, JSON.stringify([...w]));
-    else localStorage.removeItem(WAITING);
-  } catch {
-    // ignore
-  }
-}
+// ---------------------------------------------------------------------------------------------
 
 let running: Promise<void> | null = null;
 
@@ -246,43 +297,67 @@ export function syncNow(): Promise<void> {
   if (running) return running;
   running = (async () => {
     const run = async () => {
-      const cfg = loadConfig();
+      let cfg = loadConfig();
       if (!cfg) return;
-      setStatus({ on: true, running: true, error: undefined, step: "Connecting…" });
+      setStatus({ on: true, running: true, error: undefined, step: "Checking for changes…", progress: undefined });
       try {
         const [space, key] = await Promise.all([spaceOf(cfg.code), keyOf(cfg.code)]);
-        const pushed = loadPushed();
-        const waiting = loadWaiting();
+        const cloud = loadCloudImages();
+        let knownMeta = loadImageMeta<ImageMeta>();
+        let failedImages = 0;
+        let tooBig = 0;
 
-        const lastSeq = await pull(cfg, space, key, pushed, waiting);
-        savePushed(pushed);
+        for (let tries = 0; ; tries++) {
+          if (tries >= MAX_TRIES) throw new SyncError("Another device kept saving at the same time. Try again.");
+          const h = await api<Head>({ action: "head", space });
 
-        // Pictures other devices sent: fetch any this device is still missing.
-        let i = 0;
-        for (const w of [...waiting]) {
-          const meta = JSON.parse(w) as ImageMeta;
-          setStatus({ step: `Receiving images… ${++i} of ${waiting.size}` });
-          if ((await db.images.get(meta.id)) || (await downloadImage(space, key, meta))) waiting.delete(w);
+          if (h.version > 0 && h.version !== cfg.version) {
+            const copy = await download(space, key, h);
+            knownMeta = await mergeIn(copy);
+            saveImageMeta(knownMeta);
+            for (const m of knownMeta) cloud.add(m.id);
+            saveCloudImages(cloud);
+            cfg = { ...cfg, version: h.version };
+            if (loadConfig()?.code === cfg.code) saveConfig(cfg);
+          }
+          // Fetch any listed image this device does not have yet, including ones a cut-short sync missed.
+          failedImages = await receiveImages(space, key, knownMeta, cloud);
+
+          const changes = loadChanges();
+          if (h.version > 0 && changes.made <= changes.sent) break;
+
+          const madeBefore = changes.made;
+          tooBig = await sendImages(space, key, cloud);
+          const saved = await saveCopy(space, key, cfg.version, cloud, knownMeta);
+          if (saved.ok) {
+            cfg = { ...cfg, version: saved.version };
+            if (loadConfig()?.code === cfg.code) saveConfig(cfg);
+            saveChanges({ ...loadChanges(), sent: madeBefore });
+            break;
+          }
+          // Another device saved first: go round again, merge its copy, and save after it.
         }
-        saveWaiting(waiting);
 
-        const { skipped } = await push(space, key, pushed);
-        const done = { ...cfg, lastSeq, lastSyncAt: now() };
+        const done: SyncConfig = { ...cfg, lastSyncAt: now() };
         if (loadConfig()?.code === cfg.code) saveConfig(done);
         setStatus({
           running: false,
           step: undefined,
+          progress: undefined,
           lastSyncAt: done.lastSyncAt,
-          waitingImages: waiting.size + skipped,
-          error: skipped
-            ? `${skipped} image${skipped === 1 ? " is" : "s are"} too big to sync (over 4 MB) or could not be sent.`
+          error: failedImages
+            ? `${failedImages} image${failedImages === 1 ? "" : "s"} could not be downloaded. Sync will try again.`
+            : undefined,
+          note: tooBig
+            ? `${tooBig} image${tooBig === 1 ? " is" : "s are"} over 3.5 MB, so ${tooBig === 1 ? "it stays" : "they stay"} on this device only.`
             : undefined,
         });
       } catch (e) {
         setStatus({
           running: false,
           step: undefined,
-          error: e instanceof SyncError ? e.message : "Sync failed. It will try again soon.",
+          progress: undefined,
+          error: e instanceof SyncError ? e.message : "Sync did not finish. Nothing was lost; it will try again.",
         });
       }
     };

@@ -29,8 +29,8 @@ import {
 } from "./merge";
 import { selectPackContent } from "./share";
 
-/** Everything stored in this browser, deleted records included. */
-async function loadTables(): Promise<Tables> {
+/** Everything stored in this browser, deleted records included. Sync sends this too. */
+export async function loadTables(): Promise<Tables> {
   const [nodes, questions, blueprints, attempts, variants, settings, concepts, drafts] = await Promise.all([
     db.nodes.toArray(),
     db.questions.toArray(),

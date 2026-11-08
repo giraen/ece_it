@@ -1,15 +1,19 @@
 import { db } from "@/lib/db";
 import { newSyncCode } from "./crypto";
 import { LOCAL_CHANGE_EVENT } from "./devicePrefs";
-import { syncNow } from "./engine";
-import { loadConfig, saveConfig, setStatus } from "./syncState";
+import { applyingRemote, syncNow } from "./engine";
+import { hasUnsentChanges, loadConfig, noteChange, saveConfig, setStatus } from "./syncState";
 
 /**
- * When sync runs by itself: when the site opens, a few seconds after anything changes (a quiz answer, an edit in the
- * Bank, a setting), when the device comes back online or back to this tab, and every few minutes while it is open.
+ * When sync runs by itself.
+ *
+ * Checking the cloud for a newer copy is quick, so it happens when the site opens, when you come back to it, and every
+ * few minutes. Saving a copy sends everything, so it waits until you pause: a minute after your last change, at once
+ * when you finish a quiz, and when you leave the site or switch to another app.
  */
 
-const AFTER_CHANGE_MS = 8_000;
+const AFTER_CHANGE_MS = 60_000;
+const AFTER_QUIZ_MS = 2_000;
 const EVERY_MS = 5 * 60_000;
 const ON_RETURN_AFTER_MS = 60_000;
 
@@ -25,68 +29,78 @@ function run() {
   void syncNow();
 }
 
-/** Asks for a sync soon. Many changes in a row make one sync. */
+/** Asks for a sync after a pause. Many changes in a row make one sync. */
 export function syncSoon(delay = AFTER_CHANGE_MS): void {
   if (!loadConfig()) return;
   window.clearTimeout(timer);
   timer = window.setTimeout(run, delay);
 }
 
+const TABLES = ["nodes", "questions", "blueprints", "attempts", "variants", "settings", "concepts", "drafts", "images"];
+
 /** Starts the automatic syncing. Safe to call more than once. */
 export function startAutoSync(): void {
   if (started || typeof window === "undefined") return;
   started = true;
 
-  const changed = () => syncSoon();
-  for (const t of [
-    "nodes",
-    "questions",
-    "blueprints",
-    "attempts",
-    "variants",
-    "settings",
-    "concepts",
-    "drafts",
-    "images",
-  ]) {
+  const changed = () => {
+    if (applyingRemote || !loadConfig()) return;
+    noteChange();
+    syncSoon();
+  };
+  for (const t of TABLES) {
     const table = db.table(t);
     table.hook("creating", changed);
-    table.hook("updating", changed);
     table.hook("deleting", changed);
+    table.hook("updating", (mods) => {
+      changed();
+      // A finished quiz is worth sending at once.
+      if (t === "attempts" && (mods as { status?: string }).status === "submitted" && !applyingRemote && loadConfig()) {
+        syncSoon(AFTER_QUIZ_MS);
+      }
+    });
   }
   window.addEventListener(LOCAL_CHANGE_EVENT, changed);
   window.addEventListener("online", () => syncSoon(1_000));
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && Date.now() - lastRun > ON_RETURN_AFTER_MS) syncSoon(500);
+    if (!loadConfig()) return;
+    if (document.visibilityState === "hidden" && hasUnsentChanges()) run();
+    else if (document.visibilityState === "visible" && Date.now() - lastRun > ON_RETURN_AFTER_MS) syncSoon(500);
   });
   window.setInterval(() => {
     if (document.visibilityState === "visible") run();
   }, EVERY_MS);
 
+  // Left over from the first version of sync, which sent items one by one.
+  try {
+    for (const k of ["ece:syncPushed", "ece:syncWaitingImages"]) localStorage.removeItem(k);
+  } catch {
+    // ignore
+  }
+
   if (loadConfig()) syncSoon(1_500);
 }
 
-/** Turns sync on with a brand-new code. Use on the first device. */
+/** Turns sync on with a brand-new code. Use on the first device: it saves the first copy to the cloud. */
 export async function turnOnSync(): Promise<string> {
   const code = newSyncCode();
-  saveConfig({ code, lastSeq: 0 });
+  saveConfig({ code, version: 0 });
   await syncNow();
   return code;
 }
 
-/** Links this device to the others that use this code, then syncs: what is here and what is there are combined. */
+/**
+ * Links this device to the others that use this code. It downloads their copy and merges it in, then saves a copy
+ * with what this device adds, so what is here and what is there are combined.
+ */
 export async function joinSync(code: string): Promise<void> {
-  saveConfig({ code, lastSeq: 0 });
+  saveConfig({ code, version: 0 });
+  noteChange();
   await syncNow();
 }
 
 /** Stops syncing on this device. Nothing is deleted, here or on the other devices. */
 export function turnOffSync(): void {
   saveConfig(null);
-  try {
-    localStorage.removeItem("ece:syncWaitingImages");
-  } catch {
-    // ignore
-  }
-  setStatus({ on: false, running: false, error: undefined, step: undefined, lastSyncAt: undefined, waitingImages: 0 });
+  setStatus({ on: false, running: false, error: undefined, note: undefined, step: undefined, lastSyncAt: undefined });
 }

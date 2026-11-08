@@ -1,18 +1,20 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * What sync remembers on this device. The code is the secret that links devices, so it never leaves this browser
- * except encrypted into nothing: the server only ever sees a hash of it.
+ * What sync remembers on this device. The code is the secret that links devices; the server only ever sees a hash
+ * of it.
  */
 export interface SyncConfig {
   code: string;
-  /** The server's change counter at the last pull. The next pull asks only for what came after it. */
-  lastSeq: number;
+  /** The version of the cloud copy this device last merged in or saved. */
+  version: number;
   lastSyncAt?: number;
 }
 
 const CONFIG = "ece:sync";
-const PUSHED = "ece:syncPushed";
+const CHANGES = "ece:syncChanges";
+const CLOUD_IMAGES = "ece:syncCloudImages";
+const IMAGE_META = "ece:syncImageMeta";
 
 function get(key: string): string | null {
   try {
@@ -27,14 +29,14 @@ function set(key: string, value: string | null): void {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
   } catch {
-    // Storage is full or blocked. Sync still works this time, and starts over next time.
+    // Storage is full or blocked. Sync still works; it may just send a little more next time.
   }
 }
 
 export function loadConfig(): SyncConfig | null {
   try {
     const c = JSON.parse(get(CONFIG) ?? "null") as SyncConfig | null;
-    return c && typeof c.code === "string" ? c : null;
+    return c && typeof c.code === "string" && typeof c.version === "number" ? c : null;
   } catch {
     return null;
   }
@@ -42,24 +44,65 @@ export function loadConfig(): SyncConfig | null {
 
 export function saveConfig(c: SyncConfig | null): void {
   set(CONFIG, c ? JSON.stringify(c) : null);
-  if (!c) set(PUSHED, null);
+  if (!c) {
+    set(CHANGES, null);
+    set(CLOUD_IMAGES, null);
+    set(IMAGE_META, null);
+  }
   notify();
 }
 
 /**
- * The version of each item this device knows the server has, as "kind:id" → updatedAt. An item whose updatedAt is
- * different from this is sent at the next sync.
+ * Counts changes made on this device. `made` goes up with every change; `sent` is what `made` was when the last copy
+ * was saved to the cloud. More made than sent means there is something to send.
  */
-export function loadPushed(): Record<string, number> {
+export function loadChanges(): { made: number; sent: number } {
   try {
-    return (JSON.parse(get(PUSHED) ?? "{}") as Record<string, number>) ?? {};
+    const c = JSON.parse(get(CHANGES) ?? "null") as { made: number; sent: number } | null;
+    return c ?? { made: 0, sent: 0 };
   } catch {
-    return {};
+    return { made: 0, sent: 0 };
   }
 }
 
-export function savePushed(p: Record<string, number>): void {
-  set(PUSHED, JSON.stringify(p));
+export function saveChanges(c: { made: number; sent: number }): void {
+  set(CHANGES, JSON.stringify(c));
+}
+
+export function noteChange(): void {
+  const c = loadChanges();
+  saveChanges({ ...c, made: c.made + 1 });
+}
+
+export const hasUnsentChanges = () => {
+  const c = loadChanges();
+  return c.made > c.sent;
+};
+
+/** The images the cloud already has, so each picture is sent only once, even if a sync is cut short. */
+export function loadCloudImages(): Set<string> {
+  try {
+    return new Set(JSON.parse(get(CLOUD_IMAGES) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveCloudImages(ids: Set<string>): void {
+  set(CLOUD_IMAGES, JSON.stringify([...ids]));
+}
+
+/** The images the last cloud copy listed, so any this device is still missing are fetched at the next sync. */
+export function loadImageMeta<T>(): T[] {
+  try {
+    return JSON.parse(get(IMAGE_META) ?? "[]") as T[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveImageMeta<T>(list: T[]): void {
+  set(IMAGE_META, JSON.stringify(list));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -69,15 +112,17 @@ export function savePushed(p: Record<string, number>): void {
 export interface SyncStatus {
   on: boolean;
   running: boolean;
-  /** What a running sync is doing, such as "Sending 120 items…". */
+  /** What a running sync is doing, such as "Uploading…". */
   step?: string;
+  /** How far the current step is, from 0 to 1, when that is known. */
+  progress?: number;
   lastSyncAt?: number;
   error?: string;
-  /** Images that could not be fetched or sent yet. They are tried again at every sync. */
-  waitingImages: number;
+  /** Something worth knowing that is not a problem, such as images too big to sync. */
+  note?: string;
 }
 
-let status: SyncStatus = { on: false, running: false, waitingImages: 0 };
+let status: SyncStatus = { on: false, running: false };
 let fresh = false;
 const listeners = new Set<() => void>();
 
@@ -101,7 +146,7 @@ function current(): SyncStatus {
   return status;
 }
 
-const OFF: SyncStatus = { on: false, running: false, waitingImages: 0 };
+const OFF: SyncStatus = { on: false, running: false };
 
 export function useSyncStatus(): SyncStatus {
   return useSyncExternalStore(

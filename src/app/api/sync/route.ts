@@ -1,39 +1,32 @@
-import { config, headers, ID, KINDS, problem, SetupError, SPACE, upstream } from "./supabase";
+import {
+  headers,
+  MAX_PARTS,
+  noStore,
+  partPaths,
+  problem,
+  removeFiles,
+  setup,
+  SPACE,
+  UPLOAD,
+  upstream,
+} from "./supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * POST { action: "push", space, rows } saves encrypted items. A row only replaces an older version of itself.
- * POST { action: "pull", space, since, limit } returns the items saved after the change counter `since`.
+ * POST { action: "head", space } says which version of the synced copy is in the cloud, and how it is stored.
+ * POST { action: "commit", space, expected, upload, parts, size } makes an uploaded copy the current one, but only if
+ * the cloud still has version `expected`. If another device saved first, it answers ok: false and this device merges
+ * that copy and tries again, so no device ever overwrites another's work.
  */
 
-const MAX_ROWS = 2000;
-const MAX_ROW_BYTES = 3_000_000;
-const MAX_LIMIT = 1000;
-
-interface Row {
-  kind: string;
-  id: string;
-  updated_at: number;
-  data: string;
-}
-
-function validRow(r: unknown): r is Row {
-  if (!r || typeof r !== "object") return false;
-  const x = r as Record<string, unknown>;
-  return (
-    typeof x.kind === "string" &&
-    KINDS.has(x.kind) &&
-    typeof x.id === "string" &&
-    ID.test(x.id) &&
-    typeof x.updated_at === "number" &&
-    Number.isSafeInteger(x.updated_at) &&
-    typeof x.data === "string" &&
-    x.data.length > 0 &&
-    x.data.length <= MAX_ROW_BYTES
-  );
+interface Head {
+  version: number;
+  upload?: string;
+  parts?: number;
+  size?: number;
 }
 
 export async function POST(req: Request) {
@@ -45,59 +38,58 @@ export async function POST(req: Request) {
   }
   const space = body.space;
   if (typeof space !== "string" || !SPACE.test(space)) return problem(400, "The sync code is not valid.");
-
-  let cfg: { url: string; key: string };
-  try {
-    cfg = config();
-  } catch (e) {
-    return problem(503, e instanceof SetupError ? e.message : "Sync is not set up.");
-  }
+  const cfg = setup();
+  if (cfg instanceof Response) return cfg;
 
   try {
-    if (body.action === "push") {
-      const rows = body.rows;
-      if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_ROWS || !rows.every(validRow)) {
-        return problem(400, "Some items could not be sent.");
-      }
-      const res = await fetch(`${cfg.url}/rest/v1/rpc/sync_push`, {
-        method: "POST",
-        headers: headers(cfg.key, { "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          p_space: space,
-          p_rows: rows.map(({ kind, id, updated_at, data }) => ({ kind, id, updated_at, data })),
-        }),
-        cache: "no-store",
-      });
-      if (!res.ok) return upstream(res);
-      return Response.json({ seq: Number(await res.json()) || 0 }, { headers: { "Cache-Control": "no-store" } });
-    }
-
-    if (body.action === "pull") {
-      const since = Number(body.since);
-      const limit = Math.min(MAX_LIMIT, Math.max(1, Number(body.limit) || 500));
-      if (!Number.isSafeInteger(since) || since < 0) return problem(400, "The request was not valid.");
-      const q = new URLSearchParams({
-        select: "kind,id,updated_at,seq,data",
-        space: `eq.${space}`,
-        seq: `gt.${since}`,
-        order: "seq.asc",
-        limit: String(limit),
-      });
-      const res = await fetch(`${cfg.url}/rest/v1/sync_records?${q}`, {
+    if (body.action === "head") {
+      const q = new URLSearchParams({ select: "version,upload,parts,size", space: `eq.${space}` });
+      const res = await fetch(`${cfg.url}/rest/v1/sync_snapshots?${q}`, {
         headers: headers(cfg.key),
         cache: "no-store",
       });
       if (!res.ok) return upstream(res);
-      const rows = (await res.json()) as (Row & { seq: number | string })[];
+      const rows = (await res.json()) as Head[];
+      const h = rows[0];
       return Response.json(
-        { rows: rows.map((r) => ({ ...r, seq: Number(r.seq), updated_at: Number(r.updated_at) })) },
-        { headers: { "Cache-Control": "no-store" } },
+        h
+          ? { version: Number(h.version), upload: h.upload, parts: Number(h.parts), size: Number(h.size) }
+          : { version: 0 },
+        noStore,
       );
+    }
+
+    if (body.action === "commit") {
+      const { expected, upload, parts, size } = body;
+      if (
+        !Number.isSafeInteger(expected) ||
+        (expected as number) < 0 ||
+        typeof upload !== "string" ||
+        !UPLOAD.test(upload) ||
+        !Number.isSafeInteger(parts) ||
+        (parts as number) < 1 ||
+        (parts as number) > MAX_PARTS ||
+        !Number.isSafeInteger(size)
+      ) {
+        return problem(400, "The request was not valid.");
+      }
+      const res = await fetch(`${cfg.url}/rest/v1/rpc/sync_commit`, {
+        method: "POST",
+        headers: headers(cfg.key, { "Content-Type": "application/json" }),
+        body: JSON.stringify({ p_space: space, p_expected: expected, p_upload: upload, p_parts: parts, p_size: size }),
+        cache: "no-store",
+      });
+      if (!res.ok) return upstream(res);
+      const out = (await res.json()) as { ok: boolean; version: number; old_upload?: string; old_parts?: number };
+      // The copy that was replaced, or this upload if it lost the race, is no longer needed.
+      if (out.ok && out.old_upload) await removeFiles(cfg, partPaths(space, out.old_upload, Number(out.old_parts)));
+      if (!out.ok) await removeFiles(cfg, partPaths(space, upload, parts as number));
+      return Response.json({ ok: out.ok, version: Number(out.version) }, noStore);
     }
 
     return problem(400, "Unknown sync action.");
   } catch (e) {
     console.error("Sync route failed", e);
-    return problem(502, "Could not reach the sync server. It will try again.");
+    return problem(502, "Could not reach the sync server. Try again in a moment.");
   }
 }

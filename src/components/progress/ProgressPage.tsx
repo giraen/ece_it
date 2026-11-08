@@ -46,7 +46,11 @@ export default function ProgressPage() {
   return (
     <div className="max-w-4xl space-y-5">
       <h1 className="text-xl font-semibold">Mastery & analytics</h1>
-      <div role="tablist" aria-label="Sections" className="scroll-thin flex gap-1 overflow-x-auto border-b border-line">
+      <div
+        role="tablist"
+        aria-label="Sections"
+        className="scroll-thin flex gap-1 border-b border-line max-lg:overflow-x-auto max-lg:overflow-y-hidden"
+      >
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -55,7 +59,7 @@ export default function ProgressPage() {
             aria-selected={tab === t.id}
             aria-controls={`panel-${t.id}`}
             onClick={() => router.replace(t.id === "mastery" ? "/progress" : `/progress?tab=${t.id}`)}
-            className={`-mb-px shrink-0 border-b-2 px-4 py-2 text-sm whitespace-nowrap ${
+            className={`shrink-0 border-b-2 lg:-mb-px px-4 py-2 text-sm whitespace-nowrap ${
               tab === t.id ? "border-accent font-medium text-accent" : "border-transparent text-muted hover:text-ink"
             }`}
           >

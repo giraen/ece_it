@@ -226,7 +226,7 @@ function PackExport({
             <strong>{sel.concepts.length}</strong> concept{sel.concepts.length === 1 ? "" : "s"},{" "}
           </>
         )}
-        <strong>{sel.imageIds.length}</strong>
+        <strong>{sel.imageIds.length}</strong> image{sel.imageIds.length === 1 ? "" : "s"},{" "}
         <strong>{sel.nodes.length}</strong> tree item{sel.nodes.length === 1 ? "" : "s"}
         {sel.variants.length > 0 &&
           `, plus ${sel.variants.length} approved AI variant${sel.variants.length === 1 ? "" : "s"}`}
@@ -379,19 +379,19 @@ function ImportFile() {
     >
       {state.step === "idle" && (
         <label className="btn cursor-pointer focus-within:ring-2 focus-within:ring-accent">
-        Choose a file…
-        <input
-          type="file"
-          aria-label="Backup or pack file"
-          accept=".ecebak,.ecepack"
-          className="sr-only"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = "";
-            void onFile(f);
-          }}
-        />
-      </label>
+          Choose a file…
+          <input
+            type="file"
+            aria-label="Backup or pack file"
+            accept=".ecebak,.ecepack"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              void onFile(f);
+            }}
+          />
+        </label>
       )}
 
       {state.step === "password" && (
@@ -400,12 +400,12 @@ function ImportFile() {
             <strong>{state.fileName}</strong> is a {state.kind === "backup" ? "full backup" : "bank pack"} protected by
             a password.
           </p>
-          <div className="flex items-end gap-2">
-            <div>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="max-lg:w-full">
               <label className="mb-1 block text-sm font-medium">Password</label>
               <PasswordInput
                 label="Password"
-                className="w-64"
+                className="w-64 max-lg:w-full"
                 autoComplete="off"
                 value={pw}
                 onChange={setPw}

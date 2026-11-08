@@ -69,7 +69,7 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
   return (
     <li>
       <div
-        className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md py-2 pr-2 hover:bg-paper"
+        className="flex items-center gap-x-3 gap-y-1 rounded-md py-2 pr-2 hover:bg-paper"
         style={{ paddingLeft: depth * 20 + 4 }}
       >
         {kids.length > 0 ? (
@@ -84,19 +84,28 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
         ) : (
           <span className="w-5" />
         )}
-        <span className="min-w-0 flex-1 basis-40">
-          {mark && <ExpiryWarn mark={mark} />}
-          <span className={`text-sm ${node.kind === "category" ? "font-semibold" : ""}`}>{node.name}</span>
-          <span className="ml-2 text-xs text-muted">
-            {count} question{count === 1 ? "" : "s"}
-            {childText ? ` · ${childText}` : ""}
+        {/* On a phone the name gets its own line, with the counts and the status under it. */}
+        <div className="min-w-0 flex-1 lg:flex lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-1">
+          <span className="block min-w-0 lg:flex-1 lg:basis-40">
+            {mark && <ExpiryWarn mark={mark} />}
+            <span className={`text-sm ${node.kind === "category" ? "font-semibold" : ""}`}>{node.name}</span>
+            <span className="ml-2 text-xs text-muted max-lg:hidden">
+              {count} question{count === 1 ? "" : "s"}
+              {childText ? ` · ${childText}` : ""}
+            </span>
           </span>
-        </span>
-        <Status m={m} nowMs={ctx.nowMs} />
-        {locked && m.info.lockedUntil !== undefined && (
-          <span className="text-xs text-danger">Retake in {formatCountdown(m.info.lockedUntil - ctx.nowMs)}</span>
-        )}
-        <span className="flex gap-1.5">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 lg:contents">
+            <span className="text-xs text-muted lg:hidden">
+              {count} question{count === 1 ? "" : "s"}
+              {childText ? ` · ${childText}` : ""}
+            </span>
+            <Status m={m} nowMs={ctx.nowMs} />
+            {locked && m.info.lockedUntil !== undefined && (
+              <span className="text-xs text-danger">Retake in {formatCountdown(m.info.lockedUntil - ctx.nowMs)}</span>
+            )}
+          </div>
+        </div>
+        <span className="flex shrink-0 gap-1.5">
           {node.kind === "category" ? (
             <>
               <Link href={`/blueprint?category=${node.id}`} className="btn py-1 max-lg:hidden">

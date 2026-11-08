@@ -82,43 +82,50 @@ function Row({
         ) : (
           <span className="w-5" />
         )}
-        <span className={`min-w-0 flex-1 truncate text-sm ${node.kind === "category" ? "font-medium" : ""}`}>
-          {mark && <ExpiryWarn mark={mark} />}
-          {node.name}
-        </span>
-        <span className="text-xs text-muted tabular-nums">
-          {count} question{count === 1 ? "" : "s"}
-        </span>
-        {info?.status === "mastered" && info.expiresAt !== undefined && (
+        {/* On a phone the name gets its own line and the details go under it, so a long name is never cut off. */}
+        <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-2">
           <span
-            className={`rounded px-1.5 py-0.5 text-xs ${soon ? "bg-priority-soft text-priority" : "bg-good/10 text-good"}`}
+            className={`block text-sm lg:min-w-0 lg:flex-1 lg:truncate ${node.kind === "category" ? "font-medium" : ""}`}
           >
-            Mastered until {formatDate(info.expiresAt)}
+            {mark && <ExpiryWarn mark={mark} />}
+            {node.name}
           </span>
-        )}
-        {info?.status === "expired" && info.expiresAt !== undefined && (
-          <span className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger">
-            Expired {formatDate(info.expiresAt)}
-          </span>
-        )}
-        {locked && info?.lockedUntil !== undefined && (
-          <span
-            className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger"
-            title="A failed quiz locks a topic or subject for a day"
-          >
-            Locked {formatCountdown(info.lockedUntil - nowMs)}
-          </span>
-        )}
-        {practiceOnly && (
-          <span
-            className="rounded bg-paper px-1.5 py-0.5 text-xs text-muted"
-            title={`A quiz needs at least ${minItems} questions to award mastery`}
-          >
-            practice only
-          </span>
-        )}
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 lg:mt-0 lg:flex-nowrap lg:gap-2">
+            <span className="text-xs text-muted tabular-nums">
+              {count} question{count === 1 ? "" : "s"}
+            </span>
+            {info?.status === "mastered" && info.expiresAt !== undefined && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs ${soon ? "bg-priority-soft text-priority" : "bg-good/10 text-good"}`}
+              >
+                Mastered until {formatDate(info.expiresAt)}
+              </span>
+            )}
+            {info?.status === "expired" && info.expiresAt !== undefined && (
+              <span className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger">
+                Expired {formatDate(info.expiresAt)}
+              </span>
+            )}
+            {locked && info?.lockedUntil !== undefined && (
+              <span
+                className="rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger"
+                title="A failed quiz locks a topic or subject for a day"
+              >
+                Locked {formatCountdown(info.lockedUntil - nowMs)}
+              </span>
+            )}
+            {practiceOnly && (
+              <span
+                className="rounded bg-paper px-1.5 py-0.5 text-xs text-muted"
+                title={`A quiz needs at least ${minItems} questions to award mastery`}
+              >
+                practice only
+              </span>
+            )}
+          </div>
+        </div>
         {node.kind === "category" ? (
-          <span className="flex gap-1.5">
+          <span className="flex shrink-0 gap-1.5">
             <Link
               href={`/blueprint?category=${node.id}`}
               className="btn max-lg:hidden"
@@ -138,13 +145,13 @@ function Row({
             )}
           </span>
         ) : count === 0 ? (
-          <span className="btn w-20 cursor-not-allowed opacity-50" aria-disabled="true">
+          <span className="btn w-20 shrink-0 cursor-not-allowed opacity-50" aria-disabled="true">
             Quiz
           </span>
         ) : (
           <Link
             href={`/quiz/new?node=${node.id}`}
-            className="btn w-20"
+            className="btn w-20 shrink-0"
             aria-label={`Quiz on ${node.name}`}
             title={locked ? "Locked after a failed quiz. You can still practise." : undefined}
           >

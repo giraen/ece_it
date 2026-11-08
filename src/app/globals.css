@@ -10,6 +10,8 @@
   --color-line: #e2ddd2;
   --color-track: #ece8df;
   --color-accent: #0f766e;
+  /* The fill behind white text: primary buttons, the current question number, progress bars. */
+  --color-accent-fill: #0f766e;
   --color-accent-soft: #d8efea;
   --color-danger: #b42318;
   --color-good: #15803d;
@@ -48,7 +50,9 @@
   --color-muted: #97a5a0;
   --color-line: #24302d;
   --color-track: #1f2927;
-  --color-accent: #5eead4;
+  /* A calm sea-green rather than a bright mint, so it does not glare on the dark page. */
+  --color-accent: #4db6a6;
+  --color-accent-fill: #1d7468;
   --color-accent-soft: #10302a;
   --color-danger: #f38b82;
   --color-good: #5fd39a;
@@ -58,17 +62,27 @@
   --color-geas-soft: #3a1f0e;
   --color-esat: #b69bfc;
   --color-esat-soft: #26193f;
-  --color-elex: #5eead4;
+  --color-elex: #4db6a6;
   --color-elex-soft: #10302a;
   --color-math: #86a8ff;
   --color-math-soft: #16224a;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 6px 20px rgb(0 0 0 / 0.35);
 }
 
-/* In dark mode the accent is a light mint, so the text on top of an accent fill has to be dark to stay readable. */
+/* In dark mode, filled accent areas use a deeper teal than the accent text, so a big button never glares.
+   The text on them is a soft white rather than pure white. */
+:root[data-theme="dark"] .bg-accent,
+:root[data-theme="dark"] .btn-primary {
+  background-color: var(--color-accent-fill);
+  border-color: var(--color-accent-fill);
+}
+:root[data-theme="dark"] .btn-primary:hover:not(:disabled) {
+  background-color: #1a6b60;
+  border-color: #1a6b60;
+}
 :root[data-theme="dark"] .text-white,
 :root[data-theme="dark"] .btn-primary {
-  color: #04201b;
+  color: #ecf6f3;
 }
 
 html {

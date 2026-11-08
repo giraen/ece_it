@@ -5,6 +5,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { emptyBank, eraseEverything, resetCounts, resetProgress, type ResetCounts, type ResetKind } from "@/lib/backup/reset";
 import { formatDate } from "@/lib/format";
 import { useLastBackup } from "@/lib/backup/lastBackup";
+import { turnOffSync } from "@/lib/sync/autoSync";
+import { useSyncStatus } from "@/lib/sync/syncState";
 
 const WORD = "RESET";
 
@@ -78,6 +80,7 @@ function Confirm({
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const lastBackup = useLastBackup();
+  const sync = useSyncStatus();
 
   useEffect(() => {
     input.current?.focus();
@@ -92,6 +95,9 @@ function Confirm({
     setBusy(true);
     setError(null);
     try {
+      // A reset only empties this device. Sync is turned off first, so it neither brings the data back nor deletes it
+      // on the other devices.
+      if (sync.on) turnOffSync();
       if (action.kind === "progress") await resetProgress();
       else if (action.kind === "bank") await emptyBank();
       else await eraseEverything(removeKeys);
@@ -138,6 +144,8 @@ function Confirm({
             ? `Your last full backup was on ${formatDate(lastBackup)}.`
             : "You have never made a full backup on this device."}{" "}
           Close this and make one under Backup and sharing first if you may want this data back.
+          {sync.on &&
+            " Sync is on, so it will be turned off on this device first. Your other devices keep their data; to reset them too, do it on each one."}
         </p>
         {action.kind === "everything" && (
           <label className="flex items-center gap-2 text-sm">

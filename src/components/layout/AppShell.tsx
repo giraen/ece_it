@@ -9,7 +9,9 @@ import DialogHost from "./DialogHost";
 import Logo from "./Logo";
 import PhoneNav from "./PhoneNav";
 import ProfileMenu from "./ProfileMenu";
+import SyncIndicator from "./SyncIndicator";
 import ThemeToggle from "./ThemeToggle";
+import { startAutoSync } from "@/lib/sync/autoSync";
 
 const count = (n: number) => `${n} quiz${n === 1 ? "" : "zes"}`;
 
@@ -56,6 +58,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     void ensureCategories();
     // When the mastery bar or the minimums changed since the quizzes were judged, check the recent ones again.
     void syncRules();
+    // Keep this device in step with the others, when sync is on.
+    startAutoSync();
     const onRechecked = (e: Event) => setRechecked((e as CustomEvent<RecheckSummary>).detail);
     window.addEventListener(RECHECK_EVENT, onRechecked);
     return () => window.removeEventListener(RECHECK_EVENT, onRechecked);
@@ -87,6 +91,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <SyncIndicator />
             <ThemeToggle />
             <div className="max-lg:hidden">
               <ProfileMenu />

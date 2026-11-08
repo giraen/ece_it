@@ -134,9 +134,9 @@ export default function HelpPage() {
           <P>
             On a phone, the tabs at the bottom open <Btn>Home</Btn>, <Btn>Quiz</Btn>, <Btn>Progress</Btn>, and{" "}
             <Btn>More</Btn>. You can take quizzes and see your progress there. Writing and organising questions (the
-            Bank, Extract, the editor, and blueprints) needs a computer. Each browser keeps its own bank, so to quiz on
-            your phone, export a backup on your computer and import it in <Btn>Settings</Btn> on the phone. Quizzes you
-            take on the phone stay on the phone until you move a backup back.
+            Bank, Extract, the editor, and blueprints) needs a computer. To have the same bank on both, turn on{" "}
+            <Btn>Sync</Btn> in Settings on your computer, then scan its QR code with your phone. After that every change
+            on either one, a quiz, an edit, or a setting, reaches the other by itself a few seconds later.
           </P>
         </Section>
 
@@ -459,6 +459,14 @@ export default function HelpPage() {
         </Section>
 
         <Section id="backup" title="Backup and sharing">
+          <P>
+            <strong>Sync</strong> (at the top of Settings) keeps your devices the same: the bank, images, quizzes and
+            results, and your settings and theme. Turn it on on one device, then add the others by scanning its QR code
+            or typing its code. Changes go out by themselves a few seconds after you make them, and when you open the
+            site; the cloud button in the header syncs at once. Everything is encrypted on your device with the code
+            before it is sent, so only devices that know the code can read it. Your AI keys are not synced. The resets
+            in the Danger zone only empty the device you do them on, and turn sync off there first.
+          </P>
           <P>
             Open <Btn>Settings</Btn> and find <strong>Backup and sharing</strong>.
           </P>

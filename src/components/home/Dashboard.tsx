@@ -146,13 +146,13 @@ export default function Dashboard() {
           <Link href="/bank" className="btn btn-primary mt-4 max-lg:hidden">
             Open the bank
           </Link>
-          {/* A phone starts with an empty bank of its own, so it points to the backup import instead. */}
+          {/* A phone starts with an empty bank of its own, so it points to sync instead. */}
           <p className="mt-3 text-sm text-muted lg:hidden">
-            Your questions are saved in each browser separately. To bring them here, export a backup on your computer
-            and import it on this phone.
+            To bring your bank here, turn on Sync on your computer and scan its QR code with this phone, or join with
+            its code.
           </p>
-          <Link href="/settings#backup" className="btn btn-primary mt-4 lg:hidden">
-            Import a backup
+          <Link href="/settings#sync" className="btn btn-primary mt-4 lg:hidden">
+            Set up sync
           </Link>
         </section>
       ) : (

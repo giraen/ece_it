@@ -10,8 +10,10 @@ import LibraryLinks from "./LibraryLinks";
 import PreferencesPanel from "./PreferencesPanel";
 import QuizMixPanel from "@/components/quiz/QuizMixPanel";
 import StorageStatus from "./StorageStatus";
+import SyncPanel from "./SyncPanel";
 
 const JUMPS = [
+  { id: "sync", label: "Sync" },
   { id: "preferences", label: "Preferences" },
   { id: "mix", label: "Quiz mix" },
   { id: "library", label: "Sources and tags" },
@@ -39,6 +41,13 @@ export default function SettingsPage() {
           ))}
         </p>
       </div>
+
+      <section id="sync" aria-labelledby="sync-title" className="scroll-mt-4 space-y-4">
+        <h2 id="sync-title" className="text-lg font-semibold">
+          Sync between devices
+        </h2>
+        <SyncPanel />
+      </section>
 
       <section id="preferences" aria-labelledby="preferences-title" className="scroll-mt-4 space-y-4">
         <h2 id="preferences-title" className="text-lg font-semibold">

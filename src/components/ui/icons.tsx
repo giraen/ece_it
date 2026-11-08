@@ -71,3 +71,9 @@ export const CloseIcon = () => (
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
+
+export const CloudIcon = () => (
+  <svg {...base}>
+    <path d="M7 18a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H7z" />
+  </svg>
+);

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { markPrefsChanged } from "@/lib/sync/devicePrefs";
 
 const KEY = "ece:motion";
 const EVENT = "ece:motion-change";
@@ -27,6 +28,7 @@ export function setFullMotion(on: boolean): void {
   if (on) document.documentElement.setAttribute("data-motion", "full");
   else document.documentElement.removeAttribute("data-motion");
   window.dispatchEvent(new Event(EVENT));
+  markPrefsChanged();
 }
 
 /** Whether animations should be skipped: the computer asks for less motion and it was not turned back on here. */

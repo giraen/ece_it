@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { MoonIcon, SunIcon } from "@/components/ui/icons";
+import { markPrefsChanged } from "@/lib/sync/devicePrefs";
 
 const KEY = "ece:theme";
 
@@ -37,6 +38,7 @@ export default function ThemeToggle() {
         } catch {
           // The choice just will not be remembered.
         }
+        markPrefsChanged();
       }}
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}

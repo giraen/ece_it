@@ -81,6 +81,10 @@
   background-color: #1a6b60;
   border-color: #1a6b60;
 }
+/* The dropdown arrow in the dark theme's muted colour. */
+:root[data-theme="dark"] select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397a5a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
 :root[data-theme="dark"] .text-white,
 :root[data-theme="dark"] .btn-primary {
   color: #ecf6f3;
@@ -114,6 +118,14 @@ body {
   }
   .input {
     @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm placeholder:text-muted/70 focus:border-accent;
+  }
+  /* Dropdowns draw their own arrow, with room on the right, so a long choice never runs into it. */
+  select.input {
+    @apply truncate bg-no-repeat pr-9;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23565a61' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 1rem;
   }
   /* Any multi-line text box: resize up and down only, and never smaller than about three lines. */
   textarea.input {

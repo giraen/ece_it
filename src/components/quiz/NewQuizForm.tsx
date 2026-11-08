@@ -106,7 +106,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
         </p>
       )}
       {info.status === "expired" && info.expiresAt !== undefined && (
-        <p className="rounded-md border border-line bg-surface p-3 text-sm text-muted">
+        <p className="card p-3 text-sm text-muted">
           Mastery expired on {formatDate(info.expiresAt)}.
         </p>
       )}

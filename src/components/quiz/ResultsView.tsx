@@ -31,8 +31,8 @@ function Redirect({ to, text }: { to: string; text: string }) {
 
 function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-md border border-line bg-surface p-4">
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+    <div className="card p-4">
+      <p className="num text-2xl font-semibold">{value}</p>
       <p className="text-sm text-muted">{label}</p>
       {note && <p className="mt-0.5 text-xs text-muted">{note}</p>}
     </div>
@@ -90,7 +90,7 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
   const tone = item.correct ? "text-good" : "text-danger";
 
   return (
-    <li className="space-y-3 rounded-md border border-line bg-surface p-4">
+    <li className="space-y-3 card p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="font-medium">Question {number}</span>
         <span className={`font-medium ${tone}`}>
@@ -228,12 +228,12 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         </p>
 
         {attempt.practice ? (
-          <p aria-label="Mastery" className="rounded-md border border-line bg-surface p-3 text-sm">
+          <p aria-label="Mastery" className="card p-3 text-sm">
             <span className="font-medium">Practice quiz.</span> It does not count toward mastery and it never locks
             anything. You can take the real quiz whenever you are ready.
           </p>
         ) : (
-          <div aria-label="Mastery" className="space-y-2 rounded-md border border-line bg-surface p-3 text-sm">
+          <div aria-label="Mastery" className="space-y-2 card p-3 text-sm">
             {s.masteryAwarded ? (
               <p>
                 <span className="font-medium text-good">Mastery earned.</span> This {kind} stays mastered until{" "}
@@ -294,7 +294,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             the target. Under 1.0× is on target. Pace is a statistic and never changes credit.
           </InfoTip>
         </div>
-        <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
+        <div className="overflow-x-auto card p-3">
           <table className="w-full text-sm">
             <thead className="text-xs text-muted">
               <tr>
@@ -341,7 +341,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             The dark tick marks each question&apos;s target. Green is correct, red is wrong, grey is unanswered.
           </InfoTip>
         </div>
-        <div className="space-y-1.5 rounded-md border border-line bg-surface p-3">
+        <div className="space-y-1.5 card p-3">
           {items.map((it, i) => {
             const width = (it.activeMs / maxMs) * 100;
             const target = ((it.targetSec * 1000) / maxMs) * 100;

@@ -75,7 +75,7 @@ export default function HelpPage() {
 
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
-      <nav aria-label="Contents" className="sticky top-4 rounded-md border border-line bg-surface p-3">
+      <nav aria-label="Contents" className="sticky top-4 card p-3">
         <p className="mb-2 text-sm font-medium">Contents</p>
         <ul className="space-y-0.5 text-sm">
           {SECTIONS.map((s) => (

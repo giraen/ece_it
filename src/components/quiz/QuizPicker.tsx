@@ -207,7 +207,7 @@ export default function QuizPicker({ nodes, questions, attempts, blueprints, now
   return (
     <div className="space-y-2">
       <ExpirySummary expired={summary.expired} soon={summary.soon} />
-      <ul className="rounded-md border border-line bg-surface p-2">
+      <ul className="card p-2">
         {roots.map((r) => (
           <Row
             key={r.id}

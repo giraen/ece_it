@@ -15,8 +15,8 @@ import InfoTip from "@/components/ui/InfoTip";
 
 function Tile({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-md border border-line bg-surface p-4">
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
+    <div className="card p-4">
+      <p className="num text-2xl font-semibold">{value}</p>
       <p className="text-sm text-muted">{label}</p>
     </div>
   );
@@ -71,7 +71,7 @@ export default function Analytics() {
             fixed {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
           </InfoTip>
         </div>
-        <div className="rounded-md border border-line bg-surface p-3">
+        <div className="card p-3">
           <CreditChart series={series} subjects={subjectLines} topics={topicLines} bar={bar} />
         </div>
       </section>
@@ -81,7 +81,7 @@ export default function Analytics() {
           <h3 className="font-medium">By topic, weakest first</h3>
           <InfoTip>Pace is the median time taken divided by the target. Under 1.0× is on target.</InfoTip>
         </div>
-        <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
+        <div className="overflow-x-auto card p-3">
           <table className="w-full text-sm">
             <thead className="text-xs text-muted">
               <tr>
@@ -130,7 +130,7 @@ export default function Analytics() {
             </InfoTip>
           )}
         </div>
-        <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+        <div className="space-y-2 card p-4">
           {cal.map((r) => (
             <div key={r.level} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm lg:flex-nowrap">
               <span className="w-28 shrink-0">{SURENESS_LABEL[r.level]}</span>

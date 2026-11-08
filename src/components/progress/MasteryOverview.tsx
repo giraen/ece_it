@@ -213,7 +213,7 @@ export default function MasteryOverview() {
           first.
         </p>
       ) : (
-        <ul className="rounded-md border border-line bg-surface p-2">
+        <ul className="card p-2">
           {roots.map((r) => (
             <Branch key={r.id} node={r} depth={0} at={`/${r.id}`} ctx={ctx} />
           ))}

@@ -255,7 +255,7 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
       {/* Everything about the quiz as a whole sits on the right and stays in view, however many questions there are. */}
       <aside
         aria-label="Quiz"
-        className="sticky top-4 flex max-h-[calc(100vh-7rem)] flex-col gap-3 rounded-md border border-line bg-surface p-3 max-lg:hidden"
+        className="sticky top-4 flex max-h-[calc(100vh-7rem)] flex-col gap-3 card p-3 max-lg:hidden"
       >
         <div>
           {title}
@@ -264,7 +264,7 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
 
         <div>
           <p className="text-xs text-muted">Quiz time · target {formatDuration(targetMs)}</p>
-          <p className="text-lg font-semibold tabular-nums">{formatDuration(totalMs)}</p>
+          <p className="num text-xl font-semibold">{formatDuration(totalMs)}</p>
           {progress}
         </div>
 

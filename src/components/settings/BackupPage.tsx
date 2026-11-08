@@ -30,7 +30,7 @@ const MIN_PASSWORD = 8;
 
 function Card({ title, info, children }: { title: string; info?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-md border border-line bg-surface p-5">
+    <section className="space-y-3 card p-5">
       <div className="flex items-center gap-1">
         <h2 className="font-medium">{title}</h2>
         {info && <InfoTip>{info}</InfoTip>}

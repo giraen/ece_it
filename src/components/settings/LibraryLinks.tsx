@@ -7,7 +7,7 @@ import { useSources } from "@/lib/bank/sources";
 import { tagStats } from "@/lib/bank/tagAdmin";
 
 const card =
-  "block rounded-md border border-line bg-surface p-4 hover:bg-paper focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none";
+  "block card p-4 hover:bg-paper focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none";
 
 /** Two cards that open the Sources and Tags pages, so those long lists are not in the middle of Settings. */
 export default function LibraryLinks() {

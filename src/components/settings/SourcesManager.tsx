@@ -223,7 +223,7 @@ export default function SourcesManager() {
       ) : list.length === 0 ? (
         <p className="text-sm text-muted">No source matches.</p>
       ) : (
-        <ul className="divide-y divide-line rounded-md border border-line bg-surface text-sm">
+        <ul className="divide-y divide-line card text-sm">
           {list.map((s) => {
             const n = use.get(s.id) ?? 0;
             return (

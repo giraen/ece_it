@@ -401,7 +401,7 @@ export default function TreePanel({ nodes, questions, selectedId, onSelect }: Pr
   };
 
   return (
-    <nav aria-label="Categories, subjects, and topics" className="rounded-md border border-line bg-surface p-2">
+    <nav aria-label="Categories, subjects, and topics" className="card p-2">
       <div className="mb-1 px-1">
         <button
           className={`rounded px-1.5 py-1 text-sm ${selectedId === null ? "font-medium" : "text-muted"} hover:bg-paper`}

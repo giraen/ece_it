@@ -15,12 +15,12 @@ import {
 import { CONFIG } from "@/lib/config";
 import { formatPercent } from "@/lib/format";
 
-/** One colour per category. They stay apart for people with colour blindness. "All" is drawn in plain ink. */
+/** Each category in its own colour, the same one its chip uses everywhere else. "All" is drawn in plain ink. */
 const SERIES_VAR: Record<string, string> = {
-  geas: "var(--s1)",
-  esat: "var(--s2)",
-  elex: "var(--s3)",
-  math: "var(--s4)",
+  geas: "var(--color-geas)",
+  esat: "var(--color-esat)",
+  elex: "var(--color-elex)",
+  math: "var(--color-math)",
   [ALL_KEY]: "var(--color-ink)",
 };
 const colorOf = (key: string) => SERIES_VAR[key] ?? "var(--color-accent)";

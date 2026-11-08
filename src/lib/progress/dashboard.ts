@@ -100,6 +100,10 @@ export interface Dashboard {
   quizzesTaken: number;
   recent: QuizAttempt[];
   next: Suggestion | null;
+  /** The newest finished quiz on the suggested item, when there is one. */
+  nextLast: QuizAttempt | null;
+  /** Each category with how many of its topics (those with questions) hold mastery now. In tree order. */
+  categories: { node: TreeNode; topics: number; mastered: number; questions: number }[];
 }
 
 /** A quick overview for the home page, worked out from the bank and the quiz history. Never changes anything. */
@@ -159,6 +163,20 @@ export function computeDashboard(input: {
     if (fresh) next = { node: fresh, reason: "never" };
   }
 
+  const newest = [...submitted].sort((a, b) => (b.submittedAt ?? 0) - (a.submittedAt ?? 0));
+  const categories = childrenOf(live, null)
+    .filter((n) => n.kind === "category")
+    .map((node) => {
+      const under = new Set(subtreeOf(live, node.id).map((n) => n.id));
+      const topics = topicsWithQuestions.filter((t) => under.has(t.id));
+      return {
+        node,
+        topics: topics.length,
+        mastered: topics.filter((t) => info.get(t.id)?.status === "mastered").length,
+        questions: countUnder(node.id),
+      };
+    });
+
   return {
     topics: topicsWithQuestions.length,
     topicsMastered: mastered.length,
@@ -170,8 +188,10 @@ export function computeDashboard(input: {
     inProgress: attempts.filter((a) => a.status === "in_progress").length,
     questions: questions.length,
     quizzesTaken: submitted.length,
-    recent: [...submitted].sort((a, b) => (b.submittedAt ?? 0) - (a.submittedAt ?? 0)).slice(0, 3),
+    recent: newest.slice(0, 5),
     next,
+    nextLast: next ? (newest.find((a) => a.scopeNodeId === next.node.id) ?? null) : null,
+    categories,
   };
 }
 

@@ -6,7 +6,7 @@ export default function Logo() {
       <path
         d="M4 14c3-8 5-8 8 0s5 8 8 0 3-4 4-4"
         fill="none"
-        stroke="#fff"
+        stroke="var(--color-surface)"
         strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"

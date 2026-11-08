@@ -6,6 +6,7 @@ import { formatDuration } from "@/lib/format";
 import { confirmItem, isComplete, saveTime, setSelection, setSureness } from "@/lib/quiz/quiz";
 import { SURENESS_LABEL, SURENESS_ORDER, type Sureness } from "@/lib/quiz/scoring";
 import { useStopwatch } from "@/lib/ui/useStopwatch";
+import CategoryChip from "@/components/ui/CategoryChip";
 import RichText from "@/components/ui/RichText";
 
 const LETTERS = "ABCDEFGH";
@@ -118,24 +119,35 @@ export default function QuestionPane({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm text-muted max-lg:mt-3">
-        <span>
-          Question {index + 1} of {total}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted max-lg:mt-3">
+        <span className="flex min-w-0 items-center gap-2">
+          <CategoryChip name={item.categoryName} />
+          <span className="num">
+            {index + 1} / {total}
+          </span>
+          <span className="truncate max-lg:hidden">
+            {item.subjectName} › {item.topicName}
+          </span>
         </span>
-        <span className="tabular-nums">
-          Question time {formatDuration(elapsed)} · target {formatDuration(item.targetSec * 1000)}
+        <span
+          className={`num rounded-md px-2 py-1 text-[13px] font-medium ${
+            elapsed > item.targetSec * 1000 ? "bg-priority-soft text-priority" : "bg-accent-soft text-accent"
+          }`}
+          title="Time on this question, and its target"
+        >
+          {formatDuration(elapsed)} / {formatDuration(item.targetSec * 1000)}
         </span>
       </div>
 
       {paused ? (
-        <div className="rounded-md border border-line bg-surface p-10 text-center">
+        <div className="card p-10 text-center">
           <p className="text-lg font-medium">Paused</p>
           <p className="mt-1 text-sm text-muted">The timer is stopped and the question is hidden.</p>
         </div>
       ) : (
         <>
-          <div className="rounded-md border border-line border-l-4 border-l-accent bg-surface p-4 lg:p-5">
-            <RichText text={item.stem} className="text-[17px] leading-relaxed" />
+          <div className="card p-4 lg:p-6">
+            <RichText text={item.stem} className="text-[17px] leading-relaxed font-medium lg:text-[18px]" />
           </div>
 
           <div role="radiogroup" aria-label="Choices" className="mt-4 space-y-2">
@@ -156,11 +168,17 @@ export default function QuestionPane({
                       void setSelection(attemptId, index, cid, getElapsed());
                     }
                   }}
-                  className={`flex cursor-pointer gap-3 rounded-md border px-4 py-3 ${
-                    isSelected ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-paper"
+                  className={`flex min-h-14 cursor-pointer items-center gap-3.5 rounded-lg border-[1.5px] px-3.5 py-2.5 transition-colors ${
+                    isSelected ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-muted/40"
                   }`}
                 >
-                  <span className="w-5 shrink-0 font-medium text-muted">{LETTERS[i]}</span>
+                  <span
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-md font-mono text-sm font-semibold ${
+                      isSelected ? "bg-accent text-white" : "bg-paper text-muted"
+                    }`}
+                  >
+                    {LETTERS[i]}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <RichText text={choice.text} className="text-[16px]" />
                   </div>
@@ -170,7 +188,7 @@ export default function QuestionPane({
           </div>
 
           <div className="mt-5">
-            <p className="mb-2 text-sm font-medium">How sure are you?</p>
+            <p className="eyebrow mb-2">How sure are you?</p>
             <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap" role="group" aria-label="Sureness">
               {SURENESS_ORDER.map((s) => (
                 <button
@@ -179,7 +197,11 @@ export default function QuestionPane({
                   aria-pressed={item.sureness === s}
                   title={MEANING[s]}
                   onClick={() => void setSureness(attemptId, index, s, getElapsed())}
-                  className={`btn max-lg:py-2.5 ${item.sureness === s ? "border-accent bg-accent text-white hover:bg-accent/90" : ""}`}
+                  className={`btn border-[1.5px] max-lg:min-h-11 ${
+                    item.sureness === s
+                      ? "border-priority bg-priority-soft text-priority hover:bg-priority-soft"
+                      : "text-muted"
+                  }`}
                 >
                   {SURENESS_LABEL[s]}
                   <span className="ml-1 text-xs opacity-60 max-lg:hidden">{KEY_FOR[s]}</span>

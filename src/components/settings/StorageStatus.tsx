@@ -43,7 +43,7 @@ export default function StorageStatus() {
   }
 
   return (
-    <section className="space-y-3 rounded-md border border-line bg-surface p-5" aria-label="Storage">
+    <section className="space-y-3 card p-5" aria-label="Storage">
       <h2 className="font-medium">Storage</h2>
       {info === null ? (
         <p className="text-sm text-muted">Checking…</p>

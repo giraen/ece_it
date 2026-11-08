@@ -100,12 +100,12 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         </p>
       )}
       {info.status === "expired" && info.expiresAt !== undefined && (
-        <p className="rounded-md border border-line bg-surface p-3 text-sm text-muted">
+        <p className="card p-3 text-sm text-muted">
           Mastery expired on {formatDate(info.expiresAt)}.
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
+      <div className="overflow-x-auto card p-3">
         <table className="w-full text-sm">
           <thead className="text-xs text-muted">
             <tr>
@@ -173,7 +173,7 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         </p>
       )}
 
-      <ul className="list-disc space-y-1 rounded-md border border-line bg-surface py-3 pr-4 pl-8 text-sm">
+      <ul className="list-disc space-y-1 card py-3 pr-4 pl-8 text-sm">
         <li>
           <strong>No pausing and no going back.</strong> Each answer is final once you confirm it.
         </li>

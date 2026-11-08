@@ -205,7 +205,7 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
       </div>
 
       {visible.length > 0 && (
-        <div className="mb-3 space-y-2 rounded-md border border-line bg-surface px-3 py-2">
+        <div className="mb-3 space-y-2 card px-3 py-2">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -329,7 +329,7 @@ export default function ConceptList({ nodes, concepts, drafts, selected }: Props
       ) : (
         <div>
           <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
-          <ul className="divide-y divide-line rounded-md border border-line bg-surface">
+          <ul className="divide-y divide-line card">
             {pageItems.map((c) => {
               const open = reading.has(c.id);
               const made = counts.get(c.id);

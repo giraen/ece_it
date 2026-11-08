@@ -213,7 +213,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
       ) : (
         <div>
           <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
-          <div className="rounded-md border border-line bg-surface">
+          <div className="card">
             <label className="flex items-center gap-3 border-b border-line px-3 py-2 text-sm text-muted">
               <input
                 type="checkbox"

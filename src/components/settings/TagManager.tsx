@@ -144,7 +144,7 @@ export default function TagManager() {
           {stats.length === 0 ? "No tags yet. A tag appears here once a question has it." : "No tag matches."}
         </p>
       ) : (
-        <ul className="divide-y divide-line rounded-md border border-line bg-surface text-sm">
+        <ul className="divide-y divide-line card text-sm">
           {list.slice(0, limit).map((t) => (
             <li key={t.key} className="space-y-2 px-3 py-2">
               <div className="flex flex-wrap items-center gap-2">

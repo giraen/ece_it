@@ -136,7 +136,7 @@ export default function BlueprintEditor({ category, nodes, questions, initial }:
         {rows.length === 0 ? (
           <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">No entries yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-line bg-surface p-3">
+          <div className="overflow-x-auto card p-3">
             <table className="w-full text-sm">
               <thead className="text-xs text-muted">
                 <tr>

@@ -172,7 +172,7 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
       </div>
 
       {rows.length === 0 ? (
-        <p className="rounded-md border border-line bg-surface p-4 text-sm text-muted">
+        <p className="card p-4 text-sm text-muted">
           {kind === "tag"
             ? `Nothing to show yet. A tag needs at least ${min} answers in ${chosen ?? "any category"}, and quizzes only count tags that are not ${CONFIG.exemptTags.join(" or ")}.`
             : `Nothing to show yet. A question needs at least ${min} answers in ${chosen ?? "any category"}.`}
@@ -188,7 +188,7 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
                   const pool = list.id === "weakest" ? rows.filter((r) => r.credit + 1e-9 < bar) : rows;
                   const top = rankStandings(pool, list.id);
                   return (
-                    <div key={list.id} className="rounded-md border border-line bg-surface">
+                    <div key={list.id} className="card">
                       <div className="flex items-center gap-1 border-b border-line px-3 py-2">
                         <h5 className="text-sm font-medium">{list.title}</h5>
                         <span className="text-xs text-muted">· {list.means}</span>

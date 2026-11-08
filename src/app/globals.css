@@ -1,43 +1,74 @@
 @import "tailwindcss";
 
-/* ---------- Colours. Every component uses these names, so the dark theme only has to change the values. ---------- */
+/* ---------- Colours. Every component uses these names, so the dark theme only has to change the values. ----------
+   The look: warm paper, a teal trace like an oscilloscope's, and one colour per exam category. */
 @theme {
-  --color-paper: #f4f6f8;
+  --color-paper: #f6f4ef;
   --color-surface: #ffffff;
-  --color-ink: #16202b;
-  --color-muted: #5e6b7a;
-  --color-line: #d5dbe2;
-  --color-accent: #1f4e8c;
-  --color-accent-soft: #e4ecf7;
-  --color-danger: #b3261e;
-  --color-good: #1b7f4b;
-  /* Priority: a warm amber, so it stands out from the blue tags. */
-  --color-priority: #92400e;
-  --color-priority-soft: #fde68a;
-  --color-priority-solid: #fbbf24;
-  --color-on-priority: #1f1300;
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --color-ink: #1a1d21;
+  --color-muted: #5f636a;
+  --color-line: #e2ddd2;
+  --color-track: #ece8df;
+  --color-accent: #0f766e;
+  --color-accent-soft: #d8efea;
+  --color-danger: #b42318;
+  --color-good: #15803d;
+  /* Warnings: a warm amber, so it stands out from the teal. */
+  --color-priority: #7a4b00;
+  --color-priority-soft: #fdf0cf;
+  --color-priority-solid: #f5c86a;
+  --color-on-priority: #2b1a00;
+  /* One colour per category, each with a soft fill for chips and bars. */
+  --color-geas: #c2410c;
+  --color-geas-soft: #fdeadf;
+  --color-esat: #7c3aed;
+  --color-esat-soft: #efe7fd;
+  --color-elex: #0f766e;
+  --color-elex-soft: #d8efea;
+  --color-math: #1d4ed8;
+  --color-math-soft: #e2e9fc;
+
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* Rounder corners everywhere. */
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+
+  --shadow-card: 0 1px 2px rgb(26 29 33 / 0.04), 0 4px 14px rgb(26 29 33 / 0.05);
 }
 
 /* Dark theme: same names, different values. It switches on when <html> has data-theme="dark". */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-paper: #0e1318;
-  --color-surface: #161c23;
-  --color-ink: #e7ecf2;
-  --color-muted: #9aa7b6;
-  --color-line: #2a3440;
-  --color-accent: #6b9be8;
-  --color-accent-soft: #1a2a45;
-  --color-danger: #f0877f;
-  --color-good: #52c48f;
-  --color-priority: #fcd34d;
-  --color-priority-soft: #3a2a08;
+  --color-paper: #0a0e0d;
+  --color-surface: #141a19;
+  --color-ink: #e6ece9;
+  --color-muted: #97a5a0;
+  --color-line: #24302d;
+  --color-track: #1f2927;
+  --color-accent: #5eead4;
+  --color-accent-soft: #10302a;
+  --color-danger: #f38b82;
+  --color-good: #5fd39a;
+  --color-priority: #f5c86a;
+  --color-priority-soft: #2e2408;
+  --color-geas: #fb923c;
+  --color-geas-soft: #3a1f0e;
+  --color-esat: #b69bfc;
+  --color-esat-soft: #26193f;
+  --color-elex: #5eead4;
+  --color-elex-soft: #10302a;
+  --color-math: #86a8ff;
+  --color-math-soft: #16224a;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 6px 20px rgb(0 0 0 / 0.35);
 }
 
-/* In dark mode the accent is a light blue, so the text on top of an accent fill has to be dark to stay readable. */
-:root[data-theme="dark"] .text-white {
-  color: var(--color-paper);
+/* In dark mode the accent is a light mint, so the text on top of an accent fill has to be dark to stay readable. */
+:root[data-theme="dark"] .text-white,
+:root[data-theme="dark"] .btn-primary {
+  color: #04201b;
 }
 
 html {
@@ -58,20 +89,32 @@ body {
 /* ---------- Shared building blocks ---------- */
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-1 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-line bg-surface px-3.5 py-1.5 text-sm font-semibold text-ink transition-colors hover:border-muted/40 hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply border-accent bg-accent text-white hover:bg-accent/90;
+    @apply border-accent bg-accent text-white hover:border-accent hover:bg-accent/90;
   }
   .btn-danger {
     @apply text-danger;
   }
   .input {
-    @apply w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm;
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm placeholder:text-muted/70 focus:border-accent;
   }
   /* Any multi-line text box: resize up and down only, and never smaller than about three lines. */
   textarea.input {
     @apply min-h-16 resize-y;
+  }
+  /* A raised panel: the white card most pages are built from. */
+  .card {
+    @apply rounded-lg border border-line bg-surface shadow-card;
+  }
+  /* Numbers that should line up and read like an instrument: scores, counts, times. */
+  .num {
+    @apply font-mono tabular-nums;
+  }
+  /* A small upper-case label above a value or a list. */
+  .eyebrow {
+    @apply text-xs font-semibold tracking-[0.08em] text-muted uppercase;
   }
 }
 

@@ -72,21 +72,31 @@ function Btn({ children }: { children: React.ReactNode }) {
 export default function HelpPage() {
   const q = CONFIG.quiz;
   const d = CONFIG.masteryDays;
+  const contents = (
+    <ul className="space-y-0.5 text-sm">
+      {SECTIONS.map((s) => (
+        <li key={s.id}>
+          <a href={`#${s.id}`} className="block rounded px-2 py-1 text-muted hover:bg-paper hover:text-ink">
+            {s.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
-    <div className="grid items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
-      <nav aria-label="Contents" className="sticky top-4 card p-3">
+    <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
+      {/* On a computer the contents stay beside the text. On a phone they fold into a box at the top. */}
+      <nav aria-label="Contents" className="card sticky top-4 p-3 max-lg:hidden">
         <p className="mb-2 text-sm font-medium">Contents</p>
-        <ul className="space-y-0.5 text-sm">
-          {SECTIONS.map((s) => (
-            <li key={s.id}>
-              <a href={`#${s.id}`} className="block rounded px-2 py-1 text-muted hover:bg-paper hover:text-ink">
-                {s.label}
-              </a>
-            </li>
-          ))}
-        </ul>
+        {contents}
       </nav>
+      <details className="card p-3 lg:hidden">
+        <summary className="cursor-pointer text-sm font-medium">Contents</summary>
+        <nav aria-label="Contents" className="mt-2">
+          {contents}
+        </nav>
+      </details>
 
       <div className="max-w-3xl space-y-10">
         <div>

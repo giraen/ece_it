@@ -101,7 +101,7 @@ export function MathPlayground() {
       live
       caption="Click into the box. The toolbar appears above it while you type. What you write on the left is exactly what the quiz shows on the right."
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <p className="mb-1 text-sm font-medium">What you type</p>
           <ImageTextarea label="Practice box" rows={9} value={text} onChange={setText} />
@@ -604,7 +604,7 @@ export function MasteryStill() {
       caption={`Mastery lasts ${d.topic} days for a topic, ${d.subject} for a subject, and ${d.category} for a category. A failed quiz locks that item for ${CONFIG.cooldownHours} hours.`}
     >
       <Still>
-        <div className="grid max-w-2xl gap-2 sm:grid-cols-3">
+        <div className="grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-3">
           <div className="rounded-md border border-good/40 bg-good/5 p-3 text-sm">
             <p className="font-medium text-good">Mastered</p>
             <p className="text-xs text-muted">DC analysis · until 27 Oct</p>

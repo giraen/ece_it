@@ -228,7 +228,7 @@ export default function Dashboard() {
             })}
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <section aria-label="At a glance" className="card p-5">
               <h2 className="mb-1 text-sm font-semibold">At a glance</h2>
               <ul>

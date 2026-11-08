@@ -99,7 +99,7 @@ function SourceForm({
           </button>
         ))}
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {fields.map((f) => (
           <label key={f.key} className={`text-xs font-medium ${f.key === "url" ? "sm:col-span-2" : ""}`}>
             {f.label}

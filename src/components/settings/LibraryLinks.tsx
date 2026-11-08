@@ -22,7 +22,7 @@ export default function LibraryLinks() {
   const count = (n: number | undefined, word: string) => (n === undefined ? " " : `${n} ${word}${n === 1 ? "" : "s"}`);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <Link href="/settings/sources" className={card}>
         <span className="font-medium">Sources</span>
         <span className="mt-0.5 block text-sm text-muted">{count(sources?.length, "source")}</span>

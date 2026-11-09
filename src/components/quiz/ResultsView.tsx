@@ -5,12 +5,33 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CONFIG } from "@/lib/config";
 import type { AttemptItem } from "@/lib/db";
-import { formatCountdown, formatDate, formatDateTime, formatDuration, formatPercent, formatRatio } from "@/lib/format";
-import { useAttempt, useAttempts, useConcepts, useNow } from "@/lib/hooks";
+import {
+  formatCountdown,
+  formatDate,
+  formatDateTime,
+  formatDuration,
+  formatPercent,
+  formatRatio,
+} from "@/lib/format";
+import {
+  useAttempt,
+  useAttempts,
+  useConcepts,
+  useNow,
+  useQuestions,
+} from "@/lib/hooks";
+import { correctedKey, describeRemark, remarkQuizzes } from "@/lib/quiz/remark";
 import { expiryFor, masteryFor } from "@/lib/progress/mastery";
 import { canRecheck } from "@/lib/progress/recheck";
 import { groupKeysFor } from "@/lib/quiz/quizPlan";
-import { SURENESS_LABEL, SURENESS_ORDER, groupStats, needsWork, overallStats, type GroupStats } from "@/lib/quiz/scoring";
+import {
+  SURENESS_LABEL,
+  SURENESS_ORDER,
+  groupStats,
+  needsWork,
+  overallStats,
+  type GroupStats,
+} from "@/lib/quiz/scoring";
 import RichText from "@/components/ui/RichText";
 import Reference from "@/components/editor/Reference";
 import InfoTip from "@/components/ui/InfoTip";
@@ -29,7 +50,15 @@ function Redirect({ to, text }: { to: string; text: string }) {
   return <p className="text-sm text-muted">{text}</p>;
 }
 
-function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
+function Tile({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
   return (
     <div className="card p-4">
       <p className="num text-2xl font-semibold">{value}</p>
@@ -58,7 +87,9 @@ function GroupRow({
         {toggle && (
           <button
             className="mr-1 w-4 text-xs text-muted"
-            aria-label={toggle.open ? `Collapse ${g.label}` : `Expand ${g.label}`}
+            aria-label={
+              toggle.open ? `Collapse ${g.label}` : `Expand ${g.label}`
+            }
             onClick={toggle.onClick}
           >
             {toggle.open ? "▾" : "▸"}
@@ -66,7 +97,9 @@ function GroupRow({
         )}
         {g.label}
       </td>
-      <td className={`px-2 text-right tabular-nums ${low ? "font-medium text-danger" : "text-good"}`}>
+      <td
+        className={`px-2 text-right tabular-nums ${low ? "font-medium text-danger" : "text-good"}`}
+      >
         {Math.round(g.credit * 100)}%
       </td>
       <td className="px-2 text-right tabular-nums">
@@ -85,7 +118,78 @@ function GroupRow({
 }
 
 /** One question as answered: what you picked, what was right, how sure you were, and the time. */
-function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
+/** A note under a question whose answer was corrected in the bank after this quiz, with a button to re-mark it. */
+function CorrectedKey({
+  item,
+  fixed,
+  onDone,
+}: {
+  item: AttemptItem;
+  fixed: string;
+  onDone: (msg: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const letter = LETTERS[item.choiceOrder.indexOf(fixed)] ?? "?";
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-priority-soft px-3 py-2 text-sm text-priority">
+      <span className="min-w-0 flex-1">
+        The answer was corrected in the bank after this quiz: it is now {letter}
+        . This quiz still marks it with the old answer.
+      </span>
+      <button
+        className="btn py-1"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          onDone(describeRemark(await remarkQuizzes([item.questionId])));
+        }}
+      >
+        {busy ? "Re-marking…" : "Re-mark with the new answer"}
+      </button>
+    </div>
+  );
+}
+
+/** Shown above the questions when more than one has a corrected answer in the bank. */
+function RemarkAll({
+  ids,
+  onDone,
+}: {
+  ids: string[];
+  onDone: (msg: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-priority-soft px-4 py-3 text-sm text-priority">
+      <span className="min-w-0 flex-1">
+        {ids.length} questions in this quiz had their answer corrected in the
+        bank since. This quiz still marks them with the old answers.
+      </span>
+      <button
+        className="btn py-1"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          onDone(describeRemark(await remarkQuizzes(ids)));
+        }}
+      >
+        {busy ? "Re-marking…" : "Re-mark all of them"}
+      </button>
+    </div>
+  );
+}
+
+function ReviewItem({
+  item,
+  number,
+  fixed,
+  onRemarked,
+}: {
+  item: AttemptItem;
+  number: number;
+  fixed: string | null;
+  onRemarked: (msg: string) => void;
+}) {
   const choiceById = new Map(item.choices.map((c) => [c.id, c]));
   const tone = item.correct ? "text-good" : "text-danger";
 
@@ -94,12 +198,19 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="font-medium">Question {number}</span>
         <span className={`font-medium ${tone}`}>
-          {item.answered ? (item.correct ? "Correct" : "Wrong") : "Not answered"}
+          {item.answered
+            ? item.correct
+              ? "Correct"
+              : "Wrong"
+            : "Not answered"}
         </span>
         <span className="text-muted">Credit {item.credit.toFixed(1)}</span>
-        {item.sureness && <span className="text-muted">{SURENESS_LABEL[item.sureness]}</span>}
+        {item.sureness && (
+          <span className="text-muted">{SURENESS_LABEL[item.sureness]}</span>
+        )}
         <span className="text-muted tabular-nums">
-          Time {formatDuration(item.activeMs)} of {formatDuration(item.targetSec * 1000)}
+          Time {formatDuration(item.activeMs)} of{" "}
+          {formatDuration(item.targetSec * 1000)}
         </span>
       </div>
       <RichText text={item.stem} className="text-[15px] leading-relaxed" />
@@ -113,15 +224,25 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
             <li
               key={cid}
               className={`flex gap-3 rounded-md border px-3 py-2 text-sm ${
-                right ? "border-good bg-good/5" : picked ? "border-danger/60 bg-danger/5" : "border-line"
+                right
+                  ? "border-good bg-good/5"
+                  : picked
+                    ? "border-danger/60 bg-danger/5"
+                    : "border-line"
               }`}
             >
-              <span className="w-5 shrink-0 font-medium text-muted">{LETTERS[i]}</span>
+              <span className="w-5 shrink-0 font-medium text-muted">
+                {LETTERS[i]}
+              </span>
               <div className="min-w-0 flex-1">
                 <RichText text={c.text} />
               </div>
               <span className="shrink-0 text-xs">
-                {picked && <span className={right ? "text-good" : "text-danger"}>Your answer</span>}
+                {picked && (
+                  <span className={right ? "text-good" : "text-danger"}>
+                    Your answer
+                  </span>
+                )}
                 {picked && right ? " · " : ""}
                 {right && <span className="text-good">Correct answer</span>}
               </span>
@@ -130,6 +251,7 @@ function ReviewItem({ item, number }: { item: AttemptItem; number: number }) {
         })}
       </ol>
       <Reference text={item.reference} />
+      {fixed && <CorrectedKey item={item} fixed={fixed} onDone={onRemarked} />}
     </li>
   );
 }
@@ -138,13 +260,20 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
   const attempt = useAttempt(attemptId);
   const allAttempts = useAttempts();
   const concepts = useConcepts();
+  const questions = useQuestions();
   const nowMs = useNow();
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [remarked, setRemarked] = useState<string | null>(null);
 
-  if (attempt === undefined) return <p className="text-sm text-muted">Loading…</p>;
-  if (attempt === null) return <p className="text-sm">That quiz no longer exists.</p>;
-  if (attempt.status === "in_progress") return <Redirect to={`/quiz/play?id=${attemptId}`} text="Opening the quiz…" />;
+  if (attempt === undefined)
+    return <p className="text-sm text-muted">Loading…</p>;
+  if (attempt === null)
+    return <p className="text-sm">That quiz no longer exists.</p>;
+  if (attempt.status === "in_progress")
+    return (
+      <Redirect to={`/quiz/play?id=${attemptId}`} text="Opening the quiz…" />
+    );
   if (attempt.status === "abandoned" || !attempt.summary) {
     return (
       <p className="text-sm">
@@ -158,6 +287,10 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
   const s = attempt.summary;
   const items = attempt.items;
+  const bankById = new Map((questions ?? []).map((q) => [q.id, q]));
+  const fixedCount = items.filter((it) =>
+    correctedKey(it, bankById.get(it.questionId)),
+  ).length;
   const overall = overallStats(items);
   const submittedAt = attempt.submittedAt ?? 0;
   const kind = attempt.scopeKind;
@@ -165,7 +298,8 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
   const groups = groupStats(items, (it) => groupKeysFor(kind, it));
   const sortedGroups = [...groups].sort((a, b) => a.credit - b.credit);
   const weak = needsWork(groups, 3, s.bar);
-  const groupLabel = kind === "category" ? "Entry" : kind === "subject" ? "Topic" : "Tag";
+  const groupLabel =
+    kind === "category" ? "Entry" : kind === "subject" ? "Topic" : "Tag";
   // The weakest topic, if any fell below the bar, can be practised on its own.
   const topicGroups =
     kind === "topic"
@@ -181,8 +315,14 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
       : weakestTopic
         ? { id: weakestTopic.key, label: weakestTopic.label }
         : undefined;
-  const reviewCount = reviewTopic && concepts ? concepts.filter((c) => c.topicId === reviewTopic.id).length : 0;
-  const showReview = reviewTopic !== undefined && reviewCount > 0 && (!s.passed || weak.length > 0);
+  const reviewCount =
+    reviewTopic && concepts
+      ? concepts.filter((c) => c.topicId === reviewTopic.id).length
+      : 0;
+  const showReview =
+    reviewTopic !== undefined &&
+    reviewCount > 0 &&
+    (!s.passed || weak.length > 0);
   const toggleOpen = (key: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -191,13 +331,24 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
       return next;
     });
 
-  const scopeInfo = allAttempts ? masteryFor(allAttempts, { id: attempt.scopeNodeId, kind }, nowMs) : undefined;
+  const scopeInfo = allAttempts
+    ? masteryFor(allAttempts, { id: attempt.scopeNodeId, kind }, nowMs)
+    : undefined;
   const locked = scopeInfo?.lockedUntil !== undefined;
-  const maxMs = Math.max(1, ...items.map((i) => Math.max(i.activeMs, i.targetSec * 1000 * 1.2)));
+  const maxMs = Math.max(
+    1,
+    ...items.map((i) => Math.max(i.activeMs, i.targetSec * 1000 * 1.2)),
+  );
 
   const shown = items
     .map((item, i) => ({ item, number: i + 1 }))
-    .filter(({ item }) => (filter === "wrong" ? !item.correct : filter === "lost" ? item.credit < 1 : true));
+    .filter(({ item }) =>
+      filter === "wrong"
+        ? !item.correct
+        : filter === "lost"
+          ? item.credit < 1
+          : true,
+    );
   const counts = {
     all: items.length,
     wrong: items.filter((i) => !i.correct).length,
@@ -212,14 +363,20 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           {attempt.scopeName}
           {attempt.practice && <PracticeTag />}
         </p>
-        {attempt.submittedAt && <p className="text-sm text-muted">{formatDateTime(attempt.submittedAt)}</p>}
+        {attempt.submittedAt && (
+          <p className="text-sm text-muted">
+            {formatDateTime(attempt.submittedAt)}
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">
         <p
           role="status"
           className={`rounded-md border p-4 font-medium ${
-            s.passed ? "border-good/40 bg-good/5 text-good" : "border-danger/40 bg-danger/5 text-danger"
+            s.passed
+              ? "border-good/40 bg-good/5 text-good"
+              : "border-danger/40 bg-danger/5 text-danger"
           }`}
         >
           {s.passed
@@ -229,27 +386,40 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
         {attempt.practice ? (
           <p aria-label="Mastery" className="card p-3 text-sm">
-            <span className="font-medium">Practice quiz.</span> It does not count toward mastery and it never locks
-            anything. You can take the real quiz whenever you are ready.
+            <span className="font-medium">Practice quiz.</span> It does not
+            count toward mastery and it never locks anything. You can take the
+            real quiz whenever you are ready.
           </p>
         ) : (
           <div aria-label="Mastery" className="space-y-2 card p-3 text-sm">
             {s.masteryAwarded ? (
               <p>
-                <span className="font-medium text-good">Mastery earned.</span> This {kind} stays mastered until{" "}
+                <span className="font-medium text-good">Mastery earned.</span>{" "}
+                This {kind} stays mastered until{" "}
                 {formatDate(expiryFor(kind, submittedAt))}.
               </p>
             ) : s.passed ? (
-              <p>This quiz could not award mastery{attempt.ineligibleReason ? `: ${attempt.ineligibleReason}` : "."}</p>
+              <p>
+                This quiz could not award mastery
+                {attempt.ineligibleReason
+                  ? `: ${attempt.ineligibleReason}`
+                  : "."}
+              </p>
             ) : attempt.eligible !== false && !attempt.noLock ? (
               <p>
-                <span className="font-medium text-danger">Locked for {CONFIG.cooldownHours} hours.</span> This {kind}{" "}
-                unlocks after {formatDateTime(submittedAt + CONFIG.cooldownHours * 3_600_000)}. Mastery you already hold
-                is not affected.
+                <span className="font-medium text-danger">
+                  Locked for {CONFIG.cooldownHours} hours.
+                </span>{" "}
+                This {kind} unlocks after{" "}
+                {formatDateTime(submittedAt + CONFIG.cooldownHours * 3_600_000)}
+                . Mastery you already hold is not affected.
               </p>
             ) : (
               <p>
-                This quiz did not award mastery{attempt.ineligibleReason ? `. ${attempt.ineligibleReason}` : "."}
+                This quiz did not award mastery
+                {attempt.ineligibleReason
+                  ? `. ${attempt.ineligibleReason}`
+                  : "."}
                 {attempt.eligible !== false && " It is not locked."}
               </p>
             )}
@@ -258,9 +428,20 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         )}
       </div>
 
-      <section aria-label="Totals" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile label="Average credit" value={formatPercent(s.credit)} note={`The bar is ${formatPercent(s.bar, 0)}`} />
-        <Tile label="Correct" value={`${s.correct} of ${s.n}`} note={`${s.n - s.answered} not answered`} />
+      <section
+        aria-label="Totals"
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+      >
+        <Tile
+          label="Average credit"
+          value={formatPercent(s.credit)}
+          note={`The bar is ${formatPercent(s.bar, 0)}`}
+        />
+        <Tile
+          label="Correct"
+          value={`${s.correct} of ${s.n}`}
+          note={`${s.n - s.answered} not answered`}
+        />
         <Tile
           label="Time used"
           value={formatDuration(overall.totalMs)}
@@ -278,8 +459,12 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         ) : (
           <ul className="space-y-2">
             {weak.map((w) => (
-              <li key={w.key} className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm">
-                <span className="font-medium">{w.label}</span> ({formatPercent(w.credit)}): {w.reason}
+              <li
+                key={w.key}
+                className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm"
+              >
+                <span className="font-medium">{w.label}</span> (
+                {formatPercent(w.credit)}): {w.reason}
               </li>
             ))}
           </ul>
@@ -288,10 +473,13 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
       <section aria-label="Breakdown">
         <div className="mb-2 flex items-center gap-1">
-          <h2 className="font-medium">Breakdown by {groupLabel.toLowerCase()}</h2>
+          <h2 className="font-medium">
+            Breakdown by {groupLabel.toLowerCase()}
+          </h2>
           <InfoTip>
-            The sureness columns count how many answers you gave at each level. Pace is the median time taken divided by
-            the target. Under 1.0× is on target. Pace is a statistic and never changes credit.
+            The sureness columns count how many answers you gave at each level.
+            Pace is the median time taken divided by the target. Under 1.0× is
+            on target. Pace is a statistic and never changes credit.
           </InfoTip>
         </div>
         <div className="overflow-x-auto card p-3">
@@ -306,7 +494,9 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
                     {SURENESS_LABEL[id]}
                   </th>
                 ))}
-                <th className="pb-2 pl-2 text-right font-medium">Pace vs target</th>
+                <th className="pb-2 pl-2 text-right font-medium">
+                  Pace vs target
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -316,17 +506,26 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
                     g={g}
                     bar={s.bar}
                     toggle={
-                      kind === "category" ? { open: open.has(g.key), onClick: () => toggleOpen(g.key) } : undefined
+                      kind === "category"
+                        ? {
+                            open: open.has(g.key),
+                            onClick: () => toggleOpen(g.key),
+                          }
+                        : undefined
                     }
                   />
                   {kind === "category" &&
                     open.has(g.key) &&
                     groupStats(
-                      items.filter((it) => (it.entryId ?? it.subjectId) === g.key),
+                      items.filter(
+                        (it) => (it.entryId ?? it.subjectId) === g.key,
+                      ),
                       (it) => [{ key: it.topicId, label: it.topicName }],
                     )
                       .sort((a, b) => a.credit - b.credit)
-                      .map((t) => <GroupRow key={t.key} g={t} bar={s.bar} depth={1} />)}
+                      .map((t) => (
+                        <GroupRow key={t.key} g={t} bar={s.bar} depth={1} />
+                      ))}
                 </Fragment>
               ))}
             </tbody>
@@ -338,23 +537,36 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         <div className="mb-2 flex items-center gap-1">
           <h2 className="font-medium">Time per question</h2>
           <InfoTip>
-            The dark tick marks each question&apos;s target. Green is correct, red is wrong, grey is unanswered.
+            The dark tick marks each question&apos;s target. Green is correct,
+            red is wrong, grey is unanswered.
           </InfoTip>
         </div>
         <div className="space-y-1.5 card p-3">
           {items.map((it, i) => {
             const width = (it.activeMs / maxMs) * 100;
             const target = ((it.targetSec * 1000) / maxMs) * 100;
-            const color = !it.answered ? "bg-line" : it.correct ? "bg-good" : "bg-danger";
+            const color = !it.answered
+              ? "bg-line"
+              : it.correct
+                ? "bg-good"
+                : "bg-danger";
             return (
-              <div key={it.questionId + i} className="flex items-center gap-3 text-sm">
-                <span className="w-7 shrink-0 text-right tabular-nums text-muted">{i + 1}</span>
+              <div
+                key={it.questionId + i}
+                className="flex items-center gap-3 text-sm"
+              >
+                <span className="w-7 shrink-0 text-right tabular-nums text-muted">
+                  {i + 1}
+                </span>
                 <div
                   className="relative h-3 flex-1 rounded bg-paper"
                   role="img"
                   aria-label={`Question ${i + 1}: ${formatDuration(it.activeMs)} against a target of ${formatDuration(it.targetSec * 1000)}`}
                 >
-                  <div className={`absolute top-0 left-0 h-3 rounded ${color}`} style={{ width: `${width}%` }} />
+                  <div
+                    className={`absolute top-0 left-0 h-3 rounded ${color}`}
+                    style={{ width: `${width}%` }}
+                  />
                   <div
                     className="absolute -top-0.5 h-4 w-0.5 bg-ink"
                     style={{ left: `${target}%` }}
@@ -362,7 +574,8 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
                   />
                 </div>
                 <span className="w-24 shrink-0 text-right tabular-nums text-muted">
-                  {formatDuration(it.activeMs)} / {formatDuration(it.targetSec * 1000)}
+                  {formatDuration(it.activeMs)} /{" "}
+                  {formatDuration(it.targetSec * 1000)}
                 </span>
               </div>
             );
@@ -371,6 +584,26 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
       </section>
 
       <section aria-label="Review" className="space-y-3">
+        {remarked && (
+          <p
+            role="status"
+            className="rounded-lg bg-accent-soft px-4 py-3 text-sm text-accent"
+          >
+            {remarked} The score above is updated.
+          </p>
+        )}
+        {fixedCount > 1 && (
+          <RemarkAll
+            onDone={setRemarked}
+            ids={[
+              ...new Set(
+                items
+                  .filter((it) => correctedKey(it, bankById.get(it.questionId)))
+                  .map((it) => it.questionId),
+              ),
+            ]}
+          />
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="mr-2 font-medium">Every question</h2>
           {(
@@ -385,7 +618,9 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
               aria-pressed={filter === id}
               onClick={() => setFilter(id)}
               className={`rounded px-2.5 py-1 text-sm ${
-                filter === id ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"
+                filter === id
+                  ? "bg-accent text-white"
+                  : "bg-accent-soft text-accent hover:bg-accent/15"
               }`}
             >
               {label} <span className="opacity-70">{counts[id]}</span>
@@ -393,11 +628,19 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           ))}
         </div>
         {shown.length === 0 ? (
-          <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">Nothing to show here.</p>
+          <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">
+            Nothing to show here.
+          </p>
         ) : (
           <ul className="space-y-3">
             {shown.map(({ item, number }) => (
-              <ReviewItem key={item.questionId + number} item={item} number={number} />
+              <ReviewItem
+                key={item.questionId + number}
+                item={item}
+                number={number}
+                fixed={correctedKey(item, bankById.get(item.questionId))}
+                onRemarked={setRemarked}
+              />
             ))}
           </ul>
         )}
@@ -405,11 +648,17 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
       <div className="flex flex-wrap gap-2 pb-8">
         {locked && scopeInfo?.lockedUntil !== undefined ? (
-          <span className="btn cursor-not-allowed opacity-60" aria-disabled="true">
+          <span
+            className="btn cursor-not-allowed opacity-60"
+            aria-disabled="true"
+          >
             Retake in {formatCountdown(scopeInfo.lockedUntil - nowMs)}
           </span>
         ) : (
-          <Link href={`/quiz/new?node=${attempt.scopeNodeId}`} className="btn btn-primary">
+          <Link
+            href={`/quiz/new?node=${attempt.scopeNodeId}`}
+            className="btn btn-primary"
+          >
             Quiz this again
           </Link>
         )}
@@ -419,7 +668,10 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           </Link>
         )}
         {showReview && reviewTopic && (
-          <Link href={`/bank?node=${reviewTopic.id}&tab=concepts`} className="btn">
+          <Link
+            href={`/bank?node=${reviewTopic.id}&tab=concepts`}
+            className="btn"
+          >
             Read your notes on {reviewTopic.label} ({reviewCount})
           </Link>
         )}

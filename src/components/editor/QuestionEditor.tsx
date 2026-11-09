@@ -25,6 +25,7 @@ import ToolbarGroup from "./ToolbarGroup";
 import Reference from "./Reference";
 import ReferenceInput from "./ReferenceInput";
 import { keepSourceOnly, loadSources } from "@/lib/bank/sources";
+import { describeRemark, quizzesWithOldKey, remarkQuizzes } from "@/lib/quiz/remark";
 import RichText from "@/components/ui/RichText";
 import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
@@ -173,7 +174,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
       const { reference: _old, repeats: _oldRepeats, ...kept } = (initial ?? {}) as Partial<Question>;
       void _old;
       void _oldRepeats;
-      await saveQuestion({
+      let remarked = "";
+      const saved: Question = {
         ...kept, // keeps anything not edited here
         id: initial?.id ?? newId(),
         topicId,
@@ -190,7 +192,22 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         allowAi,
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
-      });
+      };
+      await saveQuestion(saved);
+      // A corrected answer key: offer to mark the finished quizzes that used the old one again.
+      if (initial && !isComp && initial.correctChoiceId !== saved.correctChoiceId) {
+        const n = await quizzesWithOldKey(saved);
+        if (
+          n > 0 &&
+          (await confirmAction({
+            title: "Re-mark past quizzes?",
+            message: `This question was in ${n} finished quiz${n === 1 ? "" : "zes"}, marked with the old answer. Re-mark ${n === 1 ? "it" : "them"} with the new one? Scores and mastery are worked out again.`,
+            confirmLabel: "Re-mark",
+          }))
+        ) {
+          remarked = describeRemark(await remarkQuizzes([saved.id]));
+        }
+      }
       if (andAnother) {
         // The next question usually comes from the same source, but from a different page.
         setReference(keepSourceOnly(reference, await loadSources()));
@@ -202,7 +219,7 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         setCompCorrect(null);
         setRolled(null);
         setChecked(false);
-        setNotice("Saved. Ready for the next question.");
+        setNotice(`Saved. ${remarked ? remarked + " " : ""}Ready for the next question.`);
       } else {
         router.push(`/bank?node=${topicId}`);
       }

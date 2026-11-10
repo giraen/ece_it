@@ -36,7 +36,19 @@ export function syncSoon(delay = AFTER_CHANGE_MS): void {
   timer = window.setTimeout(run, delay);
 }
 
-const TABLES = ["nodes", "questions", "blueprints", "attempts", "variants", "settings", "concepts", "drafts", "images"];
+const TABLES = [
+  "nodes",
+  "questions",
+  "blueprints",
+  "attempts",
+  "variants",
+  "settings",
+  "concepts",
+  "drafts",
+  "images",
+  "cards",
+  "cardEvents",
+];
 
 /** Starts the automatic syncing. Safe to call more than once. */
 export function startAutoSync(): void {

@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { emptyBank, eraseEverything, resetCounts, resetProgress, type ResetCounts, type ResetKind } from "@/lib/backup/reset";
+import {
+  emptyBank,
+  eraseEverything,
+  resetCounts,
+  resetProgress,
+  type ResetCounts,
+  type ResetKind,
+} from "@/lib/backup/reset";
 import { formatDate } from "@/lib/format";
 import { useLastBackup } from "@/lib/backup/lastBackup";
 import { turnOffSync } from "@/lib/sync/autoSync";
@@ -27,23 +34,25 @@ const ACTIONS: Action[] = [
   {
     kind: "progress",
     title: "Reset my progress",
-    text: "Deletes every quiz you have taken. Results, mastery, analytics, and locks all start from zero. Your questions stay.",
+    text: "Deletes every quiz you have taken and every memory review. Results, mastery, analytics, locks, and memory boxes all start from zero. Your questions and cards stay.",
     button: "Reset progress",
     lines: (c) => [
       plural(c.quizzes, "quiz", "quizzes") + " and all the results, mastery, and analytics built from them",
+      "every memory review, so all cards go back to new",
     ],
-    keeps: "Your questions, concepts, subjects, topics, and settings stay.",
+    keeps: "Your questions, memory cards, concepts, subjects, topics, and settings stay.",
   },
   {
     kind: "bank",
     title: "Empty the question bank",
-    text: "Deletes every question, concept, AI draft, AI-reworded version, and saved picture. Subjects, topics, and quiz history stay.",
+    text: "Deletes every question, concept, AI draft, AI-reworded version, memory card, and saved picture. Subjects, topics, and quiz history stay.",
     button: "Empty the bank",
     lines: (c) => [
       plural(c.questions, "question"),
       plural(c.concepts, "concept"),
       plural(c.drafts, "AI draft"),
       plural(c.variants, "AI-reworded version"),
+      plural(c.cards, "memory card"),
       "saved pictures (except those old results still show)",
     ],
     keeps: "Your subjects, topics, quiz history, and settings stay.",
@@ -57,6 +66,7 @@ const ACTIONS: Action[] = [
       plural(c.quizzes, "quiz", "quizzes"),
       plural(c.questions, "question"),
       plural(c.concepts, "concept"),
+      plural(c.cards, "memory card"),
       plural(c.nodes, "subject or topic", "subjects and topics"),
       plural(c.blueprints, "blueprint"),
       "AI provider settings and the backup reminder",

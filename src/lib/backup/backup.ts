@@ -10,8 +10,10 @@ import {
 import {
   db,
   type Blueprint,
+  type CardEvent,
   type Concept,
   type DraftQuestion,
+  type MemoryCard,
   type Question,
   type SettingRow,
   type TreeNode,
@@ -31,17 +33,20 @@ import { selectPackContent } from "./share";
 
 /** Everything stored in this browser, deleted records included. Sync sends this too. */
 export async function loadTables(): Promise<Tables> {
-  const [nodes, questions, blueprints, attempts, variants, settings, concepts, drafts] = await Promise.all([
-    db.nodes.toArray(),
-    db.questions.toArray(),
-    db.blueprints.toArray(),
-    db.attempts.toArray(),
-    db.variants.toArray(),
-    db.settings.toArray(),
-    db.concepts.toArray(),
-    db.drafts.toArray(),
-  ]);
-  return { nodes, questions, blueprints, attempts, variants, settings, concepts, drafts };
+  const [nodes, questions, blueprints, attempts, variants, settings, concepts, drafts, cards, cardEvents] =
+    await Promise.all([
+      db.nodes.toArray(),
+      db.questions.toArray(),
+      db.blueprints.toArray(),
+      db.attempts.toArray(),
+      db.variants.toArray(),
+      db.settings.toArray(),
+      db.concepts.toArray(),
+      db.drafts.toArray(),
+      db.cards.toArray(),
+      db.cardEvents.toArray(),
+    ]);
+  return { nodes, questions, blueprints, attempts, variants, settings, concepts, drafts, cards, cardEvents };
 }
 
 async function imageFiles(only?: Set<string>): Promise<ImageFile[]> {
@@ -80,6 +85,7 @@ export async function buildFullBackup(
     attempts: tables.attempts.length,
     variants: tables.variants.filter((v) => v.status === "approved" && !v.deletedAt).length,
     images: images.length,
+    cards: tables.cards.filter((c) => !c.deletedAt).length,
   };
   const container: Container = { manifest: manifest("backup", counts), data: { ...tables }, images };
   return { bytes: await encodeFile(container, password, undefined, onStep), counts };
@@ -226,6 +232,21 @@ function validateTables(t: Tables): void {
     )
       bad("draft", i);
   });
+  t.cards.forEach((c, i) => {
+    if (
+      !isStr(c.id) ||
+      !isStr(c.categoryId) ||
+      !isStr(c.prompt) ||
+      !isStr(c.answer) ||
+      !Array.isArray(c.wrong) ||
+      typeof c.updatedAt !== "number"
+    )
+      bad("memory card", i);
+  });
+  t.cardEvents.forEach((e, i) => {
+    if (!isStr(e.id) || !isStr(e.cardId) || typeof e.at !== "number" || typeof e.updatedAt !== "number")
+      bad("memory review", i);
+  });
 }
 
 export function tablesFrom(c: Container): Tables {
@@ -238,6 +259,8 @@ export function tablesFrom(c: Container): Tables {
     settings: arr<SettingRow>(c.data, "settings"),
     concepts: arr<Concept>(c.data, "concepts"),
     drafts: arr<DraftQuestion>(c.data, "drafts"),
+    cards: arr<MemoryCard>(c.data, "cards"),
+    cardEvents: arr<CardEvent>(c.data, "cardEvents"),
   };
   validateTables(t);
   return t;
@@ -329,7 +352,19 @@ function toImageRow(i: ImageFile) {
 export async function applyBackup(p: BackupPreview, mode: "merge" | "replace"): Promise<void> {
   await db.transaction(
     "rw",
-    [db.nodes, db.questions, db.blueprints, db.attempts, db.images, db.variants, db.settings, db.concepts, db.drafts],
+    [
+      db.nodes,
+      db.questions,
+      db.blueprints,
+      db.attempts,
+      db.images,
+      db.variants,
+      db.settings,
+      db.concepts,
+      db.drafts,
+      db.cards,
+      db.cardEvents,
+    ],
     async () => {
       if (mode === "replace") {
         await Promise.all([
@@ -342,7 +377,11 @@ export async function applyBackup(p: BackupPreview, mode: "merge" | "replace"): 
           db.settings.clear(),
           db.concepts.clear(),
           db.drafts.clear(),
+          db.cards.clear(),
+          db.cardEvents.clear(),
         ]);
+        await db.cards.bulkPut(p.incoming.cards);
+        await db.cardEvents.bulkPut(p.incoming.cardEvents);
         await db.concepts.bulkPut(p.incoming.concepts ?? []);
         await db.drafts.bulkPut(p.drafts);
         await db.nodes.bulkPut(p.incoming.nodes);
@@ -362,6 +401,8 @@ export async function applyBackup(p: BackupPreview, mode: "merge" | "replace"): 
       await db.settings.bulkPut(p.plan.puts.settings);
       await db.concepts.bulkPut(p.plan.puts.concepts);
       await db.drafts.bulkPut(p.plan.puts.drafts);
+      await db.cards.bulkPut(p.plan.puts.cards);
+      await db.cardEvents.bulkPut(p.plan.puts.cardEvents);
       await db.images.bulkPut(p.newImages.map(toImageRow));
     },
   );

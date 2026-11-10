@@ -484,6 +484,8 @@ function ImportFile() {
                 <CountsRow label="Questions" c={state.preview.plan.counts.questions} />
                 <CountsRow label="Quiz attempts" c={state.preview.plan.counts.attempts} />
                 <CountsRow label="Blueprints" c={state.preview.plan.counts.blueprints} />
+                <CountsRow label="Memory cards" c={state.preview.plan.counts.cards} />
+                <CountsRow label="Memory reviews" c={state.preview.plan.counts.cardEvents} />
               </tbody>
             </table>
           </div>

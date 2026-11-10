@@ -295,6 +295,53 @@ export interface QuizAttempt {
   deletedAt?: number;
 }
 
+/** What a memory card holds. The kind only sorts cards; how wrong choices are made depends on the answer itself. */
+export type CardKind = "constant" | "conversion" | "formula" | "principle" | "definition" | "unit" | "standard";
+
+/**
+ * A memory card: a prompt and the answer to recall, such as "Speed of light in a vacuum" and "2.998 × 10^8 m/s".
+ * It belongs to the bank, so it is written on the main device only.
+ */
+export interface MemoryCard {
+  id: string;
+  /** The category deck it is in: GEAS, ESAT, ELEX or MATH. */
+  categoryId: string;
+  topicId?: string;
+  kind: CardKind;
+  /** Markdown with LaTeX, like a question stem. */
+  prompt: string;
+  answer: string;
+  /**
+   * Wrong choices you approved, for an answer that is not a number. A number's wrong choices are made fresh in each
+   * review, so this stays empty for those.
+   */
+  wrong: string[];
+  reference?: string;
+  /** Where the card is in the deck's queue of new cards: lower ones are unlocked first. */
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+/**
+ * One thing that happened to a memory card: it was unlocked, or answered in a review. The log only grows, so
+ * reviews made on different devices simply add up when they sync. A card's box and due date are worked out from it.
+ */
+export interface CardEvent {
+  id: string;
+  cardId: string;
+  at: number;
+  type: "unlock" | "answer";
+  /** For an answer. */
+  correct?: boolean;
+  sureness?: Sureness;
+  /** The text of the choice picked, for an answer. */
+  picked?: string;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
 class AppDB extends Dexie {
   nodes!: EntityTable<TreeNode, "id">;
   questions!: EntityTable<Question, "id">;
@@ -305,6 +352,8 @@ class AppDB extends Dexie {
   settings!: EntityTable<SettingRow, "id">;
   concepts!: EntityTable<Concept, "id">;
   drafts!: EntityTable<DraftQuestion, "id">;
+  cards!: EntityTable<MemoryCard, "id">;
+  cardEvents!: EntityTable<CardEvent, "id">;
 
   constructor() {
     super("ece-review");
@@ -345,6 +394,19 @@ class AppDB extends Dexie {
       settings: "id",
       concepts: "id, topicId, updatedAt",
       drafts: "id, conceptId, status, updatedAt",
+    });
+    this.version(6).stores({
+      nodes: "id, kind, parentId, updatedAt",
+      questions: "id, topicId, updatedAt, *tags",
+      images: "id",
+      attempts: "id, scopeNodeId, status, startedAt, updatedAt",
+      blueprints: "id, categoryId, updatedAt",
+      variants: "id, questionId, status, updatedAt",
+      settings: "id",
+      concepts: "id, topicId, updatedAt",
+      drafts: "id, conceptId, status, updatedAt",
+      cards: "id, categoryId, updatedAt",
+      cardEvents: "id, cardId, at",
     });
   }
 }

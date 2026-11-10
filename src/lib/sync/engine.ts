@@ -237,7 +237,7 @@ async function tidyCategories(): Promise<void> {
 }
 
 /** The tables that make up the bank, which only the main device changes. */
-const BANK = ["nodes", "questions", "blueprints", "variants", "settings", "concepts", "drafts"] as const;
+const BANK = ["nodes", "questions", "blueprints", "variants", "settings", "concepts", "drafts", "cards"] as const;
 type Row = { id: string; updatedAt: number; deletedAt?: number };
 
 /** True when two copies of the bank differ in any item. */
@@ -264,19 +264,20 @@ async function mergeIn(c: Container, role: SyncConfig["role"]): Promise<ImageMet
   const p = plan.puts;
 
   if (role === "main") {
-    // Only quiz results come in. The bank here is the one that counts.
-    if (p.attempts.length) {
-      await db.transaction("rw", db.attempts, async () => {
+    // Only quiz results and memory reviews come in. The bank here is the one that counts.
+    if (p.attempts.length || p.cardEvents.length) {
+      await db.transaction("rw", db.attempts, db.cardEvents, async () => {
         markRemote();
         await db.attempts.bulkPut(p.attempts);
+        await db.cardEvents.bulkPut(p.cardEvents);
       });
     }
     // If the copy's bank is not this one (another device changed it somehow), send this one again to put it right.
     if (bankDiffers(local, incoming)) noteChange();
   } else if (role === "go") {
     // The bank becomes exactly the main device's: changed items are copied, ones it does not have are removed.
-    // Quiz results are combined, as before.
-    await db.transaction("rw", [...BANK.map((t) => db.table(t)), db.attempts], async () => {
+    // Quiz results and memory reviews are combined, as before.
+    await db.transaction("rw", [...BANK.map((t) => db.table(t)), db.attempts, db.cardEvents], async () => {
       markRemote();
       for (const t of BANK) {
         const theirs = incoming[t] as Row[];
@@ -291,6 +292,7 @@ async function mergeIn(c: Container, role: SyncConfig["role"]): Promise<ImageMet
         if (drops.length) await db.table(t).bulkDelete(drops);
       }
       if (p.attempts.length) await db.attempts.bulkPut(p.attempts);
+      if (p.cardEvents.length) await db.cardEvents.bulkPut(p.cardEvents);
     });
   } else {
     // A device that has not been given a role yet merges everything, newest first, as sync first did.
@@ -298,7 +300,18 @@ async function mergeIn(c: Container, role: SyncConfig["role"]): Promise<ImageMet
     if (count) {
       await db.transaction(
         "rw",
-        [db.nodes, db.questions, db.blueprints, db.attempts, db.variants, db.settings, db.concepts, db.drafts],
+        [
+          db.nodes,
+          db.questions,
+          db.blueprints,
+          db.attempts,
+          db.variants,
+          db.settings,
+          db.concepts,
+          db.drafts,
+          db.cards,
+          db.cardEvents,
+        ],
         async () => {
           markRemote();
           await db.nodes.bulkPut(p.nodes);
@@ -309,6 +322,8 @@ async function mergeIn(c: Container, role: SyncConfig["role"]): Promise<ImageMet
           await db.settings.bulkPut(p.settings);
           await db.concepts.bulkPut(p.concepts);
           await db.drafts.bulkPut(p.drafts);
+          await db.cards.bulkPut(p.cards);
+          await db.cardEvents.bulkPut(p.cardEvents);
         },
       );
       await tidyCategories();

@@ -10,6 +10,7 @@ export interface ResetCounts {
   questions: number;
   concepts: number;
   drafts: number;
+  cards: number;
   variants: number;
   images: number;
   blueprints: number;
@@ -20,27 +21,38 @@ export interface ResetCounts {
 /** How much each reset would remove, for the confirmation text. */
 export async function resetCounts(): Promise<ResetCounts> {
   const live = <T extends { deletedAt?: number }>(r: T) => !r.deletedAt;
-  const [quizzes, questions, concepts, drafts, variants, images, blueprints, nodes] = await Promise.all([
+  const [quizzes, questions, concepts, drafts, cards, variants, images, blueprints, nodes] = await Promise.all([
     db.attempts.filter(live).count(),
     db.questions.filter(live).count(),
     db.concepts.filter(live).count(),
     db.drafts.filter(live).count(),
+    db.cards.filter(live).count(),
     db.variants.filter(live).count(),
     db.images.count(),
     db.blueprints.filter(live).count(),
     db.nodes.filter((n) => !n.deletedAt && !(n.kind === "category" && n.fixed)).count(),
   ]);
-  return { quizzes, questions, concepts, drafts, variants, images, blueprints, nodes };
+  return { quizzes, questions, concepts, drafts, cards, variants, images, blueprints, nodes };
 }
 
-/** Deletes every quiz. Mastery, results, analytics, and locks are all worked out from quizzes, so they reset too. */
+/**
+ * Deletes every quiz and every memory review. Mastery, results, analytics, locks, and memory boxes are all worked
+ * out from those, so they reset too.
+ */
 export async function resetProgress(): Promise<void> {
-  await db.attempts.clear();
+  await db.transaction("rw", [db.attempts, db.cardEvents], async () => {
+    await db.attempts.clear();
+    await db.cardEvents.clear();
+  });
 }
 
-/** Deletes every question, concept, draft, AI variant, and picture. Subjects, topics, and quiz history stay. */
+/**
+ * Deletes every question, concept, draft, AI variant, memory card, and picture. Subjects, topics, and quiz history
+ * stay.
+ */
 export async function emptyBank(): Promise<void> {
-  await db.transaction("rw", [db.attempts, db.questions, db.concepts, db.drafts, db.variants, db.images], async () => {
+  const tables = [db.attempts, db.questions, db.concepts, db.drafts, db.variants, db.images, db.cards, db.cardEvents];
+  await db.transaction("rw", tables, async () => {
     // Old results keep their own copy of each question, so pictures they still show are kept.
     const keep = new Set<string>();
     await db.attempts.each((a) => {
@@ -52,6 +64,8 @@ export async function emptyBank(): Promise<void> {
     await db.concepts.clear();
     await db.drafts.clear();
     await db.variants.clear();
+    await db.cards.clear();
+    await db.cardEvents.clear();
     await db.images.filter((i) => !keep.has(i.id)).delete();
   });
 }
@@ -60,7 +74,19 @@ export async function emptyBank(): Promise<void> {
 export async function eraseEverything(removeKeys: boolean): Promise<void> {
   await db.transaction(
     "rw",
-    [db.attempts, db.questions, db.concepts, db.drafts, db.variants, db.images, db.blueprints, db.settings, db.nodes],
+    [
+      db.attempts,
+      db.questions,
+      db.concepts,
+      db.drafts,
+      db.variants,
+      db.images,
+      db.blueprints,
+      db.settings,
+      db.nodes,
+      db.cards,
+      db.cardEvents,
+    ],
     async () => {
       await db.attempts.clear();
       await db.questions.clear();
@@ -70,6 +96,8 @@ export async function eraseEverything(removeKeys: boolean): Promise<void> {
       await db.images.clear();
       await db.blueprints.clear();
       await db.settings.clear();
+      await db.cards.clear();
+      await db.cardEvents.clear();
       await db.nodes.filter((n) => !(n.kind === "category" && n.fixed)).delete();
     },
   );

@@ -4,12 +4,14 @@ import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConceptList from "@/components/bank/ConceptList";
 import LoadingScreen from "@/components/layout/LoadingScreen";
+import MemoryBank from "@/components/bank/MemoryBank";
 import QuestionList from "@/components/bank/QuestionList";
 import TreePanel from "@/components/bank/TreePanel";
 import { useDrafts } from "@/lib/bank/concepts";
+import { useCards } from "@/lib/memory/cards";
 import { useConcepts, useNodes, useQuestions } from "@/lib/hooks";
 
-type Tab = "questions" | "concepts";
+type Tab = "questions" | "concepts" | "memory";
 
 function BankView() {
   const router = useRouter();
@@ -18,17 +20,19 @@ function BankView() {
   const questions = useQuestions();
   const concepts = useConcepts();
   const drafts = useDrafts();
+  const cards = useCards();
   // The address holds the node, the tab, and the page, such as /bank?node=<id>&tab=concepts&page=3, so a refresh keeps your place.
   const selectedId = params.get("node");
-  const tab: Tab = params.get("tab") === "concepts" ? "concepts" : "questions";
+  const wanted = params.get("tab");
+  const tab: Tab = wanted === "concepts" || wanted === "memory" ? wanted : "questions";
 
-  if (!nodes || !questions || !concepts || !drafts) return <LoadingScreen />;
+  if (!nodes || !questions || !concepts || !drafts || !cards) return <LoadingScreen />;
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
   const open = (nodeId: string | null, t: Tab) => {
     const q = new URLSearchParams();
     if (nodeId) q.set("node", nodeId);
-    if (t === "concepts") q.set("tab", "concepts");
+    if (t !== "questions") q.set("tab", t);
     const text = q.toString();
     router.replace(`/bank${text ? `?${text}` : ""}`, { scroll: false });
   };
@@ -37,6 +41,7 @@ function BankView() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "questions", label: `Questions (${questions.length})` },
     { id: "concepts", label: `Concepts (${concepts.length})` },
+    { id: "memory", label: `Memory (${cards.length})` },
   ];
 
   return (
@@ -56,23 +61,27 @@ function BankView() {
           </button>
         ))}
       </div>
-      <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        {/* The tree stays in view while the list scrolls. A long tree scrolls on its own. */}
-        <div className="scroll-thin sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-          <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={select} />
+      {tab === "memory" ? (
+        <MemoryBank nodes={nodes} cards={cards} />
+      ) : (
+        <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+          {/* The tree stays in view while the list scrolls. A long tree scrolls on its own. */}
+          <div className="scroll-thin sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+            <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={select} />
+          </div>
+          {tab === "questions" ? (
+            <QuestionList key={selected?.id ?? "all"} nodes={nodes} questions={questions} selected={selected} />
+          ) : (
+            <ConceptList
+              key={selected?.id ?? "all"}
+              nodes={nodes}
+              concepts={concepts}
+              drafts={drafts}
+              selected={selected}
+            />
+          )}
         </div>
-        {tab === "questions" ? (
-          <QuestionList key={selected?.id ?? "all"} nodes={nodes} questions={questions} selected={selected} />
-        ) : (
-          <ConceptList
-            key={selected?.id ?? "all"}
-            nodes={nodes}
-            concepts={concepts}
-            drafts={drafts}
-            selected={selected}
-          />
-        )}
-      </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,15 @@
-import type { Blueprint, Concept, DraftQuestion, Question, QuizAttempt, SettingRow, TreeNode, Variant } from "@/lib/db";
+import type {
+  Blueprint,
+  CardEvent,
+  Concept,
+  DraftQuestion,
+  MemoryCard,
+  Question,
+  QuizAttempt,
+  SettingRow,
+  TreeNode,
+  Variant,
+} from "@/lib/db";
 
 /** Every table that travels in a full backup. */
 export interface Tables {
@@ -10,6 +21,10 @@ export interface Tables {
   settings: SettingRow[];
   concepts: Concept[];
   drafts: DraftQuestion[];
+  /** Memory cards. A backup made before Memory existed has none. */
+  cards: MemoryCard[];
+  /** What happened to each memory card: unlocks and review answers. */
+  cardEvents: CardEvent[];
 }
 
 export interface MergeCounts {
@@ -65,6 +80,8 @@ export function planBackupMerge(local: Tables, incoming: Tables): BackupMergePla
   const settings = mergeById(local.settings, incoming.settings);
   const concepts = mergeById(local.concepts, incoming.concepts);
   const drafts = mergeById(local.drafts, incoming.drafts);
+  const cards = mergeById(local.cards, incoming.cards);
+  const cardEvents = mergeById(local.cardEvents, incoming.cardEvents);
   return {
     puts: {
       nodes: nodes.puts,
@@ -75,6 +92,8 @@ export function planBackupMerge(local: Tables, incoming: Tables): BackupMergePla
       settings: settings.puts,
       concepts: concepts.puts,
       drafts: drafts.puts,
+      cards: cards.puts,
+      cardEvents: cardEvents.puts,
     },
     counts: {
       nodes: nodes.counts,
@@ -85,6 +104,8 @@ export function planBackupMerge(local: Tables, incoming: Tables): BackupMergePla
       settings: settings.counts,
       concepts: concepts.counts,
       drafts: drafts.counts,
+      cards: cards.counts,
+      cardEvents: cardEvents.counts,
     },
   };
 }

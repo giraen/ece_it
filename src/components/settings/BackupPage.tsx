@@ -25,6 +25,7 @@ import { confirmAction } from "@/lib/ui/dialog";
 import BackupStatus from "./BackupStatus";
 import PasswordInput from "@/components/ui/PasswordInput";
 import InfoTip from "@/components/ui/InfoTip";
+import { useReadOnly } from "@/lib/sync/syncState";
 
 const MIN_PASSWORD = 8;
 
@@ -670,6 +671,8 @@ export default function BackupPage({ initialScope, embedded = false }: { initial
   const blueprints = useBlueprints();
   const variants = useVariants();
   const concepts = useConcepts();
+  // Importing changes the bank, so an on-the-go device only exports.
+  const readOnly = useReadOnly();
 
   return (
     <div className={embedded ? "space-y-6" : "max-w-3xl space-y-6"}>
@@ -697,7 +700,13 @@ export default function BackupPage({ initialScope, embedded = false }: { initial
       ) : (
         <p className="text-sm text-muted">Loading…</p>
       )}
-      <ImportFile />
+      {readOnly ? (
+        <p className="text-sm text-muted">
+          Importing a backup or a bank pack is done on your main device, since it changes the bank.
+        </p>
+      ) : (
+        <ImportFile />
+      )}
     </div>
   );
 }

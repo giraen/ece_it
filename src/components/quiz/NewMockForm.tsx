@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnly } from "@/lib/sync/syncState";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,6 +24,7 @@ interface Props {
 
 /** Set up a mock board: see what the blueprint will draw, choose the time, and start. */
 export default function NewMockForm({ node, nodes, questions, blueprint, attempts, nowMs }: Props) {
+  const readOnly = useReadOnly();
   const router = useRouter();
   const [minutesText, setMinutesText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +40,14 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         <p className="font-medium">{node.name}</p>
         <p className="rounded-md border border-dashed border-line p-5 text-sm text-muted">
           A mock board follows a blueprint: how many questions in total, and what share comes from each subject or
-          topic. Set one up for {node.name} to start.
+          topic. {readOnly ? "Set one up on your main device." : `Set one up for ${node.name} to start.`}
         </p>
         <div className="flex gap-2">
-          <Link href={`/blueprint?category=${node.id}`} className="btn btn-primary">
-            Set up the blueprint
-          </Link>
+          {!readOnly && (
+            <Link href={`/blueprint?category=${node.id}`} className="btn btn-primary">
+              Set up the blueprint
+            </Link>
+          )}
           <Link href="/quiz" className="btn">
             Back
           </Link>
@@ -82,9 +86,11 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         <p className="text-sm text-muted">
           Follows the blueprint: {blueprint.totalItems} item{blueprint.totalItems === 1 ? "" : "s"} across{" "}
           {blueprint.entries.length} entr{blueprint.entries.length === 1 ? "y" : "ies"}.{" "}
-          <Link href={`/blueprint?category=${node.id}`} className="underline">
-            Edit the blueprint
-          </Link>
+          {!readOnly && (
+            <Link href={`/blueprint?category=${node.id}`} className="underline">
+              Edit the blueprint
+            </Link>
+          )}
         </p>
       </div>
 
@@ -100,9 +106,7 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         </p>
       )}
       {info.status === "expired" && info.expiresAt !== undefined && (
-        <p className="card p-3 text-sm text-muted">
-          Mastery expired on {formatDate(info.expiresAt)}.
-        </p>
+        <p className="card p-3 text-sm text-muted">Mastery expired on {formatDate(info.expiresAt)}.</p>
       )}
 
       <div className="overflow-x-auto card p-3">

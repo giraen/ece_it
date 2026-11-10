@@ -1,13 +1,15 @@
+import Dexie from "dexie";
 import { db, type StoredImage, type TreeNode } from "@/lib/db";
 import { FIXED_CATEGORIES } from "@/lib/bank/categories";
 import { loadTables, tablesFrom } from "@/lib/backup/backup";
 import { buildZipAsync, readZipAsync, type Container } from "@/lib/backup/backupFormat";
-import { planBackupMerge } from "@/lib/backup/merge";
+import { planBackupMerge, type Tables } from "@/lib/backup/merge";
 import { now } from "@/lib/ids";
 import { keyOf, open, seal, spaceOf } from "./crypto";
 import { applyPrefs, readPrefs, type DevicePrefs } from "./devicePrefs";
 import {
   loadChanges,
+  noteChange,
   loadCloudImages,
   loadConfig,
   loadImageMeta,
@@ -15,7 +17,7 @@ import {
   saveImageMeta,
   saveCloudImages,
   saveConfig,
-  setStatus,
+  setStatus as showStatus,
   type SyncConfig,
 } from "./syncState";
 
@@ -32,6 +34,16 @@ import {
  *
  * A sync that is cut short (the tab closed, the page reloaded, the connection dropped) changes nothing in the cloud;
  * the next one simply runs again. Images already sent or received are kept, so those are not repeated.
+ *
+ * One device is the main device (your laptop): the bank is changed only there. The others are on-the-go devices
+ * (your phones): they take quizzes and play games, and their bank is a read-only copy of the main device's.
+ * - The main device takes only quiz results from the cloud copy. Whatever else the copy holds, its bank stays its own.
+ * - An on-the-go device makes its bank exactly the main device's, and adds its quiz results to the copy.
+ * The role is fixed when sync starts on a device: the one that turns it on is main, the ones that join are on-the-go.
+ * Nothing in the app moves it. To make another device main, turn sync off on every device, import a backup on the new
+ * one, turn sync on there, and join the others with its new code.
+ *
+ * A sync that stops making progress while you are on the page is stopped, so it can never hang.
  */
 
 interface ImageMeta {
@@ -54,11 +66,69 @@ const PART_BYTES = 3_500_000;
 const MAX_IMAGE_BYTES = 3_500_000;
 const IMAGES_AT_ONCE = 4;
 const MAX_TRIES = 4;
+/** How long a sync may go without progress, counting only time the page is on screen, before it is stopped. */
+const STALL_MS = 120_000;
 
 export class SyncError extends Error {}
 
-/** True while a downloaded copy is being written in, so those writes are not counted as changes made here. */
-export let applyingRemote = false;
+const STALLED = "Sync got stuck and was stopped. Nothing was lost; it will try again.";
+
+// ---------------------------------------------------------------------------------------------
+// Telling the device's own changes from the ones a sync writes
+// ---------------------------------------------------------------------------------------------
+
+/** Database transactions that write a downloaded copy in. Writes in them are not changes made on this device. */
+const remoteTx = new WeakSet<object>();
+
+/** True for a write made by sync itself. Only that write is skipped; anything you do meanwhile still counts. */
+export function isRemote(trans: unknown): boolean {
+  return !!trans && remoteTx.has(trans as object);
+}
+
+function markRemote(): void {
+  const t = Dexie.currentTransaction;
+  if (t) remoteTx.add(t);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The watchdog
+// ---------------------------------------------------------------------------------------------
+
+let abort: AbortController | null = null;
+let idle = 0;
+
+/** Stops here if the watchdog has given up on this sync. */
+function alive(): void {
+  if (abort?.signal.aborted) throw new SyncError(STALLED);
+}
+
+/** Shows what sync is doing, and tells the watchdog it is still moving. */
+function setStatus(patch: Parameters<typeof showStatus>[0]): void {
+  alive();
+  idle = 0;
+  showStatus(patch);
+}
+
+/** Rejects once the sync has made no progress for a while. Time with the page hidden does not count. */
+function watchdog(): { stalled: Promise<never>; stop: () => void } {
+  idle = 0;
+  let last = Date.now();
+  let timer: number | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = window.setInterval(() => {
+      const t = Date.now();
+      // A phone that slept or a hidden tab freezes the page; that time is not the sync's fault.
+      if (document.visibilityState === "visible") idle += Math.min(t - last, 10_000);
+      last = t;
+      if (idle > STALL_MS) {
+        abort?.abort();
+        reject(new SyncError(STALLED));
+      }
+    }, 5_000);
+  });
+  stalled.catch(() => {});
+  return { stalled, stop: () => window.clearInterval(timer) };
+}
 
 async function api<T>(body: unknown): Promise<T> {
   let res: Response;
@@ -67,8 +137,10 @@ async function api<T>(body: unknown): Promise<T> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: abort?.signal,
     });
   } catch {
+    alive();
     throw new SyncError("You seem to be offline. Sync will try again when you are back online.");
   }
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -77,7 +149,9 @@ async function api<T>(body: unknown): Promise<T> {
 }
 
 async function fetchBytes(url: string): Promise<Uint8Array> {
-  const res = await fetch(url).catch(() => null);
+  alive();
+  const res = await fetch(url, { signal: abort?.signal }).catch(() => null);
+  alive();
   if (!res) throw new SyncError("You seem to be offline. Sync will try again when you are back online.");
   if (!res.ok) {
     const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -91,7 +165,9 @@ async function putBytes(url: string, bytes: Uint8Array): Promise<void> {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream" },
     body: new Blob([new Uint8Array(bytes)]),
+    signal: abort?.signal,
   }).catch(() => null);
+  alive();
   if (!res) throw new SyncError("You seem to be offline. Sync will try again when you are back online.");
   if (!res.ok) {
     const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -119,7 +195,10 @@ async function inParallel<T>(items: T[], at: number, fn: (item: T) => Promise<vo
 async function download(space: string, key: CryptoKey, h: Head): Promise<Container> {
   const parts: Uint8Array[] = [];
   for (let i = 0; i < (h.parts ?? 0); i++) {
-    setStatus({ step: "Downloading the latest copy…", progress: i / (h.parts ?? 1) });
+    setStatus({
+      step: "Downloading the latest copy…",
+      progress: i / (h.parts ?? 1),
+    });
     parts.push(await fetchBytes(`/api/sync/part?${q({ space, upload: h.upload!, n: i })}`));
   }
   setStatus({ step: "Opening it…", progress: undefined });
@@ -157,20 +236,71 @@ async function tidyCategories(): Promise<void> {
   }
 }
 
-/** Merges a downloaded copy in. Returns the images it lists, which the cloud has. */
-async function mergeIn(c: Container): Promise<ImageMeta[]> {
+/** The tables that make up the bank, which only the main device changes. */
+const BANK = ["nodes", "questions", "blueprints", "variants", "settings", "concepts", "drafts"] as const;
+type Row = { id: string; updatedAt: number; deletedAt?: number };
+
+/** True when two copies of the bank differ in any item. */
+function bankDiffers(a: Tables, b: Tables): boolean {
+  return BANK.some((t) => {
+    const ours = a[t] as Row[];
+    const theirs = b[t] as Row[];
+    if (ours.length !== theirs.length) return true;
+    const byId = new Map(ours.map((r) => [r.id, r]));
+    return theirs.some((r) => {
+      const o = byId.get(r.id);
+      return !o || o.updatedAt !== r.updatedAt || o.deletedAt !== r.deletedAt;
+    });
+  });
+}
+
+/** Merges a downloaded copy in, by this device's role. Returns the images the copy lists, which the cloud has. */
+async function mergeIn(c: Container, role: SyncConfig["role"]): Promise<ImageMeta[]> {
   setStatus({ step: "Merging it into this device…", progress: undefined });
+
   const incoming = tablesFrom(c);
-  const plan = planBackupMerge(await loadTables(), incoming);
+  const local = await loadTables();
+  const plan = planBackupMerge(local, incoming);
   const p = plan.puts;
-  const count = Object.values(p).reduce((s, list) => s + list.length, 0);
-  if (count) {
-    applyingRemote = true;
-    try {
+
+  if (role === "main") {
+    // Only quiz results come in. The bank here is the one that counts.
+    if (p.attempts.length) {
+      await db.transaction("rw", db.attempts, async () => {
+        markRemote();
+        await db.attempts.bulkPut(p.attempts);
+      });
+    }
+    // If the copy's bank is not this one (another device changed it somehow), send this one again to put it right.
+    if (bankDiffers(local, incoming)) noteChange();
+  } else if (role === "go") {
+    // The bank becomes exactly the main device's: changed items are copied, ones it does not have are removed.
+    // Quiz results are combined, as before.
+    await db.transaction("rw", [...BANK.map((t) => db.table(t)), db.attempts], async () => {
+      markRemote();
+      for (const t of BANK) {
+        const theirs = incoming[t] as Row[];
+        const ours = new Map((local[t] as Row[]).map((r) => [r.id, r]));
+        const ids = new Set(theirs.map((r) => r.id));
+        const puts = theirs.filter((r) => {
+          const o = ours.get(r.id);
+          return !o || o.updatedAt !== r.updatedAt || o.deletedAt !== r.deletedAt;
+        });
+        const drops = [...ours.keys()].filter((id) => !ids.has(id));
+        if (puts.length) await db.table(t).bulkPut(puts);
+        if (drops.length) await db.table(t).bulkDelete(drops);
+      }
+      if (p.attempts.length) await db.attempts.bulkPut(p.attempts);
+    });
+  } else {
+    // A device that has not been given a role yet merges everything, newest first, as sync first did.
+    const count = Object.values(p).reduce((n, list) => n + list.length, 0);
+    if (count) {
       await db.transaction(
         "rw",
         [db.nodes, db.questions, db.blueprints, db.attempts, db.variants, db.settings, db.concepts, db.drafts],
         async () => {
+          markRemote();
           await db.nodes.bulkPut(p.nodes);
           await db.questions.bulkPut(p.questions);
           await db.blueprints.bulkPut(p.blueprints);
@@ -181,10 +311,8 @@ async function mergeIn(c: Container): Promise<ImageMeta[]> {
           await db.drafts.bulkPut(p.drafts);
         },
       );
-    } finally {
-      applyingRemote = false;
+      await tidyCategories();
     }
-    await tidyCategories();
   }
   const prefs = (c.data.prefs?.[0] ?? null) as DevicePrefs | null;
   if (prefs && prefs.updatedAt > readPrefs().updatedAt) applyPrefs(prefs);
@@ -200,17 +328,22 @@ async function receiveImages(space: string, key: CryptoKey, metas: ImageMeta[], 
   await inParallel(missing, IMAGES_AT_ONCE, async (m) => {
     try {
       const bytes = await open(key, await fetchBytes(`/api/sync/image?${q({ space, id: m.id })}`));
-      applyingRemote = true;
-      try {
-        await db.images.put({ ...m, blob: new Blob([new Uint8Array(bytes)], { type: m.mime }) });
-      } finally {
-        applyingRemote = false;
-      }
+      await db.transaction("rw", db.images, async () => {
+        markRemote();
+        await db.images.put({
+          ...m,
+          blob: new Blob([new Uint8Array(bytes)], { type: m.mime }),
+        });
+      });
       cloud.add(m.id);
     } catch {
+      alive();
       failed++;
     }
-    setStatus({ step: `Downloading images… ${++done} of ${missing.length}`, progress: done / missing.length });
+    setStatus({
+      step: `Downloading images… ${++done} of ${missing.length}`,
+      progress: done / missing.length,
+    });
   });
   saveCloudImages(cloud);
   return failed;
@@ -236,7 +369,10 @@ async function sendImages(space: string, key: CryptoKey, cloud: Set<string>): Pr
         saveCloudImages(cloud);
       }
     }
-    setStatus({ step: `Uploading images… ${++done} of ${ids.length}`, progress: done / ids.length });
+    setStatus({
+      step: `Uploading images… ${++done} of ${ids.length}`,
+      progress: done / ids.length,
+    });
   });
   return tooBig;
 }
@@ -259,10 +395,22 @@ async function saveCopy(
   const metas = new Map(knownMeta.filter((m) => cloud.has(m.id)).map((m) => [m.id, m]));
   await db.images.each((i) => {
     if (cloud.has(i.id))
-      metas.set(i.id, { id: i.id, mime: i.mime, width: i.width, height: i.height, createdAt: i.createdAt });
+      metas.set(i.id, {
+        id: i.id,
+        mime: i.mime,
+        width: i.width,
+        height: i.height,
+        createdAt: i.createdAt,
+      });
   });
   const container: Container = {
-    manifest: { app: "ece-review", format: 1, kind: "backup", createdAt: now(), counts: {} },
+    manifest: {
+      app: "ece-review",
+      format: 1,
+      kind: "backup",
+      createdAt: now(),
+      counts: {},
+    },
     data: { ...tables, prefs: [readPrefs()], imageMeta: [...metas.values()] },
     images: [],
   };
@@ -291,56 +439,70 @@ async function saveCopy(
 // ---------------------------------------------------------------------------------------------
 
 let running: Promise<void> | null = null;
+/** A sync the watchdog stopped that is still winding down. No new sync starts until it has. */
+let stopping: Promise<unknown> | null = null;
+
+/** One sync, start to finish. Returns how many images could not be fetched and how many are too big to send. */
+async function work(start: SyncConfig): Promise<{ cfg: SyncConfig; failedImages: number; tooBig: number }> {
+  let cfg = start;
+  const [space, key] = await Promise.all([spaceOf(cfg.code), keyOf(cfg.code)]);
+  const cloud = loadCloudImages();
+  let knownMeta = loadImageMeta<ImageMeta>();
+  let failedImages = 0;
+  let tooBig = 0;
+
+  for (let tries = 0; ; tries++) {
+    if (tries >= MAX_TRIES) throw new SyncError("Another device kept saving at the same time. Try again.");
+    const h = await api<Head>({ action: "head", space });
+
+    if (h.version > 0 && h.version !== cfg.version) {
+      const copy = await download(space, key, h);
+      knownMeta = await mergeIn(copy, cfg.role);
+      saveImageMeta(knownMeta);
+      for (const m of knownMeta) cloud.add(m.id);
+      saveCloudImages(cloud);
+      cfg = { ...cfg, version: h.version };
+      if (loadConfig()?.code === cfg.code) saveConfig(cfg);
+    }
+    // Fetch any listed image this device does not have yet, including ones a cut-short sync missed.
+    failedImages = await receiveImages(space, key, knownMeta, cloud);
+
+    const changes = loadChanges();
+    if (h.version > 0 && changes.made <= changes.sent) break;
+
+    const madeBefore = changes.made;
+    tooBig = await sendImages(space, key, cloud);
+    const saved = await saveCopy(space, key, cfg.version, cloud, knownMeta);
+    alive();
+    if (saved.ok) {
+      cfg = { ...cfg, version: saved.version };
+      if (loadConfig()?.code === cfg.code) saveConfig(cfg);
+      saveChanges({ ...loadChanges(), sent: madeBefore });
+      break;
+    }
+    // Another device saved first: go round again, merge its copy, and save after it.
+  }
+  return { cfg, failedImages, tooBig };
+}
 
 /** Runs one sync now. A sync that is already running is joined rather than started twice. */
 export function syncNow(): Promise<void> {
   if (running) return running;
+  if (stopping) return Promise.resolve();
   running = (async () => {
     const run = async () => {
-      let cfg = loadConfig();
-      if (!cfg) return;
+      const start = loadConfig();
+      if (!start) return;
+      abort = new AbortController();
+      const dog = watchdog();
       setStatus({ on: true, running: true, error: undefined, step: "Checking for changes…", progress: undefined });
+      const job = work(start);
+      job.catch(() => {});
       try {
-        const [space, key] = await Promise.all([spaceOf(cfg.code), keyOf(cfg.code)]);
-        const cloud = loadCloudImages();
-        let knownMeta = loadImageMeta<ImageMeta>();
-        let failedImages = 0;
-        let tooBig = 0;
-
-        for (let tries = 0; ; tries++) {
-          if (tries >= MAX_TRIES) throw new SyncError("Another device kept saving at the same time. Try again.");
-          const h = await api<Head>({ action: "head", space });
-
-          if (h.version > 0 && h.version !== cfg.version) {
-            const copy = await download(space, key, h);
-            knownMeta = await mergeIn(copy);
-            saveImageMeta(knownMeta);
-            for (const m of knownMeta) cloud.add(m.id);
-            saveCloudImages(cloud);
-            cfg = { ...cfg, version: h.version };
-            if (loadConfig()?.code === cfg.code) saveConfig(cfg);
-          }
-          // Fetch any listed image this device does not have yet, including ones a cut-short sync missed.
-          failedImages = await receiveImages(space, key, knownMeta, cloud);
-
-          const changes = loadChanges();
-          if (h.version > 0 && changes.made <= changes.sent) break;
-
-          const madeBefore = changes.made;
-          tooBig = await sendImages(space, key, cloud);
-          const saved = await saveCopy(space, key, cfg.version, cloud, knownMeta);
-          if (saved.ok) {
-            cfg = { ...cfg, version: saved.version };
-            if (loadConfig()?.code === cfg.code) saveConfig(cfg);
-            saveChanges({ ...loadChanges(), sent: madeBefore });
-            break;
-          }
-          // Another device saved first: go round again, merge its copy, and save after it.
-        }
-
+        const { cfg, failedImages, tooBig } = await Promise.race([job, dog.stalled]);
         const done: SyncConfig = { ...cfg, lastSyncAt: now() };
         if (loadConfig()?.code === cfg.code) saveConfig(done);
-        setStatus({
+        showStatus({
           running: false,
           step: undefined,
           progress: undefined,
@@ -353,12 +515,21 @@ export function syncNow(): Promise<void> {
             : undefined,
         });
       } catch (e) {
-        setStatus({
+        if (!abort.signal.aborted) abort.abort();
+        // Stopped by the watchdog: no new sync starts until this one has wound down.
+        else
+          stopping = job.then(
+            () => (stopping = null),
+            () => (stopping = null),
+          );
+        showStatus({
           running: false,
           step: undefined,
           progress: undefined,
           error: e instanceof SyncError ? e.message : "Sync did not finish. Nothing was lost; it will try again.",
         });
+      } finally {
+        dog.stop();
       }
     };
     // Only one tab syncs at a time.

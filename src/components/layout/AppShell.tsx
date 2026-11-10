@@ -12,6 +12,7 @@ import ProfileMenu from "./ProfileMenu";
 import SyncIndicator from "./SyncIndicator";
 import ThemeToggle from "./ThemeToggle";
 import { startAutoSync } from "@/lib/sync/autoSync";
+import { useReadOnly } from "@/lib/sync/syncState";
 
 const count = (n: number) => `${n} quiz${n === 1 ? "" : "zes"}`;
 
@@ -41,6 +42,28 @@ function ComputerOnly() {
   );
 }
 
+/** On an on-the-go device the bank is read-only, so the pages that change it show this instead, on any screen. */
+function OnTheGo() {
+  return (
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-4 py-16 text-center">
+      <Logo />
+      <h1 className="text-lg font-semibold">The bank is read-only on this device</h1>
+      <p className="text-sm text-muted">
+        This is an on-the-go device: it is for quizzes and games. Questions are written and organised on your main
+        device, and arrive here when it syncs.
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Link href="/" className="btn">
+          Back to home
+        </Link>
+        <Link href="/settings#sync" className="btn">
+          Sync settings
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The header and the page frame around every page. On a computer the pages sit under a top bar. On a phone the top bar
  * is slim and the main pages are in a tab bar at the bottom.
@@ -49,6 +72,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [rechecked, setRechecked] = useState<RecheckSummary | null>(null);
   const computerOnly = COMPUTER_ONLY.some((p) => path.startsWith(p));
+  const readOnly = useReadOnly();
   const fullScreen = FULL_SCREEN.some((p) => path.startsWith(p));
 
   useEffect(() => {
@@ -118,7 +142,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           fullScreen ? "max-lg:py-0" : "py-4 max-lg:pb-24"
         }`}
       >
-        {computerOnly ? (
+        {computerOnly && readOnly ? (
+          <OnTheGo />
+        ) : computerOnly ? (
           <>
             <div className="max-lg:hidden">{children}</div>
             <div className="lg:hidden">

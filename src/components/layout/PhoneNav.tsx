@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChartIcon, CloseIcon, HomeIcon, MoreIcon, QuizIcon } from "@/components/ui/icons";
+import { useReadOnly } from "@/lib/sync/syncState";
 
 const TABS = [
   { href: "/", label: "Home", icon: HomeIcon, match: [] as string[] },
@@ -25,6 +26,8 @@ const isOn = (path: string, href: string, match: string[]) =>
 /** The tab bar at the bottom of a phone screen, and the sheet that the More tab opens. Hidden on a computer. */
 export default function PhoneNav() {
   const path = usePathname();
+  // The bank and Extract change the bank, so an on-the-go device leaves them out.
+  const more = useReadOnly() ? MORE.filter((m) => m.href !== "/bank" && m.href !== "/extract") : MORE;
   // The page the sheet was opened on. Moving to another page closes it.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === path;
@@ -66,7 +69,7 @@ export default function PhoneNav() {
               </button>
             </div>
             <ul>
-              {MORE.map((m) => (
+              {more.map((m) => (
                 <li key={m.href}>
                   <Link
                     href={m.href}

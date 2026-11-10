@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnly } from "@/lib/sync/syncState";
 import { useState } from "react";
 import Link from "next/link";
 import { countAvailable } from "@/lib/quiz/compose";
@@ -52,6 +53,7 @@ function Status({ m, nowMs }: { m: TreeMastery; nowMs: number }) {
 }
 
 function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: string; ctx: Ctx }) {
+  const readOnly = useReadOnly();
   const kids = childrenOf(ctx.nodes, node.id);
   const open = ctx.expanded.has(at);
   const m = ctx.mastery.get(node.id);
@@ -108,9 +110,11 @@ function Branch({ node, depth, at, ctx }: { node: TreeNode; depth: number; at: s
         <span className="flex shrink-0 gap-1.5">
           {node.kind === "category" ? (
             <>
-              <Link href={`/blueprint?category=${node.id}`} className="btn py-1 max-lg:hidden">
-                {ctx.blueprintFor.has(node.id) ? "Blueprint" : "Set up blueprint"}
-              </Link>
+              {!readOnly && (
+                <Link href={`/blueprint?category=${node.id}`} className="btn py-1 max-lg:hidden">
+                  {ctx.blueprintFor.has(node.id) ? "Blueprint" : "Set up blueprint"}
+                </Link>
+              )}
               {ctx.blueprintFor.has(node.id) &&
                 (locked ? (
                   <span className="btn pointer-events-none py-1 opacity-40" aria-disabled="true">

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserIcon } from "@/components/ui/icons";
+import { useReadOnly } from "@/lib/sync/syncState";
 
 // `match` lists the pages that belong to each item, so the profile button lights up while you are inside any of them.
 const ITEMS = [
@@ -17,6 +18,9 @@ const ITEMS = [
 /** The profile button and the floating menu that opens under it. */
 export default function ProfileMenu() {
   const path = usePathname();
+  // The bank and Extract change the bank, so an on-the-go device leaves them out.
+  const readOnly = useReadOnly();
+  const items = readOnly ? ITEMS.filter((i) => i.href !== "/bank" && i.href !== "/extract") : ITEMS;
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -79,7 +83,9 @@ export default function ProfileMenu() {
           setOpen((o) => !o);
         }}
         className={`rounded-full border p-1.5 ${
-          inMenu || open ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-paper hover:text-ink"
+          inMenu || open
+            ? "border-accent bg-accent-soft text-accent"
+            : "border-line text-muted hover:bg-paper hover:text-ink"
         }`}
       >
         <UserIcon />
@@ -92,7 +98,7 @@ export default function ProfileMenu() {
           onKeyDown={onMenuKey}
           className="absolute right-0 z-40 mt-2 w-48 rounded-md border border-line bg-surface p-1 shadow-lg"
         >
-          {ITEMS.map((it) => {
+          {items.map((it) => {
             const active = it.match.some((m) => path.startsWith(m));
             return (
               <Link

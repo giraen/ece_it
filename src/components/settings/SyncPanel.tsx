@@ -5,7 +5,7 @@ import qrcode from "qrcode-generator";
 import { parseCode } from "@/lib/sync/crypto";
 import { joinSync, turnOffSync, turnOnSync } from "@/lib/sync/autoSync";
 import { syncNow } from "@/lib/sync/engine";
-import { loadConfig, useSyncStatus } from "@/lib/sync/syncState";
+import { loadConfig, useSyncStatus, type SyncStatus } from "@/lib/sync/syncState";
 import { confirmAction } from "@/lib/ui/dialog";
 import { useNow } from "@/lib/hooks";
 import InfoTip from "@/components/ui/InfoTip";
@@ -50,6 +50,44 @@ function codeFromLink(): string | null {
   if (typeof window === "undefined") return null;
   const m = window.location.hash.match(/join=([0-9A-Za-z-]+)/);
   return m ? parseCode(m[1]) : null;
+}
+
+/**
+ * Which role this device has. It is fixed when sync starts here, and there is no button to change it, so it cannot
+ * be changed by accident.
+ */
+function Role({ status }: { status: SyncStatus }) {
+  if (!status.role) {
+    return (
+      <div className="space-y-2 rounded-lg bg-accent-soft p-4 text-sm">
+        <p className="font-medium">Set up main and on-the-go devices</p>
+        <p>
+          This device started syncing before there was a main device, so it still shares bank changes both ways. To make
+          your laptop the only place the bank is changed: turn off sync on every device, turn it on again on your laptop
+          (it becomes the main device), then join your phones with the new code.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1 border-t border-line pt-4 text-sm">
+      {status.role === "main" ? (
+        <p>
+          <span className="font-medium">Main device.</span> The bank is changed here; your other devices get a read-only
+          copy.
+        </p>
+      ) : (
+        <p>
+          <span className="font-medium">On-the-go device.</span> For quizzes and games. The bank is read-only here and
+          comes from your main device.
+        </p>
+      )}
+      <p className="text-muted">
+        To make another device main: turn off sync on every device, import a backup from the main device on the new one,
+        turn sync on there, and join the others with its new code.
+      </p>
+    </div>
+  );
 }
 
 export default function SyncPanel() {
@@ -112,9 +150,10 @@ export default function SyncPanel() {
     return (
       <div className="card space-y-4 p-5">
         <p className="text-sm">
-          Keep your laptop and phone the same: the bank, your quizzes and results, and your settings. It works like a
-          backup kept in the cloud: each device downloads the latest copy and merges it in, then saves a new copy with
-          its own changes. Everything is encrypted on your device before it leaves, with a code only your devices know.
+          Take your bank on the go. Your laptop is the main device, where the bank is written and organised. Your phones
+          get a read-only copy of it for quizzes and games, and their quiz results come back to the laptop. It works
+          like a backup kept in the cloud, encrypted on your device before it leaves, with a code only your devices
+          know.
         </p>
 
         {linkCode ? (
@@ -122,7 +161,8 @@ export default function SyncPanel() {
             <p className="text-sm font-medium">Join the devices that showed you this code?</p>
             <p className="font-mono text-sm break-all">{linkCode}</p>
             <p className="text-sm text-muted">
-              What is on this device and what is on the others are combined. Nothing is deleted.
+              This device becomes on-the-go: its bank is replaced with your main device&apos;s, and is read-only here.
+              Quiz results on this device are kept and sent.
             </p>
             <div className="flex flex-wrap gap-2">
               <button className="btn btn-primary" onClick={() => void join(linkCode)}>
@@ -142,7 +182,7 @@ export default function SyncPanel() {
             >
               {(
                 [
-                  ["start", "This is my first device"],
+                  ["start", "This is my main device"],
                   ["join", "I have a code"],
                 ] as const
               ).map(([m, label], i) => (
@@ -163,7 +203,8 @@ export default function SyncPanel() {
             {mode === "start" ? (
               <div className="space-y-2">
                 <p className="text-sm text-muted">
-                  Makes a new sync code and sends everything on this device. Then add your other devices with it.
+                  For your laptop. Makes a new sync code and sends everything on this device. Then add your phones with
+                  it.
                 </p>
                 <button className="btn btn-primary" disabled={status.running} onClick={() => void start()}>
                   Turn on sync
@@ -191,8 +232,8 @@ export default function SyncPanel() {
                   onChange={(e) => setTyped(e.target.value)}
                 />
                 <p className="text-sm text-muted">
-                  Or scan the QR code it shows with this device&apos;s camera. What is here and what is there are
-                  combined; nothing is deleted.
+                  Or scan the QR code it shows with this device&apos;s camera. This device becomes on-the-go: its bank
+                  is replaced with your main device&apos;s, and is read-only here. Quiz results on it are kept and sent.
                 </p>
                 <button className="btn btn-primary" disabled={status.running || !typed.trim()}>
                   Join and sync
@@ -246,6 +287,8 @@ export default function SyncPanel() {
       )}
       {status.error && !status.running && <p className="text-sm text-priority">{status.error}</p>}
       {status.note && !status.running && <p className="text-sm text-muted">{status.note}</p>}
+
+      <Role status={status} />
 
       <div className="space-y-3 border-t border-line pt-4">
         <div className="flex items-center gap-1">

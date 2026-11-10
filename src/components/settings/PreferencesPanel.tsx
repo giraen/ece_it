@@ -6,10 +6,13 @@ import { MASTERY_BAR_MAX, MASTERY_BAR_MIN, cleanMasteryBar, saveMasteryBar, useM
 import { setFullMotion, useFullMotion } from "@/lib/ui/motion";
 import { syncRules } from "@/lib/progress/recheck";
 import InfoTip from "@/components/ui/InfoTip";
+import { useReadOnly } from "@/lib/sync/syncState";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
   const fullMotion = useFullMotion();
+  // The bar is shared by every device and set on the main one.
+  const readOnly = useReadOnly();
   const saved = Math.round(bar * 100);
   const [text, setText] = useState<string | null>(null);
   const shown = text ?? String(saved);
@@ -47,6 +50,7 @@ export default function PreferencesPanel() {
             max={MASTERY_BAR_MAX}
             step={1}
             className="input w-24"
+            disabled={readOnly}
             value={shown}
             aria-invalid={!valid}
             onChange={(e) => setText(e.target.value)}
@@ -56,6 +60,7 @@ export default function PreferencesPanel() {
             }}
           />
           <span className="text-sm text-muted">%</span>
+          {readOnly && <span className="text-sm text-muted">Set on your main device.</span>}
         </div>
         {!valid && (
           <p role="alert" className="text-sm text-danger">

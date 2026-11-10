@@ -11,6 +11,10 @@ import PreferencesPanel from "./PreferencesPanel";
 import QuizMixPanel from "@/components/quiz/QuizMixPanel";
 import StorageStatus from "./StorageStatus";
 import SyncPanel from "./SyncPanel";
+import { useReadOnly } from "@/lib/sync/syncState";
+
+/** On an on-the-go device these sections change the bank or settings every device shares, so they are left out. */
+const MAIN_ONLY = new Set(["library", "ai"]);
 
 const JUMPS = [
   { id: "sync", label: "Sync" },
@@ -25,13 +29,15 @@ const JUMPS = [
 
 export default function SettingsPage() {
   const scope = useSearchParams().get("scope") ?? "";
+  const readOnly = useReadOnly();
+  const jumps = readOnly ? JUMPS.filter((j) => !MAIN_ONLY.has(j.id)) : JUMPS;
   return (
     <div className="max-w-3xl space-y-10">
       <div>
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="mt-1 text-sm text-muted">
           Jump to:{" "}
-          {JUMPS.map((j, i) => (
+          {jumps.map((j, i) => (
             <span key={j.id}>
               {i > 0 && " · "}
               <a href={`#${j.id}`} className="underline">
@@ -68,33 +74,43 @@ export default function SettingsPage() {
             <br />
             <br />
             Past quizzes: questions from quizzes you took before. Books: questions from a book. Online: websites and
-            videos. Others: anything that is not one of these, such as notes or a handout, and questions with no
-            source.
+            videos. Others: anything that is not one of these, such as notes or a handout, and questions with no source.
           </InfoTip>
         </div>
-        <QuizMixPanel />
+        {readOnly ? (
+          <fieldset disabled className="space-y-2">
+            <QuizMixPanel />
+            <p className="text-sm text-muted">Set on your main device.</p>
+          </fieldset>
+        ) : (
+          <QuizMixPanel />
+        )}
       </section>
 
-      <section id="library" aria-labelledby="library-title" className="scroll-mt-4 space-y-4">
-        <h2 id="library-title" className="text-lg font-semibold">
-          Sources and tags
-        </h2>
-        <LibraryLinks />
-      </section>
-
-      <section id="ai" aria-labelledby="ai-title" className="scroll-mt-4 space-y-4">
-        <div className="flex items-center gap-1">
-          <h2 id="ai-title" className="text-lg font-semibold">
-            AI helper
+      {!readOnly && (
+        <section id="library" aria-labelledby="library-title" className="scroll-mt-4 space-y-4">
+          <h2 id="library-title" className="text-lg font-semibold">
+            Sources and tags
           </h2>
-          <InfoTip>
-            Optional. An AI model can reword your questions so you cannot pass by recognising a sentence. It never
-            changes numbers or answers without a check, and nothing it writes is used until it passes one. Without a
-            key, everything works exactly as written.
-          </InfoTip>
-        </div>
-        <AiSettings />
-      </section>
+          <LibraryLinks />
+        </section>
+      )}
+
+      {!readOnly && (
+        <section id="ai" aria-labelledby="ai-title" className="scroll-mt-4 space-y-4">
+          <div className="flex items-center gap-1">
+            <h2 id="ai-title" className="text-lg font-semibold">
+              AI helper
+            </h2>
+            <InfoTip>
+              Optional. An AI model can reword your questions so you cannot pass by recognising a sentence. It never
+              changes numbers or answers without a check, and nothing it writes is used until it passes one. Without a
+              key, everything works exactly as written.
+            </InfoTip>
+          </div>
+          <AiSettings />
+        </section>
+      )}
 
       <section id="backup" aria-label="Backup and sharing" className="scroll-mt-4">
         <BackupPage initialScope={scope} embedded />

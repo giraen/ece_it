@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnly } from "@/lib/sync/syncState";
 import { useState } from "react";
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
@@ -54,6 +55,7 @@ function Row({
   open: Set<string>;
   toggle: (at: string) => void;
 }) {
+  const readOnly = useReadOnly();
   const kids = childrenOf(nodes, node.id);
   const isOpen = open.has(at);
   const count = countUnder(nodes, perTopic, node.id);
@@ -126,13 +128,15 @@ function Row({
         </div>
         {node.kind === "category" ? (
           <span className="flex shrink-0 gap-1.5">
-            <Link
-              href={`/blueprint?category=${node.id}`}
-              className="btn max-lg:hidden"
-              aria-label={`${hasBlueprint ? "Blueprint" : "Set up blueprint"} for ${node.name}`}
-            >
-              {hasBlueprint ? "Blueprint" : "Set up blueprint"}
-            </Link>
+            {!readOnly && (
+              <Link
+                href={`/blueprint?category=${node.id}`}
+                className="btn max-lg:hidden"
+                aria-label={`${hasBlueprint ? "Blueprint" : "Set up blueprint"} for ${node.name}`}
+              >
+                {hasBlueprint ? "Blueprint" : "Set up blueprint"}
+              </Link>
+            )}
             {hasBlueprint && (
               <Link
                 href={`/quiz/new?node=${node.id}`}

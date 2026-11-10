@@ -1,5 +1,6 @@
 "use client";
 
+import { useReadOnly } from "@/lib/sync/syncState";
 import Link from "next/link";
 import { computeDashboard, EXPIRING_DAYS } from "@/lib/progress/dashboard";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -78,6 +79,7 @@ function BackupBanner({ nowMs }: { nowMs: number }) {
 }
 
 export default function Dashboard() {
+  const readOnly = useReadOnly();
   const nodes = useNodes();
   const questions = useQuestions();
   const attempts = useAttempts();
@@ -130,9 +132,11 @@ export default function Dashboard() {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/editor" className="btn max-lg:hidden">
-            New question
-          </Link>
+          {!readOnly && (
+            <Link href="/editor" className="btn max-lg:hidden">
+              New question
+            </Link>
+          )}
           <Link href="/quiz" className="btn btn-primary">
             Start a quiz
           </Link>

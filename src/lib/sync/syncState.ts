@@ -4,8 +4,13 @@ import { useSyncExternalStore } from "react";
  * What sync remembers on this device. The code is the secret that links devices; the server only ever sees a hash
  * of it.
  */
+/** "main": the device the bank is changed on (your laptop). "go": an on-the-go device whose bank is read-only. */
+export type SyncRole = "main" | "go";
+
 export interface SyncConfig {
   code: string;
+  /** Set when sync starts on this device, and never changed. Missing on a device that started before roles existed. */
+  role?: SyncRole;
   /** The version of the cloud copy this device last merged in or saved. */
   version: number;
   lastSyncAt?: number;
@@ -120,6 +125,7 @@ export interface SyncStatus {
   error?: string;
   /** Something worth knowing that is not a problem, such as images too big to sync. */
   note?: string;
+  role?: SyncRole;
 }
 
 let status: SyncStatus = { on: false, running: false };
@@ -140,7 +146,7 @@ export function setStatus(patch: Partial<SyncStatus>): void {
 function current(): SyncStatus {
   if (!fresh) {
     const c = typeof window === "undefined" ? null : loadConfig();
-    status = { ...status, on: !!c, lastSyncAt: c?.lastSyncAt ?? status.lastSyncAt };
+    status = { ...status, on: !!c, role: c?.role, lastSyncAt: c?.lastSyncAt ?? status.lastSyncAt };
     fresh = true;
   }
   return status;
@@ -157,4 +163,9 @@ export function useSyncStatus(): SyncStatus {
     current,
     () => OFF,
   );
+}
+
+/** True on an on-the-go device: the bank is read-only there. */
+export function useReadOnly(): boolean {
+  return useSyncStatus().role === "go";
 }

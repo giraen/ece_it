@@ -1,8 +1,16 @@
 "use client";
 
+import { useReadOnly } from "@/lib/sync/syncState";
 import { useState } from "react";
 import Link from "next/link";
-import { rankStandings, standings, type Obs, type Ranking, type Standing, type StandingKind } from "@/lib/progress/analytics";
+import {
+  rankStandings,
+  standings,
+  type Obs,
+  type Ranking,
+  type Standing,
+  type StandingKind,
+} from "@/lib/progress/analytics";
 import { FIXED_CATEGORIES } from "@/lib/bank/categories";
 import { CONFIG } from "@/lib/config";
 import { formatPercent, formatRatio } from "@/lib/format";
@@ -116,6 +124,7 @@ function figures(row: Standing, ranking: Ranking, bar: number): { value: string;
  * for single questions.
  */
 export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }) {
+  const readOnly = useReadOnly();
   const [category, setCategory] = useState<string | null>(null);
   const [kind, setKind] = useState<StandingKind>("tag");
 
@@ -214,7 +223,7 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
                                   </p>
                                 </div>
                                 <span className={`shrink-0 tabular-nums ${f.tone}`}>{f.value}</span>
-                                {kind === "question" && (
+                                {kind === "question" && !readOnly && (
                                   <Link href={`/editor?id=${row.key}`} className="btn py-1 max-lg:hidden">
                                     Open
                                   </Link>

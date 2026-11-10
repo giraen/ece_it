@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { newSyncCode } from "./crypto";
 import { LOCAL_CHANGE_EVENT } from "./devicePrefs";
-import { applyingRemote, syncNow } from "./engine";
+import { isRemote, syncNow } from "./engine";
 import { hasUnsentChanges, loadConfig, noteChange, saveConfig, setStatus } from "./syncState";
 
 /**
@@ -43,24 +43,29 @@ export function startAutoSync(): void {
   if (started || typeof window === "undefined") return;
   started = true;
 
-  const changed = () => {
-    if (applyingRemote || !loadConfig()) return;
+  const changed = (trans?: unknown) => {
+    if (isRemote(trans) || !loadConfig()) return;
     noteChange();
     syncSoon();
   };
   for (const t of TABLES) {
     const table = db.table(t);
-    table.hook("creating", changed);
-    table.hook("deleting", changed);
-    table.hook("updating", (mods) => {
-      changed();
+    table.hook("creating", (_key, _obj, trans) => changed(trans));
+    table.hook("deleting", (_key, _obj, trans) => changed(trans));
+    table.hook("updating", (mods, _key, _obj, trans) => {
+      changed(trans);
       // A finished quiz is worth sending at once.
-      if (t === "attempts" && (mods as { status?: string }).status === "submitted" && !applyingRemote && loadConfig()) {
+      if (
+        t === "attempts" &&
+        (mods as { status?: string }).status === "submitted" &&
+        !isRemote(trans) &&
+        loadConfig()
+      ) {
         syncSoon(AFTER_QUIZ_MS);
       }
     });
   }
-  window.addEventListener(LOCAL_CHANGE_EVENT, changed);
+  window.addEventListener(LOCAL_CHANGE_EVENT, () => changed());
   window.addEventListener("online", () => syncSoon(1_000));
   document.addEventListener("visibilitychange", () => {
     if (!loadConfig()) return;
@@ -81,20 +86,23 @@ export function startAutoSync(): void {
   if (loadConfig()) syncSoon(1_500);
 }
 
-/** Turns sync on with a brand-new code. Use on the first device: it saves the first copy to the cloud. */
+/**
+ * Turns sync on with a brand-new code. Use on the first device, which becomes the main device: it saves the first
+ * copy to the cloud.
+ */
 export async function turnOnSync(): Promise<string> {
   const code = newSyncCode();
-  saveConfig({ code, version: 0 });
+  saveConfig({ code, version: 0, role: "main" });
   await syncNow();
   return code;
 }
 
 /**
- * Links this device to the others that use this code. It downloads their copy and merges it in, then saves a copy
- * with what this device adds, so what is here and what is there are combined.
+ * Links this device to the others that use this code, as an on-the-go device. Its bank becomes the main device's,
+ * and the quiz results here are added to the cloud copy.
  */
 export async function joinSync(code: string): Promise<void> {
-  saveConfig({ code, version: 0 });
+  saveConfig({ code, version: 0, role: "go" });
   noteChange();
   await syncNow();
 }

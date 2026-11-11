@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartIcon, CloseIcon, HomeIcon, MoreIcon, QuizIcon } from "@/components/ui/icons";
+import { ActivityIcon, ChartIcon, CloseIcon, HomeIcon, MoreIcon, QuizIcon } from "@/components/ui/icons";
 import { useReadOnly } from "@/lib/sync/syncState";
 
 const TABS = [
   { href: "/", label: "Home", icon: HomeIcon, match: [] as string[] },
   { href: "/quiz", label: "Quiz", icon: QuizIcon, match: ["/quiz"] },
-  { href: "/progress", label: "Progress", icon: ChartIcon, match: ["/progress"] },
+  { href: "/activity", label: "Activity", icon: ActivityIcon, match: ["/activity"] },
+  { href: "/progress", label: "Analytics", icon: ChartIcon, match: ["/progress"] },
 ];
 
 /** What the More tab opens. The pages for writing questions are listed too, marked as needing a computer. */

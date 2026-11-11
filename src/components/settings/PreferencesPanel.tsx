@@ -7,12 +7,17 @@ import { setFullMotion, useFullMotion } from "@/lib/ui/motion";
 import { syncRules } from "@/lib/progress/recheck";
 import InfoTip from "@/components/ui/InfoTip";
 import { useReadOnly } from "@/lib/sync/syncState";
+import { saveExam, useExam } from "@/lib/memory/exam";
+import { examPlan } from "@/lib/memory/schedule";
+import { formatDate } from "@/lib/format";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
   const fullMotion = useFullMotion();
   // The bar is shared by every device and set on the main one.
   const readOnly = useReadOnly();
+  const exam = useExam();
+  const plan = exam ? examPlan(exam.month, exam.date) : null;
   const saved = Math.round(bar * 100);
   const [text, setText] = useState<string | null>(null);
   const shown = text ?? String(saved);
@@ -68,6 +73,45 @@ export default function PreferencesPanel() {
             {Math.round(CONFIG.minimumPass * 100)}% minimum to pass.
           </p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-1">
+          <p className="text-sm font-medium">Board exam</p>
+          <InfoTip>
+            Memory uses this to pace new cards, so every card has come up at least three weeks before the exam. Give the
+            month you expect it in, and the exact date once it is announced. Memory plans for whichever comes first, so
+            it is never late. Leave both empty to unlock new cards only as you remember the ones you have.
+          </InfoTip>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="space-y-1 text-sm">
+            <span className="block text-muted">Expected month</span>
+            <input
+              type="month"
+              className="input w-44"
+              disabled={readOnly}
+              value={exam?.month ?? ""}
+              onChange={(e) => void saveExam("month", e.target.value)}
+            />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="block text-muted">Exact date</span>
+            <input
+              type="date"
+              className="input w-44"
+              disabled={readOnly}
+              value={exam?.date ?? ""}
+              onChange={(e) => void saveExam("date", e.target.value)}
+            />
+          </label>
+        </div>
+        <p className="text-sm text-muted">
+          {plan
+            ? `Planning for ${formatDate(plan.target)}: every memory card comes up by ${formatDate(plan.allSeenBy)}.`
+            : "Not set."}
+          {readOnly && " Set on your main device."}
+        </p>
       </div>
 
       <div className="flex items-center gap-1">

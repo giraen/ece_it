@@ -44,6 +44,16 @@ export const QuizIcon = () => (
   </svg>
 );
 
+/** A game controller, for Activity: memory reviews and games. */
+export const ActivityIcon = () => (
+  <svg {...base}>
+    <rect x="2.5" y="7" width="19" height="11" rx="4" />
+    <path d="M7.5 10.5v4M5.5 12.5h4" />
+    <circle cx="15.5" cy="11.5" r="0.6" fill="currentColor" />
+    <circle cx="17.5" cy="13.8" r="0.6" fill="currentColor" />
+  </svg>
+);
+
 export const ChartIcon = () => (
   <svg {...base}>
     <path d="M4 20V4M4 20h16" />

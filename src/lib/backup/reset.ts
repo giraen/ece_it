@@ -51,7 +51,17 @@ export async function resetProgress(): Promise<void> {
  * stay.
  */
 export async function emptyBank(): Promise<void> {
-  const tables = [db.attempts, db.questions, db.concepts, db.drafts, db.variants, db.images, db.cards, db.cardEvents];
+  const tables = [
+    db.attempts,
+    db.questions,
+    db.concepts,
+    db.drafts,
+    db.variants,
+    db.images,
+    db.cards,
+    db.cardEvents,
+    db.cardDrafts,
+  ];
   await db.transaction("rw", tables, async () => {
     // Old results keep their own copy of each question, so pictures they still show are kept.
     const keep = new Set<string>();
@@ -66,6 +76,7 @@ export async function emptyBank(): Promise<void> {
     await db.variants.clear();
     await db.cards.clear();
     await db.cardEvents.clear();
+    await db.cardDrafts.clear();
     await db.images.filter((i) => !keep.has(i.id)).delete();
   });
 }
@@ -86,6 +97,7 @@ export async function eraseEverything(removeKeys: boolean): Promise<void> {
       db.nodes,
       db.cards,
       db.cardEvents,
+      db.cardDrafts,
     ],
     async () => {
       await db.attempts.clear();
@@ -98,6 +110,7 @@ export async function eraseEverything(removeKeys: boolean): Promise<void> {
       await db.settings.clear();
       await db.cards.clear();
       await db.cardEvents.clear();
+      await db.cardDrafts.clear();
       await db.nodes.filter((n) => !(n.kind === "category" && n.fixed)).delete();
     },
   );

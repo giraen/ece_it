@@ -346,6 +346,25 @@ export interface CardEvent {
   deletedAt?: number;
 }
 
+/**
+ * A memory card read from pasted text in Extract, waiting to be checked. It stays on this device until it is added
+ * to the bank or thrown away, so it is not synced or backed up.
+ */
+export interface CardDraft {
+  id: string;
+  prompt: string;
+  answer: string;
+  kind: CardKind;
+  categoryId?: string;
+  subjectId?: string;
+  /** A subject named in the text that the deck does not have yet, which can be created. */
+  newSubject?: string;
+  wrong: string[];
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 class AppDB extends Dexie {
   nodes!: EntityTable<TreeNode, "id">;
   questions!: EntityTable<Question, "id">;
@@ -358,6 +377,7 @@ class AppDB extends Dexie {
   drafts!: EntityTable<DraftQuestion, "id">;
   cards!: EntityTable<MemoryCard, "id">;
   cardEvents!: EntityTable<CardEvent, "id">;
+  cardDrafts!: EntityTable<CardDraft, "id">;
 
   constructor() {
     super("ece-review");
@@ -411,6 +431,20 @@ class AppDB extends Dexie {
       drafts: "id, conceptId, status, updatedAt",
       cards: "id, categoryId, updatedAt",
       cardEvents: "id, cardId, at",
+    });
+    this.version(7).stores({
+      nodes: "id, kind, parentId, updatedAt",
+      questions: "id, topicId, updatedAt, *tags",
+      images: "id",
+      attempts: "id, scopeNodeId, status, startedAt, updatedAt",
+      blueprints: "id, categoryId, updatedAt",
+      variants: "id, questionId, status, updatedAt",
+      settings: "id",
+      concepts: "id, topicId, updatedAt",
+      drafts: "id, conceptId, status, updatedAt",
+      cards: "id, categoryId, updatedAt",
+      cardEvents: "id, cardId, at",
+      cardDrafts: "id, createdAt",
     });
   }
 }

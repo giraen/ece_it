@@ -62,7 +62,7 @@ function BankView() {
         ))}
       </div>
       {tab === "memory" ? (
-        <MemoryBank nodes={nodes} cards={cards} />
+        <MemoryBank nodes={nodes} cards={cards} selected={selected} onSelect={select} />
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
           {/* The tree stays in view while the list scrolls. A long tree scrolls on its own. */}

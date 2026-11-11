@@ -1,9 +1,10 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type CardKind, type MemoryCard } from "@/lib/db";
+import { db, type CardKind, type MemoryCard, type TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { isNumberAnswer } from "./answer";
+import { normalizeTags } from "@/lib/bank/questions";
 
 /** The kinds of card, in the order they are offered. */
 export const CARD_KINDS: { id: CardKind; label: string; plural: string }[] = [
@@ -15,6 +16,13 @@ export const CARD_KINDS: { id: CardKind; label: string; plural: string }[] = [
   { id: "unit", label: "Unit and symbol", plural: "Units and symbols" },
   { id: "standard", label: "Standard and range", plural: "Standards and ranges" },
 ];
+
+/** The subject a card is filed under. Cards saved before subjects were used name a topic, so its subject is used. */
+export function cardSubject(card: MemoryCard, byId: Map<string, TreeNode>): string | undefined {
+  if (card.subjectId) return card.subjectId;
+  const topic = card.topicId ? byId.get(card.topicId) : undefined;
+  return topic?.parentId ?? undefined;
+}
 
 export const KIND_LABEL = Object.fromEntries(CARD_KINDS.map((k) => [k.id, k.label])) as Record<CardKind, string>;
 
@@ -55,8 +63,9 @@ export async function saveCard(input: CardInput): Promise<MemoryCard> {
     ...input,
     prompt: input.prompt.trim(),
     answer: input.answer.trim(),
-    reference: input.reference?.trim() || undefined,
-    topicId: input.topicId || undefined,
+    tags: input.tags?.length ? normalizeTags(input.tags) : undefined,
+    subjectId: input.subjectId || undefined,
+    topicId: undefined,
     wrong: isNumberAnswer(input.answer) ? [] : input.wrong.map((w) => w.trim()).filter(Boolean),
   };
   return db.transaction("rw", db.cards, async () => {
@@ -83,9 +92,4 @@ export async function saveCard(input: CardInput): Promise<MemoryCard> {
 export async function deleteCard(id: string): Promise<void> {
   const t = now();
   await db.cards.update(id, { deletedAt: t, updatedAt: t });
-}
-
-/** Brings back a card deleted a moment ago. */
-export async function restoreCard(id: string): Promise<void> {
-  await db.cards.update(id, { deletedAt: undefined, updatedAt: now() });
 }

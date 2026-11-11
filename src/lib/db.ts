@@ -306,6 +306,9 @@ export interface MemoryCard {
   id: string;
   /** The category deck it is in: GEAS, ESAT, ELEX or MATH. */
   categoryId: string;
+  /** The subject it belongs to, inside its deck. Optional: some cards fit no one subject. */
+  subjectId?: string;
+  /** Older cards were filed under a topic. Read through `cardSubject`, which uses the topic's subject. */
   topicId?: string;
   kind: CardKind;
   /** Markdown with LaTeX, like a question stem. */
@@ -316,7 +319,8 @@ export interface MemoryCard {
    * review, so this stays empty for those.
    */
   wrong: string[];
-  reference?: string;
+  /** The same tags questions use, such as "skin effect". Optional. */
+  tags?: string[];
   /** Where the card is in the deck's queue of new cards: lower ones are unlocked first. */
   order: number;
   createdAt: number;

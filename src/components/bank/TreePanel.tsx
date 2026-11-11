@@ -27,6 +27,8 @@ interface Ctx {
   nodes: TreeNode[];
   categories: TreeNode[];
   counts: Map<string, number>;
+  /** Stop at subjects: no topics shown, and none can be added. */
+  subjectsOnly: boolean;
   selectedId: string | null;
   collapsed: Set<string>;
   editing: Editing;
@@ -160,9 +162,10 @@ function Branch({
   ctx: Ctx;
 }) {
   const at = `${path}/${node.id}`;
-  const kids = childrenOf(ctx.nodes, node.id);
+  const leaf = ctx.subjectsOnly && node.kind === "subject";
+  const kids = leaf ? [] : childrenOf(ctx.nodes, node.id);
   const collapsed = ctx.collapsed.has(node.id);
-  const childKind = childKindOf(node.kind);
+  const childKind = leaf ? null : childKindOf(node.kind);
   const selected = ctx.selectedId === node.id;
   const renaming = ctx.editing?.mode === "rename" && ctx.editing.at === at;
   const adding = ctx.editing?.mode === "add" && ctx.editing.at === at;
@@ -235,13 +238,28 @@ function Branch({
               )}
               {!fixed && (
                 <>
-                  <button className={small} aria-label={`Move ${node.name} up`} title="Move up" onClick={() => void moveNode(node.id, -1, parentId)}>
+                  <button
+                    className={small}
+                    aria-label={`Move ${node.name} up`}
+                    title="Move up"
+                    onClick={() => void moveNode(node.id, -1, parentId)}
+                  >
                     ↑
                   </button>
-                  <button className={small} aria-label={`Move ${node.name} down`} title="Move down" onClick={() => void moveNode(node.id, 1, parentId)}>
+                  <button
+                    className={small}
+                    aria-label={`Move ${node.name} down`}
+                    title="Move down"
+                    onClick={() => void moveNode(node.id, 1, parentId)}
+                  >
                     ↓
                   </button>
-                  <button className={small} aria-label={`Rename ${node.name}`} title="Rename" onClick={() => ctx.setEditing({ mode: "rename", at, id: node.id })}>
+                  <button
+                    className={small}
+                    aria-label={`Rename ${node.name}`}
+                    title="Rename"
+                    onClick={() => ctx.setEditing({ mode: "rename", at, id: node.id })}
+                  >
                     ✎
                   </button>
                 </>
@@ -257,7 +275,12 @@ function Branch({
                 </button>
               )}
               {!fixed && (
-                <button className={`${small} hover:text-danger`} aria-label={`Delete ${node.name}`} title="Delete" onClick={() => void ctx.remove(node, parent)}>
+                <button
+                  className={`${small} hover:text-danger`}
+                  aria-label={`Delete ${node.name}`}
+                  title="Delete"
+                  onClick={() => void ctx.remove(node, parent)}
+                >
                   ✕
                 </button>
               )}
@@ -300,12 +323,27 @@ function Branch({
 
 interface Props {
   nodes: TreeNode[];
-  questions: Question[];
+  /** The questions counted beside each node. Ignored when `counts` is given. */
+  questions?: Question[];
+  /** Counts worked out by the page, such as memory cards, in place of question counts. */
+  counts?: Map<string, number>;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** Show categories and subjects only, as Bank › Memory does. */
+  subjectsOnly?: boolean;
+  /** The label of the "everything" button at the top. */
+  allLabel?: string;
 }
 
-export default function TreePanel({ nodes, questions, selectedId, onSelect }: Props) {
+export default function TreePanel({
+  nodes,
+  questions = [],
+  counts: given,
+  selectedId,
+  onSelect,
+  subjectsOnly = false,
+  allLabel = "All questions",
+}: Props) {
   // Start with everything closed. Only the path down to the selected node stays open, such as when you arrive from a topic link.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     const open = new Set<string>();
@@ -324,9 +362,9 @@ export default function TreePanel({ nodes, questions, selectedId, onSelect }: Pr
   const categories = childrenOf(nodes, null);
 
   // A question counts toward its topic, its subject, and every category that subject belongs to.
-  const counts = new Map<string, number>();
+  const counts = given ?? new Map<string, number>();
   const bump = (id: string) => counts.set(id, (counts.get(id) ?? 0) + 1);
-  for (const q of questions) {
+  for (const q of given ? [] : questions) {
     const topic = byId.get(q.topicId);
     if (!topic) continue;
     bump(topic.id);
@@ -340,6 +378,7 @@ export default function TreePanel({ nodes, questions, selectedId, onSelect }: Pr
     nodes,
     categories,
     counts,
+    subjectsOnly,
     selectedId,
     collapsed,
     editing,
@@ -393,21 +432,23 @@ export default function TreePanel({ nodes, questions, selectedId, onSelect }: Pr
         danger: true,
       });
       if (!ok) return;
-      const hitsSelection =
-        selectedId !== null && subtreeOf(nodes, node.id).some((x) => x.id === selectedId);
+      const hitsSelection = selectedId !== null && subtreeOf(nodes, node.id).some((x) => x.id === selectedId);
       await deleteNode(node.id);
       if (hitsSelection) onSelect(null);
     },
   };
 
   return (
-    <nav aria-label="Categories, subjects, and topics" className="card p-2">
+    <nav
+      aria-label={subjectsOnly ? "Categories and subjects" : "Categories, subjects, and topics"}
+      className="card p-2"
+    >
       <div className="mb-1 px-1">
         <button
           className={`rounded px-1.5 py-1 text-sm ${selectedId === null ? "font-medium" : "text-muted"} hover:bg-paper`}
           onClick={() => onSelect(null)}
         >
-          All questions
+          {allLabel}
         </button>
       </div>
       {categories.length === 0 ? (

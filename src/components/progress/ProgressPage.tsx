@@ -9,11 +9,13 @@ import Analytics from "./Analytics";
 import LoadingScreen from "@/components/layout/LoadingScreen";
 import MasteryOverview from "./MasteryOverview";
 import StrengthsPanel from "./StrengthsPanel";
+import RecallPanel from "./RecallPanel";
 
 const TABS = [
   { id: "mastery", label: "Mastery" },
   { id: "analytics", label: "Analytics" },
-  { id: "strengths", label: "Strengths & weak spots" },
+  { id: "strengths", label: "Strengths & weak spots", short: "Weak spots" },
+  { id: "recall", label: "Recall" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -63,12 +65,27 @@ export default function ProgressPage() {
               tab === t.id ? "border-accent font-medium text-accent" : "border-transparent text-muted hover:text-ink"
             }`}
           >
-            {t.label}
+            {"short" in t ? (
+              <>
+                <span className="lg:hidden">{t.short}</span>
+                <span className="max-lg:hidden">{t.label}</span>
+              </>
+            ) : (
+              t.label
+            )}
           </button>
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "mastery" ? <MasteryOverview /> : tab === "analytics" ? <Analytics /> : <Strengths />}
+        {tab === "mastery" ? (
+          <MasteryOverview />
+        ) : tab === "analytics" ? (
+          <Analytics />
+        ) : tab === "recall" ? (
+          <RecallPanel />
+        ) : (
+          <Strengths />
+        )}
       </div>
     </div>
   );

@@ -107,6 +107,8 @@ export async function startAttempt(
   totalMinutes: number,
   /** A practice quiz ignores the lock, awards nothing, and never starts the lock. */
   practice = false,
+  /** Incognito: like practice, and not saved with your quizzes either. See `incognito` on QuizAttempt. */
+  incognito = false,
 ): Promise<string> {
   const nodes = await db.nodes.filter((n) => !n.deletedAt).toArray();
   const scope = nodes.find((n) => n.id === scopeId);
@@ -115,7 +117,7 @@ export async function startAttempt(
   // A node stays locked for a day after a failed quiz that could have earned mastery.
   const everyAttempt = await db.attempts.toArray();
   const { lockedUntil } = masteryFor(everyAttempt, scope, now());
-  if (lockedUntil !== undefined && !practice) {
+  if (lockedUntil !== undefined && !practice && !incognito) {
     throw new Error(
       `This ${scope.kind} is locked after a failed quiz. You can retake it in ${formatCountdown(lockedUntil - now())}.`,
     );
@@ -184,9 +186,13 @@ export async function startAttempt(
     scopeKind: scope.kind,
     scopeName: pathOf(nodes, scope.id),
     mode,
-    eligible: practice ? false : eligibility.eligible,
-    ineligibleReason: practice ? "This was a practice quiz." : eligibility.reason,
-    ...(practice ? { practice: true } : {}),
+    eligible: practice || incognito ? false : eligibility.eligible,
+    ineligibleReason: incognito
+      ? "This quiz was incognito."
+      : practice
+        ? "This was a practice quiz."
+        : eligibility.reason,
+    ...(incognito ? { incognito: true } : practice ? { practice: true } : {}),
     status: "in_progress",
     startedAt: t,
     currentIndex: 0,
@@ -203,17 +209,29 @@ export async function startAttempt(
     createdAt: t,
     updatedAt: t,
   };
-  await db.attempts.add(attempt);
+  if (incognito) {
+    // Only the latest incognito quiz is kept, so its results can be shown once.
+    await db.transaction("rw", db.incognitoAttempts, async () => {
+      await db.incognitoAttempts.clear();
+      await db.incognitoAttempts.add(attempt);
+    });
+  } else await db.attempts.add(attempt);
   return attempt.id;
 }
 
+/** The table a quiz is kept in: your quizzes, or the incognito one. */
+async function tableOf(id: string) {
+  return (await db.incognitoAttempts.get(id)) ? db.incognitoAttempts : db.attempts;
+}
+
 async function patchAttempt(id: string, fn: (a: QuizAttempt) => void): Promise<void> {
-  await db.transaction("rw", db.attempts, async () => {
-    const a = await db.attempts.get(id);
+  const table = await tableOf(id);
+  await db.transaction("rw", table, async () => {
+    const a = await table.get(id);
     if (!a || a.status !== "in_progress") return;
     fn(a);
     a.updatedAt = now();
-    await db.attempts.put(a);
+    await table.put(a);
   });
 }
 
@@ -278,8 +296,9 @@ export function isComplete(item: AttemptItem): boolean {
 export async function submitAttempt(id: string): Promise<void> {
   // Read before the transaction, which only covers the attempts. A quiz is scored against the bar as it is now.
   const bar = await loadMasteryBar();
-  await db.transaction("rw", db.attempts, async () => {
-    const a = await db.attempts.get(id);
+  const table = await tableOf(id);
+  await db.transaction("rw", table, async () => {
+    const a = await table.get(id);
     if (!a || a.status !== "in_progress") return;
     const items = a.items.map((it) => {
       const answered = isComplete(it);
@@ -289,7 +308,7 @@ export async function submitAttempt(id: string): Promise<void> {
     const overall = overallStats(items);
     const pass = evaluatePass(overall.credit, bar);
     const t = now();
-    await db.attempts.put({
+    await table.put({
       ...a,
       items,
       status: "submitted",
@@ -303,15 +322,16 @@ export async function submitAttempt(id: string): Promise<void> {
         credit: overall.credit,
         totalMs: overall.totalMs,
         passed: pass.passed,
-        masteryAwarded: pass.passed && a.eligible !== false && !a.practice,
+        masteryAwarded: pass.passed && a.eligible !== false && !a.practice && !a.incognito,
         bar: pass.bar,
       },
     });
   });
 }
 
-/** Gives up on an unfinished quiz. It stays in the database but never counts. */
-export function abandonAttempt(id: string): Promise<void> {
+/** Gives up on an unfinished quiz. It stays in the database but never counts. An incognito one is just deleted. */
+export async function abandonAttempt(id: string): Promise<void> {
+  if (await db.incognitoAttempts.get(id)) return db.incognitoAttempts.delete(id);
   return patchAttempt(id, (a) => {
     a.status = "abandoned";
   });

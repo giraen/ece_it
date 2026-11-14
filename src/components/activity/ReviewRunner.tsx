@@ -13,6 +13,8 @@ import { SURENESS_LABEL, SURENESS_ORDER } from "@/lib/quiz/scoring";
 import { CATEGORY_STYLE, categoryKey } from "@/components/ui/CategoryChip";
 import { CloseIcon } from "@/components/ui/icons";
 import RichText from "@/components/ui/RichText";
+import { loadIncognito } from "@/lib/incognito";
+import { IncognitoTag } from "@/components/ui/Incognito";
 import LoadingScreen from "@/components/layout/LoadingScreen";
 
 const LETTERS = "ABCD";
@@ -43,6 +45,20 @@ function boxLabel(s: CardState | undefined) {
 /** What one answer did, in words. */
 function Outcome({ r, nowMs }: { r: AnswerResult; nowMs: number }) {
   const { before, after } = r;
+  if (!r.recorded) {
+    return (
+      <div className="card space-y-2.5 p-4">
+        <p className={`font-semibold ${r.correct ? "text-good" : "text-danger"}`}>
+          {r.correct ? "Correct" : "Not this time"}
+        </p>
+        <Boxes box={before.box} />
+        <p className="text-sm">
+          Incognito, so nothing changes: it stays{" "}
+          <strong>{before.learned ? "learned" : before.box ? `in box ${before.box}` : "new"}</strong>.
+        </p>
+      </div>
+    );
+  }
   const when = after.dueAt ? whenText(after.dueAt, nowMs) : "";
   const last = before.answers ? `Box ${before.box}` : "New";
   let title: string;
@@ -121,6 +137,8 @@ export default function ReviewRunner({ deck }: Props) {
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [score, setScore] = useState({ right: 0, wrong: 0, opened: 0 });
   const [busy, setBusy] = useState(false);
+  // Read once as the review starts, so flipping the switch midway changes nothing.
+  const [incognito, setIncognito] = useState(false);
   const started = useRef(false);
 
   const cardById = new Map((data?.cards ?? []).map((c) => [c.id, c]));
@@ -135,7 +153,9 @@ export default function ReviewRunner({ deck }: Props) {
         setProblem("Choose the categories for your mixed deck first.");
         return;
       }
-      const s = await startSession(decks);
+      const off = loadIncognito();
+      setIncognito(off);
+      const s = await startSession(decks, off);
       const card = s.queue.length ? await db.cards.get(s.queue[0]) : undefined;
       if (card) setChoices(reviewChoices(card));
       setSession(s);
@@ -150,7 +170,7 @@ export default function ReviewRunner({ deck }: Props) {
     setBusy(true);
     try {
       const choice = choices[picked];
-      const r = await answerCard(card, choice.correct, sureness, choice.text);
+      const r = await answerCard(card, choice.correct, sureness, choice.text, incognito);
       setResult(r);
       setScore((s) => ({
         right: s.right + (choice.correct ? 1 : 0),
@@ -218,7 +238,10 @@ export default function ReviewRunner({ deck }: Props) {
       </Link>
       <div className="flex flex-1 flex-col gap-1.5">
         <div className="flex justify-between text-sm text-muted">
-          <span>{title}</span>
+          <span>
+            {title}
+            {incognito && <IncognitoTag />}
+          </span>
           <span className="num">
             {Math.min(index + 1, total)} / {total}
           </span>
@@ -240,11 +263,16 @@ export default function ReviewRunner({ deck }: Props) {
         <div className="card space-y-3 p-5">
           <h1 className="text-lg font-semibold">{total === 0 ? "Nothing to review" : "Review done"}</h1>
           {total === 0 ? (
-            <p className="text-sm text-muted">Nothing in {title} is due today. Come back tomorrow.</p>
+            <p className="text-sm text-muted">
+              {incognito
+                ? `No card in ${title} is unlocked yet, so there is nothing to practise.`
+                : `Nothing in ${title} is due today. Come back tomorrow.`}
+            </p>
           ) : (
             <p className="text-sm">
               {total} card{total === 1 ? "" : "s"}: <span className="font-semibold text-good">{score.right} right</span>
               , <span className="font-semibold text-danger">{score.wrong} missed</span>.
+              {incognito && " Incognito, so no card moved."}
               {score.opened > 0 &&
                 ` Remembering ${score.opened === 1 ? "one card" : `${score.opened} cards`} opened ${score.opened === 1 ? "a new one" : "new ones"}.`}
             </p>

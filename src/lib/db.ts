@@ -284,6 +284,11 @@ export interface QuizAttempt {
   noLock?: boolean;
   /** Taken just to practise. It never awards mastery and never starts the 24-hour lock. */
   practice?: boolean;
+  /**
+   * Taken incognito: kept in its own table on this device until the next incognito quiz, never synced or
+   * backed up, and never counted in mastery, results, or analytics.
+   */
+  incognito?: boolean;
   status: "in_progress" | "submitted" | "abandoned";
   startedAt: number;
   submittedAt?: number;
@@ -378,6 +383,8 @@ class AppDB extends Dexie {
   cards!: EntityTable<MemoryCard, "id">;
   cardEvents!: EntityTable<CardEvent, "id">;
   cardDrafts!: EntityTable<CardDraft, "id">;
+  /** Quizzes taken incognito. Local only: not synced, not backed up. */
+  incognitoAttempts!: EntityTable<QuizAttempt, "id">;
 
   constructor() {
     super("ece-review");
@@ -445,6 +452,21 @@ class AppDB extends Dexie {
       cards: "id, categoryId, updatedAt",
       cardEvents: "id, cardId, at",
       cardDrafts: "id, createdAt",
+    });
+    this.version(8).stores({
+      nodes: "id, kind, parentId, updatedAt",
+      questions: "id, topicId, updatedAt, *tags",
+      images: "id",
+      attempts: "id, scopeNodeId, status, startedAt, updatedAt",
+      blueprints: "id, categoryId, updatedAt",
+      variants: "id, questionId, status, updatedAt",
+      settings: "id",
+      concepts: "id, topicId, updatedAt",
+      drafts: "id, conceptId, status, updatedAt",
+      cards: "id, categoryId, updatedAt",
+      cardEvents: "id, cardId, at",
+      cardDrafts: "id, createdAt",
+      incognitoAttempts: "id",
     });
   }
 }

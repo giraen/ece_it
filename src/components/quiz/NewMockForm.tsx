@@ -9,6 +9,8 @@ import type { Blueprint, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
 import { masteryFor } from "@/lib/progress/mastery";
 import { startAttempt } from "@/lib/quiz/quiz";
+import { useIncognito } from "@/lib/incognito";
+import { IncognitoNote } from "@/components/ui/Incognito";
 import { MAX_MINUTES, suggestedMinutes } from "@/lib/quiz/quizPlan";
 import { targetSecPerItem } from "@/lib/quiz/scoring";
 
@@ -27,6 +29,7 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
   const readOnly = useReadOnly();
   const router = useRouter();
   const [minutesText, setMinutesText] = useState<string | null>(null);
+  const incognito = useIncognito();
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -70,7 +73,7 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
     setError(null);
     setStarting(true);
     try {
-      const id = await startAttempt(node.id, items, minutesValue, practice);
+      const id = await startAttempt(node.id, items, minutesValue, practice, incognito);
       router.push(`/quiz/play?id=${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the mock.");
@@ -140,16 +143,18 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         </p>
       )}
 
-      <p
-        aria-label="Mastery"
-        className={`rounded-md border p-3 text-sm ${
-          trial.eligible ? "border-good/40 bg-good/5 text-good" : "border-line bg-surface text-muted"
-        }`}
-      >
-        {trial.eligible
-          ? "This mock can award mastery if you reach the bar."
-          : `Practice only. ${trial.reason ?? "This mock cannot award mastery."}`}
-      </p>
+      {!incognito && (
+        <p
+          aria-label="Mastery"
+          className={`rounded-md border p-3 text-sm ${
+            trial.eligible ? "border-good/40 bg-good/5 text-good" : "border-line bg-surface text-muted"
+          }`}
+        >
+          {trial.eligible
+            ? "This mock can award mastery if you reach the bar."
+            : `Practice only. ${trial.reason ?? "This mock cannot award mastery."}`}
+        </p>
+      )}
 
       <div>
         <label htmlFor="minutes" className="mb-1 block text-sm font-medium">
@@ -185,8 +190,9 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
         <li>You can still discard the mock, but then none of it is scored.</li>
       </ul>
 
+      {items > 0 && <IncognitoNote what="quiz" />}
       {error && <p className="text-sm text-danger">{error}</p>}
-      {items > 0 && (
+      {items > 0 && !incognito && (
         <p className="text-xs text-muted">
           Practice is the same mock, but nothing counts toward mastery and nothing gets locked. You can practise while
           this category is locked or already mastered. It still shows in your results and analytics.
@@ -194,20 +200,32 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
       )}
 
       <div className="flex gap-2">
-        <button
-          className="btn btn-primary"
-          disabled={starting || locked || items === 0 || minutesError !== null}
-          onClick={() => void start(false)}
-        >
-          {starting ? "Starting…" : "Start mock"}
-        </button>
-        <button
-          className="btn"
-          disabled={starting || items === 0 || minutesError !== null}
-          onClick={() => void start(true)}
-        >
-          Practice
-        </button>
+        {incognito ? (
+          <button
+            className="btn btn-primary"
+            disabled={starting || items === 0 || minutesError !== null}
+            onClick={() => void start(false)}
+          >
+            {starting ? "Starting…" : "Start incognito"}
+          </button>
+        ) : (
+          <>
+            <button
+              className="btn btn-primary"
+              disabled={starting || locked || items === 0 || minutesError !== null}
+              onClick={() => void start(false)}
+            >
+              {starting ? "Starting…" : "Start mock"}
+            </button>
+            <button
+              className="btn"
+              disabled={starting || items === 0 || minutesError !== null}
+              onClick={() => void start(true)}
+            >
+              Practice
+            </button>
+          </>
+        )}
         <Link href="/quiz" className="btn">
           Back
         </Link>

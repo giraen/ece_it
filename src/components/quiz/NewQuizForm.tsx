@@ -7,6 +7,8 @@ import type { Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
 import { masteryFor } from "@/lib/progress/mastery";
 import { startAttempt } from "@/lib/quiz/quiz";
+import { useIncognito } from "@/lib/incognito";
+import { IncognitoNote } from "@/components/ui/Incognito";
 import { MAX_MINUTES, itemsProblem, planFor, suggestedMinutes, withCopies } from "@/lib/quiz/quizPlan";
 import { targetSecPerItem } from "@/lib/quiz/scoring";
 import { pathOf, subtreeOf } from "@/lib/bank/tree";
@@ -40,6 +42,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
 
   const [itemsText, setItemsText] = useState(String(plan.defaultItems));
   const [minutesText, setMinutesText] = useState<string | null>(null);
+  const incognito = useIncognito();
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -76,7 +79,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
     setError(null);
     setStarting(true);
     try {
-      const id = await startAttempt(node.id, items, minutesValue, practice);
+      const id = await startAttempt(node.id, items, minutesValue, practice, incognito);
       router.push(`/quiz/play?id=${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the quiz.");
@@ -106,9 +109,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
         </p>
       )}
       {info.status === "expired" && info.expiresAt !== undefined && (
-        <p className="card p-3 text-sm text-muted">
-          Mastery expired on {formatDate(info.expiresAt)}.
-        </p>
+        <p className="card p-3 text-sm text-muted">Mastery expired on {formatDate(info.expiresAt)}.</p>
       )}
 
       {pool.length === 0 ? (
@@ -174,7 +175,7 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
             )}
           </div>
 
-          {mastery.text && (
+          {mastery.text && !incognito && (
             <p
               aria-label="Mastery"
               className={`rounded-md border p-3 text-sm ${
@@ -187,8 +188,9 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
         </>
       )}
 
+      {pool.length > 0 && <IncognitoNote what="quiz" />}
       {error && <p className="text-sm text-danger">{error}</p>}
-      {pool.length > 0 && (
+      {pool.length > 0 && !incognito && (
         <p className="text-xs text-muted">
           Practice uses the same settings, but nothing counts toward mastery and nothing gets locked. You can practise
           while this {kind} is locked or already mastered. It still shows in your results and analytics.
@@ -196,20 +198,32 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
       )}
 
       <div className="flex gap-2">
-        <button
-          className="btn btn-primary"
-          disabled={starting || locked || pool.length === 0 || !validItems || minutesError !== null}
-          onClick={() => void start(false)}
-        >
-          {starting ? "Starting…" : "Start quiz"}
-        </button>
-        <button
-          className="btn"
-          disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
-          onClick={() => void start(true)}
-        >
-          Practice
-        </button>
+        {incognito ? (
+          <button
+            className="btn btn-primary"
+            disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
+            onClick={() => void start(false)}
+          >
+            {starting ? "Starting…" : "Start incognito"}
+          </button>
+        ) : (
+          <>
+            <button
+              className="btn btn-primary"
+              disabled={starting || locked || pool.length === 0 || !validItems || minutesError !== null}
+              onClick={() => void start(false)}
+            >
+              {starting ? "Starting…" : "Start quiz"}
+            </button>
+            <button
+              className="btn"
+              disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
+              onClick={() => void start(true)}
+            >
+              Practice
+            </button>
+          </>
+        )}
         <Link href="/quiz" className="btn">
           Back
         </Link>

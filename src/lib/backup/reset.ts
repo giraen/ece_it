@@ -40,9 +40,10 @@ export async function resetCounts(): Promise<ResetCounts> {
  * out from those, so they reset too.
  */
 export async function resetProgress(): Promise<void> {
-  await db.transaction("rw", [db.attempts, db.cardEvents], async () => {
+  await db.transaction("rw", [db.attempts, db.cardEvents, db.incognitoAttempts], async () => {
     await db.attempts.clear();
     await db.cardEvents.clear();
+    await db.incognitoAttempts.clear();
   });
 }
 
@@ -98,6 +99,7 @@ export async function eraseEverything(removeKeys: boolean): Promise<void> {
       db.cards,
       db.cardEvents,
       db.cardDrafts,
+      db.incognitoAttempts,
     ],
     async () => {
       await db.attempts.clear();
@@ -111,6 +113,7 @@ export async function eraseEverything(removeKeys: boolean): Promise<void> {
       await db.cards.clear();
       await db.cardEvents.clear();
       await db.cardDrafts.clear();
+      await db.incognitoAttempts.clear();
       await db.nodes.filter((n) => !(n.kind === "category" && n.fixed)).delete();
     },
   );

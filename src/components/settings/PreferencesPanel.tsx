@@ -10,6 +10,7 @@ import { useReadOnly } from "@/lib/sync/syncState";
 import { saveExam, useExam } from "@/lib/memory/exam";
 import { examPlan } from "@/lib/memory/schedule";
 import { formatDate } from "@/lib/format";
+import { IncognitoNote, IncognitoSwitch } from "@/components/ui/Incognito";
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
@@ -112,6 +113,19 @@ export default function PreferencesPanel() {
             : "Not set."}
           {readOnly && " Set on your main device."}
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-1">
+          <IncognitoSwitch />
+          <InfoTip>
+            For a quiz or review you do not want counted, such as a warm-up or someone else using this device. While it
+            is on, a quiz is not saved with your quizzes and a memory review moves no card. Nothing counts toward
+            mastery, locks, analytics, or memory boxes, and nothing syncs. It stays on until you turn it off, and only
+            on this device. The same switch is on the Quiz and Activity pages.
+          </InfoTip>
+        </div>
+        <IncognitoNote what="both" />
       </div>
 
       <div className="flex items-center gap-1">

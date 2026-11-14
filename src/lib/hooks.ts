@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-   import { db, type Blueprint, type Concept, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
+import { db, type Blueprint, type Concept, type Question, type QuizAttempt, type TreeNode, type Variant } from "./db";
 import { imageUrl } from "@/lib/bank/images";
 import { suggestTags } from "@/lib/bank/questions";
 import { now } from "./ids";
@@ -32,9 +32,12 @@ export function useTagSuggestions(topicId: string | null): string[] {
   return tags ?? [];
 }
 
-/** One quiz attempt. `undefined` while loading, `null` if it does not exist. */
+/** One quiz attempt, or the incognito one. `undefined` while loading, `null` if it does not exist. */
 export function useAttempt(id: string | null): QuizAttempt | null | undefined {
-  return useLiveQuery(async () => (id ? ((await db.attempts.get(id)) ?? null) : null), [id]);
+  return useLiveQuery(
+    async () => (id ? ((await db.attempts.get(id)) ?? (await db.incognitoAttempts.get(id)) ?? null) : null),
+    [id],
+  );
 }
 
 /** Every quiz attempt that has not been deleted. */
@@ -52,7 +55,7 @@ export function useNow(intervalMs = 30_000): number {
   return t;
 }
 
- /** Mock blueprints, kept up to date. They are only used for backups and packs for now. */
+/** Mock blueprints, kept up to date. They are only used for backups and packs for now. */
 export function useBlueprints(): Blueprint[] | undefined {
   return useLiveQuery(() => db.blueprints.filter((b) => !b.deletedAt).toArray(), []);
 }

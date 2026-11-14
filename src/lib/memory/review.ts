@@ -56,6 +56,8 @@ export interface DeckSummary {
   learned: number;
   remembering: number;
   locked: number;
+  /** Cards unlocked so far, at any stage: what an incognito review can go over. */
+  open: number;
   /** With an exam set: cards a day that must open to see every card in time. */
   perDay: number | null;
   /** Of `fresh`, how many open early to keep pace with the exam. */
@@ -66,10 +68,11 @@ export interface DeckSummary {
 export function summarize(data: MemoryData, categoryId: string, nowMs: number): DeckSummary {
   const deck = data.cards.filter((c) => c.categoryId === categoryId);
   const plan = planUnlocks(deck, data.states, data.exam, nowMs, unlockedToday(deck, data.events, nowMs));
-  const s = { due: 0, fresh: plan.cards.length, learned: 0, remembering: 0 };
+  const s = { due: 0, fresh: plan.cards.length, learned: 0, remembering: 0, open: 0 };
   for (const c of deck) {
     const st = data.states.get(c.id);
     const stage = stageOf(st);
+    if (stage !== "locked") s.open++;
     if (stage === "new") s.fresh++;
     else if (isDue(st, nowMs)) s.due++;
     if (stage === "learned") s.learned++;
@@ -94,10 +97,21 @@ export interface Session {
 /**
  * Starts a review of the given decks: opens the new cards each deck has earned (and any the exam pace needs), then
  * lines up what is due. Cards seen before come first, oldest due first; new cards follow in deck order.
+ *
+ * Incognito, nothing opens and nothing is written: every card already unlocked comes up, the due ones first, then
+ * the rest by when they would be due.
  */
-export async function startSession(categoryIds: string[]): Promise<Session> {
+export async function startSession(categoryIds: string[], incognito = false): Promise<Session> {
   const t = now();
   const data = await loadMemory();
+  if (incognito) {
+    const open = data.cards.filter(
+      (c) => categoryIds.includes(c.categoryId) && stageOf(data.states.get(c.id)) !== "locked",
+    );
+    const dueAt = (c: MemoryCard) => data.states.get(c.id)?.dueAt ?? 0;
+    open.sort((a, b) => dueAt(a) - dueAt(b) || a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
+    return { queue: open.map((c) => c.id), opened: 0, extra: 0 };
+  }
   let opened = 0;
   let extra = 0;
   const unlocks: CardEvent[] = [];
@@ -132,6 +146,8 @@ export interface AnswerResult {
   after: CardState;
   /** New cards this answer opened (the card reached box 3 for the first time). */
   opened: MemoryCard[];
+  /** False when incognito: the card stays as it was. */
+  recorded: boolean;
 }
 
 /** Saves one answer, and opens a new card in the deck when this one reached box 3 for the first time. */
@@ -140,9 +156,14 @@ export async function answerCard(
   correct: boolean,
   sureness: Sureness,
   picked: string,
+  incognito = false,
 ): Promise<AnswerResult> {
   const t = now();
   const data = await loadMemory();
+  if (incognito) {
+    const same = data.states.get(card.id) ?? EMPTY_STATE;
+    return { correct, sureness, before: same, after: same, opened: [], recorded: false };
+  }
   const event: CardEvent = {
     id: newId(),
     cardId: card.id,
@@ -165,5 +186,5 @@ export async function answerCard(
     opened = planUnlocks(deck, states, null, t, 0).cards.slice(0, 1);
   }
   await db.cardEvents.bulkPut([event, ...logUnlocks(opened, t)]);
-  return { correct, sureness, before, after, opened };
+  return { correct, sureness, before, after, opened, recorded: true };
 }

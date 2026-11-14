@@ -9,6 +9,7 @@ import { abandonAttempt, isComplete, saveTime, setCurrentIndex, submitAttempt } 
 import { confirmAction } from "@/lib/ui/dialog";
 import QuestionPane from "./QuestionPane";
 import PracticeTag from "@/components/ui/PracticeTag";
+import { IncognitoTag } from "@/components/ui/Incognito";
 import { CloseIcon, GridIcon } from "@/components/ui/icons";
 
 function Redirect({ to, text }: { to: string; text: string }) {
@@ -136,6 +137,7 @@ export default function QuizRunner({ attemptId }: { attemptId: string }) {
     <p className="text-sm font-medium">
       {attempt.scopeName}
       {attempt.practice && <PracticeTag />}
+      {attempt.incognito && <IncognitoTag />}
     </p>
   );
   const status = (

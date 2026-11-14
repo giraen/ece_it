@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "@/lib/db";
 import QuizPicker from "@/components/quiz/QuizPicker";
 import { formatDateTime } from "@/lib/format";
 import { useAttempts, useBlueprints, useNodes, useNow, useQuestions } from "@/lib/hooks";
@@ -8,6 +10,7 @@ import { abandonAttempt, isComplete } from "@/lib/quiz/quiz";
 import { confirmAction } from "@/lib/ui/dialog";
 import InfoTip from "@/components/ui/InfoTip";
 import PracticeTag from "@/components/ui/PracticeTag";
+import { IncognitoNote, IncognitoSwitch, IncognitoTag } from "@/components/ui/Incognito";
 import LoadingScreen from "@/components/layout/LoadingScreen";
 
 export default function QuizPage() {
@@ -16,20 +19,24 @@ export default function QuizPage() {
   const attempts = useAttempts();
   const nowMs = useNow();
   const blueprints = useBlueprints();
-  const inProgress = (attempts ?? [])
+  // The incognito quiz, if it is still going, is listed with the rest.
+  const incognito = useLiveQuery(() => db.incognitoAttempts.toArray(), []);
+  const inProgress = [...(attempts ?? []), ...(incognito ?? [])]
     .filter((a) => a.status === "in_progress")
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <div className="flex items-center gap-1">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-1">
           <h1 className="text-xl font-semibold">Quiz</h1>
           <InfoTip>
-            Choose a topic or a subject to be quizzed on, or run a mock board for a whole category. A quiz needs
-            enough questions to award mastery. With fewer, you can still take it for practice.
+            Choose a topic or a subject to be quizzed on, or run a mock board for a whole category. A quiz needs enough
+            questions to award mastery. With fewer, you can still take it for practice.
           </InfoTip>
+          <IncognitoSwitch className="ml-auto" />
         </div>
+        <IncognitoNote what="both" />
       </div>
 
       {inProgress.length > 0 && (
@@ -42,6 +49,7 @@ export default function QuizPage() {
                   <p className="truncate text-sm font-medium">
                     {a.scopeName}
                     {a.practice && <PracticeTag />}
+                    {a.incognito && <IncognitoTag />}
                   </p>
                   <p className="text-xs text-muted">
                     {a.items.filter(isComplete).length} of {a.items.length} answered · started{" "}

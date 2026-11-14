@@ -36,6 +36,7 @@ import RichText from "@/components/ui/RichText";
 import Reference from "@/components/editor/Reference";
 import InfoTip from "@/components/ui/InfoTip";
 import PracticeTag from "@/components/ui/PracticeTag";
+import { IncognitoTag } from "@/components/ui/Incognito";
 import RecheckMastery from "./RecheckMastery";
 
 const LETTERS = "ABCDEFGH";
@@ -183,11 +184,19 @@ function ReviewItem({
   item,
   number,
   fixed,
+  tags,
+  tag,
+  onTag,
   onRemarked,
 }: {
   item: AttemptItem;
   number: number;
   fixed: string | null;
+  /** The question's tags: as they are in the bank now, or as they were if it was deleted. */
+  tags: string[];
+  /** The tag the list is narrowed to, if any. */
+  tag: string | null;
+  onTag: (tag: string | null) => void;
   onRemarked: (msg: string) => void;
 }) {
   const choiceById = new Map(item.choices.map((c) => [c.id, c]));
@@ -213,6 +222,26 @@ function ReviewItem({
           {formatDuration(item.targetSec * 1000)}
         </span>
       </div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1" aria-label="Tags">
+          {tags.map((t) => (
+            <button
+              key={t}
+              type="button"
+              aria-pressed={tag === t}
+              title={tag === t ? "Show every question" : `Show only questions tagged ${t}`}
+              onClick={() => onTag(tag === t ? null : t)}
+              className={`rounded px-1.5 py-0.5 text-xs ${
+                tag === t
+                  ? "bg-accent text-white"
+                  : "bg-accent-soft text-accent hover:bg-accent/15"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
       <RichText text={item.stem} className="text-[15px] leading-relaxed" />
       <ol className="space-y-1.5">
         {item.choiceOrder.map((cid, i) => {
@@ -265,6 +294,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [remarked, setRemarked] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
 
   if (attempt === undefined)
     return <p className="text-sm text-muted">Loading…</p>;
@@ -287,10 +317,14 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
   const s = attempt.summary;
   const items = attempt.items;
+  const incognito = !!attempt.incognito;
   const bankById = new Map((questions ?? []).map((q) => [q.id, q]));
-  const fixedCount = items.filter((it) =>
-    correctedKey(it, bankById.get(it.questionId)),
-  ).length;
+  const tagsOf = (it: AttemptItem) =>
+    bankById.get(it.questionId)?.tags ?? it.tags ?? [];
+  // An incognito quiz is not kept with your quizzes, so there is nothing to re-mark.
+  const fixedOf = (it: AttemptItem) =>
+    incognito ? null : correctedKey(it, bankById.get(it.questionId));
+  const fixedCount = items.filter((it) => fixedOf(it)).length;
   const overall = overallStats(items);
   const submittedAt = attempt.submittedAt ?? 0;
   const kind = attempt.scopeKind;
@@ -342,6 +376,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
 
   const shown = items
     .map((item, i) => ({ item, number: i + 1 }))
+    .filter(({ item }) => !tag || tagsOf(item).includes(tag))
     .filter(({ item }) =>
       filter === "wrong"
         ? !item.correct
@@ -349,10 +384,12 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
           ? item.credit < 1
           : true,
     );
+  // The counts follow the tag picked, so they match the list.
+  const tagged = tag ? items.filter((it) => tagsOf(it).includes(tag)) : items;
   const counts = {
-    all: items.length,
-    wrong: items.filter((i) => !i.correct).length,
-    lost: items.filter((i) => i.credit < 1).length,
+    all: tagged.length,
+    wrong: tagged.filter((i) => !i.correct).length,
+    lost: tagged.filter((i) => i.credit < 1).length,
   };
 
   return (
@@ -362,6 +399,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
         <p className="mt-1 font-medium">
           {attempt.scopeName}
           {attempt.practice && <PracticeTag />}
+          {incognito && <IncognitoTag />}
         </p>
         {attempt.submittedAt && (
           <p className="text-sm text-muted">
@@ -384,7 +422,17 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             : `Not passed. You needed ${formatPercent(s.bar, 0)} and scored ${formatPercent(s.credit)}.`}
         </p>
 
-        {attempt.practice ? (
+        {incognito ? (
+          <p
+            aria-label="Mastery"
+            className="rounded-md border border-priority/40 bg-priority-soft p-3 text-sm text-priority"
+          >
+            <span className="font-medium">Incognito.</span> This quiz is
+            not saved with your quizzes: it does not count toward mastery,
+            locks, or analytics, and it does not sync. These results are gone
+            when you start another incognito quiz.
+          </p>
+        ) : attempt.practice ? (
           <p aria-label="Mastery" className="card p-3 text-sm">
             <span className="font-medium">Practice quiz.</span> It does not
             count toward mastery and it never locks anything. You can take the
@@ -597,9 +645,7 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
             onDone={setRemarked}
             ids={[
               ...new Set(
-                items
-                  .filter((it) => correctedKey(it, bankById.get(it.questionId)))
-                  .map((it) => it.questionId),
+                items.filter((it) => fixedOf(it)).map((it) => it.questionId),
               ),
             ]}
           />
@@ -626,6 +672,15 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
               {label} <span className="opacity-70">{counts[id]}</span>
             </button>
           ))}
+          {tag && (
+            <button
+              onClick={() => setTag(null)}
+              className="rounded border border-accent px-2.5 py-1 text-sm text-accent hover:bg-accent-soft"
+            >
+              Tagged {tag} <span aria-hidden="true">×</span>
+              <span className="sr-only">, show every question</span>
+            </button>
+          )}
         </div>
         {shown.length === 0 ? (
           <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">
@@ -638,7 +693,10 @@ export default function ResultsView({ attemptId }: { attemptId: string }) {
                 key={item.questionId + number}
                 item={item}
                 number={number}
-                fixed={correctedKey(item, bankById.get(item.questionId))}
+                fixed={fixedOf(item)}
+                tags={tagsOf(item)}
+                tag={tag}
+                onTag={setTag}
                 onRemarked={setRemarked}
               />
             ))}

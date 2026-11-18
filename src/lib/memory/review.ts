@@ -5,9 +5,11 @@ import { db, type CardEvent, type MemoryCard, type Sureness } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { loadExam } from "./exam";
 import { cardDecks, inDeck } from "./cards";
-import { answeredToday } from "./daily";
+import { DAILY_MAX, DAILY_MIN, START_MAX, START_MIN, answeredToday, loadStartCards } from "./daily";
 import {
+  DAY,
   EMPTY_STATE,
+  FIRST_UNLOCKED,
   cardStates,
   examPlan,
   isDue,
@@ -24,15 +26,18 @@ export interface MemoryData {
   events: CardEvent[];
   states: Map<string, CardState>;
   exam: ExamPlan | null;
+  /** How many cards each deck opens with. */
+  start: number;
 }
 
 export async function loadMemory(): Promise<MemoryData> {
-  const [cards, events, setting] = await Promise.all([
+  const [cards, events, setting, start] = await Promise.all([
     db.cards.filter((c) => !c.deletedAt).toArray(),
     db.cardEvents.toArray(),
     loadExam(),
+    loadStartCards(),
   ]);
-  return { cards, events, states: cardStates(events), exam: examPlan(setting.month, setting.date) };
+  return { cards, events, states: cardStates(events), exam: examPlan(setting.month, setting.date), start };
 }
 
 /** The same, kept up to date. */
@@ -80,7 +85,7 @@ export function summarize(data: MemoryData, deckIds: string | string[], nowMs: n
   let perDay: number | null = null;
   for (const id of ids) {
     const deck = data.cards.filter((c) => inDeck(c, id));
-    const plan = planUnlocks(deck, data.states, data.exam, nowMs, unlockedToday(deck, data.events, nowMs));
+    const plan = planUnlocks(deck, data.states, data.exam, nowMs, unlockedToday(deck, data.events, nowMs), data.start);
     const before = opening.size;
     for (const c of plan.cards) opening.add(c.id);
     extra += Math.min(plan.extra, opening.size - before);
@@ -141,7 +146,7 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
     const deck = data.cards.filter((c) => inDeck(c, id));
     const events = [...data.events, ...unlocks];
     // A shared card the deck before opened counts here as opened today.
-    const plan = planUnlocks(deck, states, data.exam, t, unlockedToday(deck, events, t));
+    const plan = planUnlocks(deck, states, data.exam, t, unlockedToday(deck, events, t), data.start);
     unlocks.push(...logUnlocks(plan.cards, t));
     opened += plan.cards.length;
     extra += plan.extra;
@@ -260,8 +265,64 @@ export async function answerCard(
     // The new card opens in the deck this card was made in.
     const deck = data.cards.filter((c) => inDeck(c, card.categoryId));
     // Only the card this answer earned: the exam pace is settled when a review starts.
-    opened = planUnlocks(deck, states, null, t, 0).cards.slice(0, 1);
+    opened = planUnlocks(deck, states, null, t, 0, data.start).cards.slice(0, 1);
   }
   await db.cardEvents.bulkPut([event, ...logUnlocks(opened, t)]);
   return { correct, sureness, before, after, opened, recorded: true, early };
+}
+
+/** Suggested settings, worked out from the exam date and the cards still to open. */
+export interface MemorySuggestion {
+  /** Days left until every card should have come up (three weeks before the exam). */
+  daysLeft: number;
+  /** Cards not opened yet, in every deck. */
+  locked: number;
+  /** The busiest deck's share of new cards a week, to spread its locked cards evenly. */
+  perWeek: number;
+  /** Cards each deck should start with: a week's share with the margin, and never fewer than the usual 10. */
+  start: number;
+  /** New cards a day across every deck. */
+  newPerDay: number;
+  /** Cards a day that just keep up: each new card comes back about five times in its first two months. */
+  dailyNeed: number;
+  /** The daily goal suggested: `dailyNeed` with the margin. */
+  daily: number;
+}
+
+/** How many times a card comes back in the first two months: at 1, 3, 7, 14 and 30 days. */
+const EARLY_REVIEWS = 5;
+/** Suggestions aim this much above the bare pace, to stay ahead and leave room for more recall. */
+export const SUGGEST_MARGIN = 0.25;
+/** Suggestions are rounded up to a multiple of this: 39 → 40, 22 → 25. */
+const ROUND_TO = 5;
+
+/** Null when no exam is set, or every card has already come up. */
+export function suggestCounts(data: MemoryData, nowMs: number): MemorySuggestion | null {
+  if (!data.exam) return null;
+  const daysLeft = Math.max(1, Math.round((data.exam.allSeenBy - startOfDay(nowMs)) / DAY));
+  const decks = new Set(data.cards.flatMap((c) => cardDecks(c)));
+  const isLocked = (c: MemoryCard) => stageOf(data.states.get(c.id)) === "locked";
+  const locked = data.cards.filter(isLocked).length;
+  if (!locked) return null;
+  let perWeek = 0;
+  for (const d of decks) {
+    const n = data.cards.filter((c) => inDeck(c, d) && isLocked(c)).length;
+    perWeek = Math.max(perWeek, Math.ceil(n / Math.max(1, daysLeft / 7)));
+  }
+  const newPerDay = locked / daysLeft;
+  const dailyNeed = newPerDay * (1 + EARLY_REVIEWS);
+  // The margin first, then the floor, then up to the next multiple of 5, kept within what the setting allows.
+  const suggest = (need: number, floor: number, lo: number, hi: number) => {
+    const n = Math.max(floor, need * (1 + SUGGEST_MARGIN));
+    return Math.min(hi, Math.max(lo, Math.ceil(n / ROUND_TO - 1e-9) * ROUND_TO));
+  };
+  return {
+    daysLeft,
+    locked,
+    perWeek,
+    start: suggest(perWeek, FIRST_UNLOCKED, START_MIN, START_MAX),
+    newPerDay: Math.ceil(newPerDay),
+    dailyNeed: Math.ceil(dailyNeed),
+    daily: suggest(dailyNeed, DAILY_MIN, DAILY_MIN, DAILY_MAX),
+  };
 }

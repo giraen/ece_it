@@ -9,61 +9,169 @@ import InfoTip from "@/components/ui/InfoTip";
 import { useReadOnly } from "@/lib/sync/syncState";
 import { saveExam, useExam } from "@/lib/memory/exam";
 import { examPlan } from "@/lib/memory/schedule";
+import { suggestCounts, useMemory } from "@/lib/memory/review";
+import { useNow } from "@/lib/hooks";
 import { formatDate } from "@/lib/format";
-import { DAILY_MAX, DAILY_MIN, saveDailySize, useDailySize } from "@/lib/memory/daily";
+import {
+  DAILY_MAX,
+  DAILY_MIN,
+  START_MAX,
+  START_MIN,
+  saveDailySize,
+  saveStartCards,
+  useDailySize,
+  useStartCards,
+} from "@/lib/memory/daily";
 import { IncognitoNote, IncognitoSwitch } from "@/components/ui/Incognito";
 
-/** How many memory cards the daily review asks for. Saved when you leave the box or press Enter. */
-function DailyGoal({ readOnly }: { readOnly: boolean }) {
-  const size = useDailySize();
+/** A whole number setting, saved when you leave the box or press Enter. */
+function NumberSetting({
+  id,
+  label,
+  tip,
+  unit,
+  value,
+  min,
+  max,
+  save,
+  readOnly,
+  suggestion,
+}: {
+  id: string;
+  label: string;
+  tip: string;
+  unit: string;
+  value: number | undefined;
+  min: number;
+  max: number;
+  save: (n: number) => Promise<unknown>;
+  readOnly: boolean;
+  /** A number worked out from the exam date, and why; "no-exam" when there is no date to work from. */
+  suggestion?: { value: number; why: string } | "no-exam" | null;
+}) {
   const [text, setText] = useState<string | null>(null);
-  const shown = text ?? (size === undefined ? "" : String(size));
+  const shown = text ?? (value === undefined ? "" : String(value));
   const n = Number(shown);
-  const valid = shown !== "" && Number.isInteger(n) && n >= DAILY_MIN && n <= DAILY_MAX;
-  const save = async () => {
+  const valid = shown !== "" && Number.isInteger(n) && n >= min && n <= max;
+  const commit = async () => {
     if (text === null) return;
-    if (valid) await saveDailySize(n);
+    if (valid) await save(n);
     setText(null);
   };
   return (
-    <div id="daily" className="space-y-2">
+    <div id={id} className="space-y-2">
       <div className="flex items-center gap-1">
-        <label htmlFor="daily-size" className="text-sm font-medium">
-          Daily review
+        <label htmlFor={`${id}-size`} className="text-sm font-medium">
+          {label}
         </label>
-        <InfoTip>
-          The daily review on Activity mixes every deck. Everything due comes first; when that is fewer than your goal,
-          cards due soon fill it up. Answering those early never moves them up a box, but a miss sends one back to box
-          1. Cards answered in any review today count toward the goal.
-        </InfoTip>
+        <InfoTip>{tip}</InfoTip>
       </div>
       <div className="flex items-center gap-2">
         <input
-          id="daily-size"
+          id={`${id}-size`}
           type="number"
           inputMode="numeric"
-          min={DAILY_MIN}
-          max={DAILY_MAX}
+          min={min}
+          max={max}
           className="input w-24"
           disabled={readOnly}
           aria-invalid={!valid}
-          aria-describedby="daily-help"
+          aria-describedby={`${id}-help`}
           value={shown}
           onChange={(e) => setText(e.target.value)}
-          onBlur={() => void save()}
+          onBlur={() => void commit()}
           onKeyDown={(e) => {
-            if (e.key === "Enter") void save();
+            if (e.key === "Enter") void commit();
           }}
         />
-        <span className="text-sm text-muted">cards a day</span>
+        <span className="text-sm text-muted">{unit}</span>
       </div>
-      <p id="daily-help" className={`text-sm ${valid ? "text-muted" : "text-danger"}`}>
+      <p id={`${id}-help`} className={`text-sm ${valid ? "text-muted" : "text-danger"}`}>
         {valid
-          ? `At least ${DAILY_MIN}, at most ${DAILY_MAX}.`
-          : `Give a whole number from ${DAILY_MIN} to ${DAILY_MAX}. Leaving it keeps ${size ?? DAILY_MIN}.`}
+          ? `At least ${min}, at most ${max}.`
+          : `Give a whole number from ${min} to ${max}. Leaving it keeps ${value ?? min}.`}
         {readOnly && " Set on your main device."}
       </p>
+      {suggestion === "no-exam" && (
+        <p className="text-sm text-muted">Set the board exam below to get a suggested number.</p>
+      )}
+      {suggestion && suggestion !== "no-exam" && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-line bg-paper px-3 py-2 text-sm">
+          <span>
+            Suggested: <span className="num font-semibold">{suggestion.value}</span>
+            <span className="text-muted"> · {suggestion.why}</span>
+          </span>
+          {value === suggestion.value ? (
+            <span className="text-good">In use</span>
+          ) : (
+            <button
+              type="button"
+              className="btn py-1"
+              disabled={readOnly}
+              onClick={() => {
+                setText(null);
+                void save(suggestion.value);
+              }}
+            >
+              Use {suggestion.value}
+            </button>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** How many cards the daily review asks for, and how many each deck opens with. */
+function MemoryNumbers({ readOnly }: { readOnly: boolean }) {
+  const daily = useDailySize();
+  const start = useStartCards();
+  const data = useMemory();
+  const nowMs = useNow();
+  const exam = useExam();
+  const hint = data ? suggestCounts(data, nowMs) : undefined;
+  // No exam, or nothing left to open: there is nothing to work a suggestion out from.
+  const noExam = exam !== undefined && !exam.month && !exam.date;
+  const by = data?.exam ? formatDate(data.exam.allSeenBy) : "";
+  const startHint = noExam
+    ? ("no-exam" as const)
+    : hint && {
+        value: hint.start,
+        why: `${hint.locked} cards are still to open by ${by}, ${hint.daysLeft} days away. The fullest deck needs about ${hint.perWeek} a week to keep pace; this adds 25% to stay ahead, rounded up to a multiple of 5. The exam pace opens the rest each day.`,
+      };
+  const dailyHint = noExam
+    ? ("no-exam" as const)
+    : hint && {
+        value: hint.daily,
+        why: `About ${hint.newPerDay} new card${hint.newPerDay === 1 ? "" : "s"} a day open to keep pace, and each comes back about five times in its first two months: about ${hint.dailyNeed} a day. This adds 25% for more recall, rounded up to a multiple of 5.`,
+      };
+  return (
+    <>
+      <NumberSetting
+        id="daily"
+        label="Daily review"
+        unit="cards a day"
+        tip="The daily review on Activity mixes every deck. Everything due comes first; when that is fewer than your goal, cards due soon fill it up. Answering those early never moves them up a box, but a miss sends one back to box 1. Cards answered in any review today count toward the goal."
+        value={daily}
+        min={DAILY_MIN}
+        max={DAILY_MAX}
+        save={saveDailySize}
+        readOnly={readOnly}
+        suggestion={dailyHint}
+      />
+      <NumberSetting
+        id="start-cards"
+        label="New cards per deck"
+        unit="cards to start each deck"
+        tip="How many cards each memory deck opens with. After that, every card you get to box 3 opens one more, so the more you remember, the more you see. Raising it opens more cards at your next review. Lowering it never locks a card you already have."
+        value={start}
+        min={START_MIN}
+        max={START_MAX}
+        save={saveStartCards}
+        readOnly={readOnly}
+        suggestion={startHint}
+      />
+    </>
   );
 }
 
@@ -131,7 +239,7 @@ export default function PreferencesPanel() {
         )}
       </div>
 
-      <DailyGoal readOnly={readOnly} />
+      <MemoryNumbers readOnly={readOnly} />
 
       <div className="space-y-2">
         <div className="flex items-center gap-1">

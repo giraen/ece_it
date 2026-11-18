@@ -2,21 +2,27 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { CardDraft, CardKind, TreeNode } from "@/lib/db";
-import { useNodes, useTagSuggestions } from "@/lib/hooks";
+import { useNodes } from "@/lib/hooks";
 import { categoriesOf } from "@/lib/bank/tree";
 import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
-import { CARD_KINDS, WRONG_CHOICES, useCards } from "@/lib/memory/cards";
+import { CARD_KINDS, WRONG_CHOICES, useCardTagSuggestions, useCards } from "@/lib/memory/cards";
 import { isNumberAnswer } from "@/lib/memory/answer";
 import {
   CARD_SAMPLE,
   DRAFT_STATUS_LABEL,
   acceptCardDraft,
+  addDraftTags,
   cardInstructions,
+  createAllDraftSubjects,
   createDraftSubject,
   discardCardDrafts,
   draftStatus,
+  moveCardDrafts,
   parseCards,
+  removeDraftTag,
+  restoreCardDrafts,
   saveCardDrafts,
+  snapshotCardDrafts,
   toCardDrafts,
   updateCardDraft,
   useCardDrafts,
@@ -30,6 +36,10 @@ import RichText from "@/components/ui/RichText";
 import SuggestWrong from "@/components/editor/SuggestWrong";
 import AlsoIn from "@/components/editor/AlsoIn";
 import TagInput from "@/components/editor/TagInput";
+import CardBar, { useUndoToast } from "@/components/memory/CardBar";
+import { motionReduced } from "@/lib/ui/motion";
+
+const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 
 const BADGE: Record<DraftStatus, string> = {
   ready: "bg-good/10 text-good",
@@ -39,17 +49,34 @@ const BADGE: Record<DraftStatus, string> = {
   problem: "bg-danger/10 text-danger",
 };
 
-/** One read card, to check and fix before it goes in the bank. */
+/** How a card leaves the list: it slides right, then the cards below move up. */
+type Leaving = { h: number; phase: "out" | "collapse" };
+
+/** One read card, to check and fix before it goes in the bank. Laid out like a question in Extract. */
 function DraftRow({
   d,
+  number: index,
   status,
   nodes,
   categories,
+  tags,
+  selected,
+  onSelect,
+  leaving,
+  onAdd,
+  onDiscard,
 }: {
   d: CardDraft;
+  number: number;
   status: DraftStatus;
   nodes: TreeNode[];
   categories: TreeNode[];
+  tags: string[];
+  selected: boolean;
+  onSelect: (on: boolean) => void;
+  leaving?: Leaving;
+  onAdd: () => void;
+  onDiscard: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [prompt, setPrompt] = useState(d.prompt);
@@ -78,55 +105,87 @@ function DraftRow({
   }
 
   return (
-    <li className="card space-y-3 p-4">
-      <div className="flex flex-wrap items-start gap-2">
-        {key && <span aria-hidden="true" className={`mt-1.5 size-2.5 rounded-sm ${CATEGORY_STYLE[key].bar}`} />}
-        <div className="min-w-0 flex-1 space-y-1">
-          {editing ? (
-            <div className="space-y-2">
-              <input className="input" aria-label="Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-              <input className="input" aria-label="Answer" value={answer} onChange={(e) => setAnswer(e.target.value)} />
-              <div className="flex gap-2">
-                <button
-                  className="btn py-1"
-                  onClick={() => {
-                    set({
-                      prompt: prompt.trim(),
-                      answer: answer.trim(),
-                      wrong: isNumberAnswer(answer) ? [] : d.wrong,
-                    });
-                    setEditing(false);
-                  }}
-                >
-                  Done
-                </button>
-                <button
-                  className="btn py-1"
-                  onClick={() => {
-                    setPrompt(d.prompt);
-                    setAnswer(d.answer);
-                    setEditing(false);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <RichText text={d.prompt || "No prompt"} className="font-medium" />
-              <RichText text={d.answer || "No answer"} className="text-sm" />
-            </>
-          )}
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE[status]}`}>
-          {DRAFT_STATUS_LABEL[status]}
-        </span>
+    <li
+      id={`card-draft-${d.id}`}
+      style={
+        leaving
+          ? {
+              height: leaving.phase === "collapse" ? 0 : leaving.h,
+              ...(leaving.phase === "collapse"
+                ? { marginBottom: 0, paddingTop: 0, paddingBottom: 0, borderTopWidth: 0, borderBottomWidth: 0 }
+                : {}),
+            }
+          : undefined
+      }
+      className={`mb-2 space-y-2 rounded-md border bg-surface p-3 transition-[transform,opacity,height,margin,padding,border-width] duration-200 motion-reduce:transition-none ${
+        selected ? "border-accent ring-2 ring-accent/25" : "border-line"
+      } ${leaving ? "translate-x-16 overflow-hidden opacity-0" : ""}`}
+    >
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          aria-label={`Select card ${index}`}
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+        />
+        <span className="text-muted">{index}</span>
+        <span className={`rounded px-1.5 py-0.5 font-medium ${BADGE[status]}`}>{DRAFT_STATUS_LABEL[status]}</span>
+        {key && (
+          <span className="flex items-center gap-1 text-muted">
+            <span aria-hidden="true" className={`size-2 rounded-sm ${CATEGORY_STYLE[key].bar}`} />
+            {cat?.name}
+          </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {editing ? (
+        <div className="space-y-2">
+          <label className="block space-y-1 text-xs">
+            <span className="text-muted">Prompt</span>
+            <input className="input" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+          </label>
+          <label className="block space-y-1 text-xs">
+            <span className="text-muted">Answer</span>
+            <input className="input" value={answer} onChange={(e) => setAnswer(e.target.value)} />
+          </label>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-primary py-1"
+              onClick={() => {
+                set({ prompt: prompt.trim(), answer: answer.trim(), wrong: isNumberAnswer(answer) ? [] : d.wrong });
+                setEditing(false);
+              }}
+            >
+              Done
+            </button>
+            <button
+              className="btn py-1"
+              onClick={() => {
+                setPrompt(d.prompt);
+                setAnswer(d.answer);
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {d.prompt ? (
+            <RichText text={d.prompt} className="text-[15px] font-medium" />
+          ) : (
+            <p className="text-sm text-muted">No prompt.</p>
+          )}
+          <div className="rounded border border-good bg-good/5 px-2 py-1 text-sm">
+            {d.answer ? <RichText text={d.answer} /> : <span className="text-muted">No answer.</span>}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
         <select
-          className="input"
+          className="input py-1.5"
           aria-label="Deck"
           value={d.categoryId ?? ""}
           onChange={(e) => {
@@ -143,7 +202,7 @@ function DraftRow({
           ))}
         </select>
         <select
-          className="input"
+          className="input py-1.5"
           aria-label="Subject"
           value={d.subjectId ?? ""}
           disabled={!d.categoryId}
@@ -157,7 +216,7 @@ function DraftRow({
           ))}
         </select>
         <select
-          className="input"
+          className="input py-1.5"
           aria-label="Kind"
           value={d.kind}
           onChange={(e) => set({ kind: e.target.value as CardKind })}
@@ -175,7 +234,7 @@ function DraftRow({
             Claude recommends a new subject, &ldquo;{d.newSubject}&rdquo;, in{" "}
             {categories.find((c) => c.id === d.categoryId)?.name}.
           </span>
-          <button className="btn py-1" onClick={() => void createDraftSubject(d)}>
+          <button className="btn btn-primary py-1" onClick={() => void createDraftSubject(d)}>
             Create it
           </button>
         </p>
@@ -250,29 +309,36 @@ function DraftRow({
         </div>
       )}
 
-      {d.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {d.tags.map((t) => (
-            <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
-              {t}
-            </span>
-          ))}
+      <div className="space-y-1 text-xs">
+        <p className="text-muted">Tags</p>
+        <TagInput value={d.tags} onChange={(next) => set({ tags: next })} suggestions={tags} limit={8} emptyLimit={3} />
+      </div>
+
+      {status === "needs-deck" && <p className="text-xs text-muted">Choose a deck above.</p>}
+      {status === "needs-wrong" && (
+        <p className="text-xs text-muted">Fill in the wrong choices above, or let AI suggest them.</p>
+      )}
+      {status === "duplicate" && (
+        <p className="text-xs text-muted">A card with this prompt is already in this deck. Discard it, or edit it.</p>
+      )}
+      {!editing && (
+        <div className="flex gap-2">
+          <button
+            className="btn btn-primary py-1"
+            disabled={status !== "ready"}
+            title={status !== "ready" ? "Finish this card first" : undefined}
+            onClick={onAdd}
+          >
+            Add to the memory bank
+          </button>
+          <button className="btn py-1" onClick={() => setEditing(true)}>
+            Edit
+          </button>
+          <button className="btn btn-danger py-1" onClick={onDiscard}>
+            Discard
+          </button>
         </div>
       )}
-
-      <div className="flex flex-wrap gap-2 border-t border-line pt-3">
-        <button className="btn btn-primary py-1" disabled={status !== "ready"} onClick={() => void acceptCardDraft(d)}>
-          Add to bank
-        </button>
-        {!editing && (
-          <button className="btn py-1" onClick={() => setEditing(true)}>
-            Edit text
-          </button>
-        )}
-        <button className="btn py-1 ml-auto" onClick={() => void discardCardDrafts([d.id])}>
-          Discard
-        </button>
-      </div>
     </li>
   );
 }
@@ -282,7 +348,7 @@ export default function MemoryExtract() {
   const nodes = useNodes();
   const cards = useCards();
   const drafts = useCardDrafts();
-  const tagHelp = useTagSuggestions(null);
+  const tagHelp = useCardTagSuggestions();
   const pasteBox = useRef<HTMLTextAreaElement>(null);
   const [hasText, setHasText] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -291,6 +357,9 @@ export default function MemoryExtract() {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [filter, setFilter] = useState<DraftStatus | "all">("all");
   const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [leaving, setLeaving] = useState<Record<string, Leaving>>({});
+  const { toast, say, dismiss } = useUndoToast();
 
   const categories = useMemo(
     () => (nodes ?? []).filter((n) => n.kind === "category" && !n.deletedAt).sort((a, b) => a.order - b.order),
@@ -303,6 +372,44 @@ export default function MemoryExtract() {
   const shown = filter === "all" ? rows : rows.filter((r) => r.status === filter);
   const ready = rows.filter((r) => r.status === "ready");
   const count = (s: DraftStatus) => rows.filter((r) => r.status === s).length;
+  const chosen = selected.filter((id) => drafts.some((d) => d.id === id));
+  const creatable = new Set(
+    drafts.filter((d) => d.newSubject && d.categoryId && !d.subjectId).map((d) => `${d.categoryId}/${d.newSubject}`),
+  ).size;
+
+  /** Slides the cards away, lets the rest move up, and only then makes the change. */
+  async function leave(ids: string[], run: () => Promise<void>) {
+    const start: Record<string, Leaving> = {};
+    for (const id of ids) {
+      const el = document.getElementById(`card-draft-${id}`);
+      if (el) start[id] = { h: el.offsetHeight, phase: "out" };
+    }
+    if (Object.keys(start).length === 0 || motionReduced()) {
+      await run();
+      return;
+    }
+    setLeaving(start);
+    await sleep(170);
+    setLeaving((cur) => Object.fromEntries(Object.entries(cur).map(([k, v]) => [k, { ...v, phase: "collapse" }])));
+    await sleep(260);
+    await run();
+    window.setTimeout(() => setLeaving({}), 300);
+  }
+
+  /** Discards cards at once, with Undo, as questions do. */
+  async function discard(ids: string[]): Promise<() => Promise<void>> {
+    const before = await snapshotCardDrafts(ids);
+    await leave(ids, () => discardCardDrafts(ids));
+    setSelected((cur) => cur.filter((x) => !ids.includes(x)));
+    return () => restoreCardDrafts(before);
+  }
+
+  /** Runs a change to many drafts and hands back its undo. */
+  async function change(ids: string[], run: () => Promise<void>): Promise<() => Promise<void>> {
+    const before = await snapshotCardDrafts(ids);
+    await run();
+    return () => restoreCardDrafts(before);
+  }
 
   async function copy() {
     try {
@@ -330,7 +437,12 @@ export default function MemoryExtract() {
   async function addAll() {
     setBusy(true);
     try {
-      for (const r of ready) await acceptCardDraft(r.d);
+      await leave(
+        ready.map((r) => r.d.id),
+        async () => {
+          for (const r of ready) await acceptCardDraft(r.d);
+        },
+      );
       setMessage({ ok: true, text: `Added ${ready.length} card${ready.length === 1 ? "" : "s"} to the bank.` });
     } finally {
       setBusy(false);
@@ -340,13 +452,24 @@ export default function MemoryExtract() {
   async function discardAll() {
     if (
       !(await confirmAction({
-        title: `Discard all ${drafts!.length} cards waiting here?`,
-        confirmLabel: "Discard",
+        title: `Throw away all ${drafts!.length} cards waiting here?`,
+        confirmLabel: "Clear all",
         danger: true,
       }))
     )
       return;
-    await discardCardDrafts(drafts!.map((d) => d.id));
+    const undo = await discard(drafts!.map((d) => d.id));
+    say(`${drafts!.length} card${drafts!.length === 1 ? "" : "s"} cleared`, undo);
+  }
+
+  async function createAll() {
+    setBusy(true);
+    try {
+      const made = await createAllDraftSubjects();
+      setMessage({ ok: true, text: `Created ${made} subject${made === 1 ? "" : "s"}.` });
+    } finally {
+      setBusy(false);
+    }
   }
 
   const filters: { id: DraftStatus | "all"; label: string; n: number }[] = [
@@ -457,8 +580,13 @@ export default function MemoryExtract() {
               >
                 Add all ready ({ready.length})
               </button>
-              <button className="btn py-1" disabled={busy} onClick={() => void discardAll()}>
-                Discard all
+              {creatable > 0 && (
+                <button className="btn py-1" disabled={busy} onClick={() => void createAll()}>
+                  Create the recommended subjects ({creatable})
+                </button>
+              )}
+              <button className="btn btn-danger py-1" disabled={busy} onClick={() => void discardAll()}>
+                Clear all
               </button>
             </>
           )}
@@ -470,13 +598,14 @@ export default function MemoryExtract() {
               .map((f) => (
                 <button
                   key={f.id}
+                  type="button"
                   aria-pressed={filter === f.id}
                   onClick={() => setFilter(f.id)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    filter === f.id ? "border-accent bg-accent-soft font-medium text-accent" : "border-line"
+                  className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                    filter === f.id ? "border-accent bg-accent-soft text-accent" : "border-line text-muted"
                   }`}
                 >
-                  {f.label} <span className="num text-xs">{f.n}</span>
+                  {f.label} {f.n}
                 </button>
               ))}
           </div>
@@ -486,12 +615,52 @@ export default function MemoryExtract() {
             Cards you read appear here to check. They stay on this device until you add or discard them.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {shown.map(({ d, status }) => (
-              <DraftRow key={d.id} d={d} status={status} nodes={nodes} categories={categories} />
-            ))}
-          </ul>
+          <>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={shown.length > 0 && shown.every((r) => chosen.includes(r.d.id))}
+                  onChange={(e) => setSelected(e.target.checked ? shown.map((r) => r.d.id) : [])}
+                />
+                Select all shown
+              </label>
+              {chosen.length > 0 && <span className="text-muted">{chosen.length} selected</span>}
+            </div>
+            <ul>
+              {shown.map(({ d, status }, i) => (
+                <DraftRow
+                  key={d.id}
+                  d={d}
+                  number={i + 1}
+                  status={status}
+                  nodes={nodes}
+                  categories={categories}
+                  tags={tagHelp}
+                  selected={chosen.includes(d.id)}
+                  onSelect={(on) => setSelected((cur) => (on ? [...cur, d.id] : cur.filter((x) => x !== d.id)))}
+                  leaving={leaving[d.id]}
+                  onAdd={() => void leave([d.id], () => acceptCardDraft(d))}
+                  onDiscard={() => void discard([d.id]).then((undo) => say("1 card discarded", undo))}
+                />
+              ))}
+            </ul>
+          </>
         )}
+        <CardBar
+          chosen={drafts.filter((d) => chosen.includes(d.id)).map((d) => ({ id: d.id, tags: d.tags }))}
+          suggestions={tagHelp}
+          visibleCount={shown.length}
+          onSelectAll={() => setSelected(shown.map((r) => r.d.id))}
+          onClear={() => setSelected([])}
+          onAddTags={(ids, tags) => change(ids, () => addDraftTags(ids, tags))}
+          onRemoveTag={(ids, tag) => change(ids, () => removeDraftTag(ids, tag))}
+          move={{ nodes, run: (ids, place) => change(ids, () => moveCardDrafts(ids, place)) }}
+          remove={{ label: "Discard", ask: false, run: discard }}
+          toast={toast}
+          say={say}
+          dismiss={dismiss}
+        />
       </section>
     </div>
   );

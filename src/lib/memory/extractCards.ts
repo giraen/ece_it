@@ -309,3 +309,53 @@ export async function acceptCardDraft(d: CardDraft): Promise<void> {
   });
   await db.cardDrafts.delete(d.id);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Changing many drafts at once, from the selection bar. Each change can be undone.
+// ---------------------------------------------------------------------------------------------
+
+/** The drafts as they are now, to put back with `restoreCardDrafts`. */
+export async function snapshotCardDrafts(ids: string[]): Promise<CardDraft[]> {
+  return (await db.cardDrafts.bulkGet(ids)).filter((d): d is CardDraft => !!d);
+}
+
+/** Puts drafts back as they were, including ones discarded. */
+export async function restoreCardDrafts(before: CardDraft[]): Promise<void> {
+  await db.cardDrafts.bulkPut(before);
+}
+
+async function patchCardDrafts(ids: string[], fn: (d: CardDraft) => Partial<CardDraft>): Promise<void> {
+  const t = now();
+  await db.transaction("rw", db.cardDrafts, async () => {
+    const list = await snapshotCardDrafts(ids);
+    await db.cardDrafts.bulkPut(list.map((d) => ({ ...d, ...fn(d), updatedAt: t })));
+  });
+}
+
+export function addDraftTags(ids: string[], tags: string[]): Promise<void> {
+  return patchCardDrafts(ids, (d) => ({ tags: normalizeTags([...d.tags, ...tags]) }));
+}
+
+export function removeDraftTag(ids: string[], tag: string): Promise<void> {
+  return patchCardDrafts(ids, (d) => ({ tags: d.tags.filter((t) => norm(t) !== norm(tag)) }));
+}
+
+/** Files drafts in a deck and subject. That settles any subject Claude recommended. */
+export function moveCardDrafts(ids: string[], place: CardPlace): Promise<void> {
+  return patchCardDrafts(ids, () => ({
+    categoryId: place.categoryId,
+    subjectId: place.subjectId,
+    newSubject: undefined,
+  }));
+}
+
+/** Creates every subject the drafts recommend, once each, and files the drafts in them. */
+export async function createAllDraftSubjects(): Promise<number> {
+  let made = 0;
+  for (;;) {
+    const next = (await db.cardDrafts.toArray()).find((d) => d.newSubject && d.categoryId && !d.subjectId);
+    if (!next) return made;
+    await createDraftSubject(next);
+    made++;
+  }
+}

@@ -4,13 +4,29 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CardKind, MemoryCard, TreeNode } from "@/lib/db";
-import { CARD_KINDS, KIND_LABEL, cardDecks, cardPlaces, cardSubject, inDeck, inSubject } from "@/lib/memory/cards";
+import {
+  CARD_KINDS,
+  KIND_LABEL,
+  addCardTags,
+  cardDecks,
+  cardPlaces,
+  cardSubject,
+  deleteCards,
+  inDeck,
+  inSubject,
+  moveCards,
+  removeCardTag,
+  restoreCards,
+  snapshotCards,
+  useCardTagSuggestions,
+} from "@/lib/memory/cards";
 import { categoriesOf } from "@/lib/bank/tree";
 import { usePagination } from "@/lib/ui/usePagination";
 import { CATEGORY_STYLE, categoryKey } from "@/components/ui/CategoryChip";
 import Pagination from "@/components/ui/Pagination";
 import RichText from "@/components/ui/RichText";
 import TreePanel from "./TreePanel";
+import CardBar, { useUndoToast } from "@/components/memory/CardBar";
 
 interface Props {
   nodes: TreeNode[];
@@ -28,6 +44,9 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
   const router = useRouter();
   const [kind, setKind] = useState<CardKind | "">("");
   const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const { toast, say, dismiss } = useUndoToast();
+  const tagHelp = useCardTagSuggestions();
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const node = selected?.kind === "topic" && selected.parentId ? (byId.get(selected.parentId) ?? null) : selected;
 
@@ -52,6 +71,15 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
     .filter((c) => !q || `${c.prompt} ${c.answer} ${(c.tags ?? []).join(" ")}`.toLowerCase().includes(q))
     .sort((a, b) => a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
   const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(shown);
+  // Only selected cards still in view count, as in the question list.
+  const chosen = picked.filter((id) => shown.some((c) => c.id === id));
+  const pageAll = pageItems.length > 0 && pageItems.every((c) => chosen.includes(c.id));
+  /** Runs a change to many cards and hands back its undo. */
+  async function change(ids: string[], run: () => Promise<void>) {
+    const before = await snapshotCards(ids);
+    await run();
+    return () => restoreCards(before);
+  }
   const name = (id: string | undefined) => (id ? (byId.get(id)?.name ?? "") : "");
   const placeName = (p: { categoryId: string; subjectId?: string }) =>
     p.subjectId ? `${name(p.categoryId)} › ${name(p.subjectId)}` : name(p.categoryId);
@@ -123,6 +151,20 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
             <table className="w-full min-w-[34rem] text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">
+                  <th className="w-10 py-2.5 pl-4">
+                    <input
+                      type="checkbox"
+                      aria-label="Select every card on this page"
+                      checked={pageAll}
+                      onChange={(e) =>
+                        setPicked((cur) =>
+                          e.target.checked
+                            ? [...new Set([...cur, ...pageItems.map((c) => c.id)])]
+                            : cur.filter((id) => !pageItems.some((c) => c.id === id)),
+                        )
+                      }
+                    />
+                  </th>
                   <th className="px-4 py-2.5 font-medium">Prompt</th>
                   <th className="px-4 py-2.5 font-medium">Answer</th>
                   <th className="px-4 py-2.5 font-medium">Kind</th>
@@ -137,9 +179,21 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
                   return (
                     <tr
                       key={c.id}
-                      className="cursor-pointer border-t border-line align-top hover:bg-paper"
+                      className={`cursor-pointer border-t border-line align-top hover:bg-paper ${
+                        chosen.includes(c.id) ? "bg-accent-soft/50" : ""
+                      }`}
                       onClick={() => router.push(`/editor?card=${c.id}`)}
                     >
+                      <td className="py-2.5 pl-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select card: ${c.prompt.slice(0, 60)}`}
+                          checked={chosen.includes(c.id)}
+                          onChange={(e) =>
+                            setPicked((cur) => (e.target.checked ? [...cur, c.id] : cur.filter((x) => x !== c.id)))
+                          }
+                        />
+                      </td>
                       <td className="px-4 py-2.5">
                         <Link
                           href={`/editor?card=${c.id}`}
@@ -187,6 +241,20 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
           </div>
         )}
         <Pagination page={page} pages={pages} total={shown.length} pageSize={pageSize} onChange={setPage} />
+        <CardBar
+          chosen={cards.filter((c) => chosen.includes(c.id)).map((c) => ({ id: c.id, tags: c.tags ?? [] }))}
+          suggestions={tagHelp}
+          visibleCount={shown.length}
+          onSelectAll={() => setPicked(shown.map((c) => c.id))}
+          onClear={() => setPicked([])}
+          onAddTags={(ids, tags) => change(ids, () => addCardTags(ids, tags))}
+          onRemoveTag={(ids, tag) => change(ids, () => removeCardTag(ids, tag))}
+          move={{ nodes, run: (ids, place) => change(ids, () => moveCards(ids, place)) }}
+          remove={{ label: "Delete", ask: true, run: (ids) => change(ids, () => deleteCards(ids)) }}
+          toast={toast}
+          say={say}
+          dismiss={dismiss}
+        />
       </section>
     </div>
   );

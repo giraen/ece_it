@@ -137,3 +137,81 @@ export async function deleteCard(id: string): Promise<void> {
   const t = now();
   await db.cards.update(id, { deletedAt: t, updatedAt: t });
 }
+
+// ---------------------------------------------------------------------------------------------
+// Changing many cards at once, from the bank's selection bar. Each change can be undone.
+// ---------------------------------------------------------------------------------------------
+
+const sameTag = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** The cards as they are now, to put back with `restoreCards`. */
+export async function snapshotCards(ids: string[]): Promise<MemoryCard[]> {
+  return (await db.cards.bulkGet(ids)).filter((c): c is MemoryCard => !!c);
+}
+
+/** Puts cards back as they were. They count as changed now, so the old version wins when devices sync. */
+export async function restoreCards(before: MemoryCard[]): Promise<void> {
+  const t = now();
+  await db.cards.bulkPut(before.map((c) => ({ ...c, updatedAt: t })));
+}
+
+async function patchCards(ids: string[], fn: (c: MemoryCard) => Partial<MemoryCard>): Promise<void> {
+  const t = now();
+  await db.transaction("rw", db.cards, async () => {
+    const list = await snapshotCards(ids);
+    await db.cards.bulkPut(list.map((c) => ({ ...c, ...fn(c), updatedAt: t })));
+  });
+}
+
+export function addCardTags(ids: string[], tags: string[]): Promise<void> {
+  return patchCards(ids, (c) => ({ tags: normalizeTags([...(c.tags ?? []), ...tags]) }));
+}
+
+export function removeCardTag(ids: string[], tag: string): Promise<void> {
+  return patchCards(ids, (c) => ({ tags: (c.tags ?? []).filter((t) => !sameTag(t, tag)) }));
+}
+
+export function deleteCards(ids: string[]): Promise<void> {
+  const t = now();
+  return patchCards(ids, () => ({ deletedAt: t }));
+}
+
+/**
+ * Tags to suggest for memory cards: the ones on cards first, most used first, then the ones on questions, so the
+ * two banks share one set of tags.
+ */
+export function useCardTagSuggestions(): string[] {
+  const tags = useLiveQuery(async () => {
+    const counts = new Map<string, { label: string; n: number }>();
+    for (const c of await db.cards.filter((c) => !c.deletedAt).toArray())
+      for (const t of c.tags ?? []) {
+        const k = t.toLowerCase();
+        const cur = counts.get(k);
+        if (cur) cur.n++;
+        else counts.set(k, { label: t, n: 1 });
+      }
+    const fromCards = [...counts.values()].sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+    const out = fromCards.map((x) => x.label);
+    for (const q of await db.questions.filter((q) => !q.deletedAt).toArray())
+      for (const t of q.tags) {
+        if (counts.has(t.toLowerCase())) continue;
+        counts.set(t.toLowerCase(), { label: t, n: 0 });
+        out.push(t);
+      }
+    return out;
+  }, []);
+  return tags ?? [];
+}
+
+/** Files cards in another deck and subject. The other places they are shared to stay. */
+export function moveCards(ids: string[], place: CardPlace): Promise<void> {
+  return patchCards(ids, (c) => ({
+    categoryId: place.categoryId,
+    subjectId: place.subjectId,
+    topicId: undefined,
+    // A share to where the card now lives would be a repeat.
+    also: c.also?.filter(
+      (p) => !(p.categoryId === place.categoryId && (p.subjectId ?? "") === (place.subjectId ?? "")),
+    ),
+  }));
+}

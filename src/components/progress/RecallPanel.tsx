@@ -11,12 +11,20 @@ import { SURENESS_LABEL, SURENESS_ORDER } from "@/lib/quiz/scoring";
 import RichText from "@/components/ui/RichText";
 import LoadingScreen from "@/components/layout/LoadingScreen";
 
-const STAGES: { id: Stage; label: string; hint: string; color: string }[] = [
-  { id: "new", label: "New", hint: "unlocked, not answered yet", color: "bg-accent/30" },
-  { id: "learning", label: "Learning", hint: "box 1–2", color: "bg-accent/60" },
-  { id: "remembering", label: "Remembering", hint: "box 3–6", color: "bg-accent" },
-  { id: "learned", label: "Learned", hint: "back every 90 days", color: "bg-good" },
-  { id: "locked", label: "Locked", hint: "open as you remember", color: "bg-track" },
+const STAGES: { id: Stage; label: string; hint: string; color: string; dot?: string }[] = [
+  // Each stage has its own hue (grey, amber, blue, green), so no two read as shades of one colour.
+  { id: "new", label: "New", hint: "unlocked, not answered yet", color: "bg-stage-new" },
+  { id: "learning", label: "Learning", hint: "box 1–2", color: "bg-stage-learning" },
+  { id: "remembering", label: "Remembering", hint: "box 3–6", color: "bg-stage-remembering" },
+  { id: "learned", label: "Learned", hint: "back every 90 days", color: "bg-stage-learned" },
+  // Locked is the empty part of the bar; its key has an outline so it shows on the card.
+  {
+    id: "locked",
+    label: "Locked",
+    hint: "open as you remember",
+    color: "bg-track",
+    dot: "bg-track ring-1 ring-inset ring-muted/60",
+  },
 ];
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -182,7 +190,7 @@ export default function RecallPanel() {
         <ul className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
           {STAGES.map((s) => (
             <li key={s.id} className="flex items-center gap-2">
-              <span aria-hidden="true" className={`size-2.5 rounded-sm ${s.color}`} />
+              <span aria-hidden="true" className={`size-2.5 rounded-sm ${s.dot ?? s.color}`} />
               <span>
                 {s.label} <span className="num font-medium">{stageCount[s.id]}</span>{" "}
                 <span className="text-muted">({s.hint})</span>
@@ -201,7 +209,8 @@ export default function RecallPanel() {
             <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
               <span className="num text-xs text-muted">{n}</span>
               <span
-                className={`w-full rounded-t ${i + 1 >= 3 ? "bg-accent" : "bg-accent/60"}`}
+                // Boxes 1–2 are Learning and 3–6 Remembering, in the same colours as the stages above.
+                className={`w-full rounded-t ${i + 1 >= 3 ? "bg-stage-remembering" : "bg-stage-learning"}`}
                 style={{ height: `${(n / biggestBox) * 80}%`, minHeight: n ? 3 : 0 }}
               />
             </div>

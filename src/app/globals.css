@@ -31,6 +31,12 @@
   --color-math: #1d4ed8;
   --color-math-soft: #d9e2f7;
 
+  /* Memory stages, each its own hue so they read apart at a glance: grey, amber, blue, green. */
+  --color-stage-new: #8b9196;
+  --color-stage-learning: #d4891a;
+  --color-stage-remembering: #2f6fd6;
+  --color-stage-learned: #1d8a4a;
+
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
@@ -67,6 +73,10 @@
   --color-elex-soft: #10302a;
   --color-math: #86a8ff;
   --color-math-soft: #16224a;
+  --color-stage-new: #75807c;
+  --color-stage-learning: #e0a43a;
+  --color-stage-remembering: #5b9cf5;
+  --color-stage-learned: #5fd39a;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 6px 20px rgb(0 0 0 / 0.35);
 }
 

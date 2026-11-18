@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type CardDraft, type CardKind, type MemoryCard, type TreeNode } from "@/lib/db";
+import { db, type CardDraft, type CardKind, type CardPlace, type MemoryCard, type TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { normalizeTags } from "@/lib/bank/questions";
 import { categoriesOf } from "@/lib/bank/tree";
@@ -19,6 +19,13 @@ Answer: $2.998 \\times 10^8$ m/s
 Kind: Constant
 Deck: GEAS
 Subject: Physics
+
+Card: Charge of an electron
+Answer: $-1.602 \\times 10^{-19}$ C
+Kind: Constant
+Deck: GEAS
+Subject: Physics
+Also: ELEX › Electromagnetics
 
 Card: Skin depth of a good conductor
 Answer: $\\delta = 1/\\sqrt{\\pi f \\mu \\sigma}$
@@ -43,6 +50,7 @@ Rules:
 - For every other answer, write exactly three Wrong lines. Each must be nearly right but wrong: a flipped sign, a swapped variable, a missing or extra factor, an exponent changed, or one key word changed (such as directly ↔ inversely). Never write one that is also correct, and keep them the same length and style as the answer.
 - Wrap every formula and expression with variables in dollar signs, like $V = IR$. Write maths the typed way or in LaTeX: x^2, sqrt(x), \\frac{a}{b}, \\times 10^8.
 - Deck is one of my categories. Subject names the subject inside that deck: copy one of mine exactly when it fits, or recommend a new one. Leave the Subject line out when no one subject fits.
+- When the same fact is needed in another of my subjects too, in this deck or another, add an Also line for each, as Deck › Subject, copying my names exactly. Write the card once; never repeat it for the other subject.
 - Add a Tags line only when a tag would help me find the card later. Reuse a tag from my list when one fits.
 - Leave out worked examples, problems to solve, and anything not worth memorising word for word.`;
 
@@ -68,9 +76,11 @@ export interface ParsedCard {
   subject: string | null;
   wrong: string[];
   tags: string[];
+  /** Other places, as written: "ELEX › Electromagnetics". */
+  also: string[];
 }
 
-const FIELD = /^\s*(Card|Prompt|Q|Answer|A|Kind|Type|Deck|Category|Subject|Wrong|Tags?)\s*:\s*(.*)$/i;
+const FIELD = /^\s*(Card|Prompt|Q|Answer|A|Kind|Type|Deck|Category|Subject|Wrong|Tags?|Also(?: in)?)\s*:\s*(.*)$/i;
 
 /** Reads text in the card format. Cards are separated by a new Card line or a blank line. */
 export function parseCards(text: string): ParsedCard[] {
@@ -88,6 +98,7 @@ export function parseCards(text: string): ParsedCard[] {
     subject: null,
     wrong: [],
     tags: [],
+    also: [],
   });
   let last: "prompt" | "answer" | null = null;
 
@@ -121,6 +132,13 @@ export function parseCards(text: string): ParsedCard[] {
     else if (key === "subject") cur.subject = value;
     else if (key === "wrong") {
       if (value) cur.wrong.push(value);
+    } else if (key.startsWith("also")) {
+      cur.also.push(
+        ...value
+          .split(";")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      );
     } else
       cur.tags.push(
         ...value
@@ -151,6 +169,32 @@ export function kindFrom(text: string | null): CardKind | null {
   return null;
 }
 
+/**
+ * Matches "ELEX › Electromagnetics" (or ELEX > ..., ELEX / ...) to a deck and subject in the bank. A name alone may
+ * be a deck or a subject. Null when nothing matches.
+ */
+export function matchPlace(text: string, nodes: TreeNode[]): CardPlace | null {
+  const live = nodes.filter((n) => !n.deletedAt);
+  const cats = live.filter((n) => n.kind === "category");
+  const subjects = live.filter((n) => n.kind === "subject");
+  const parts = text
+    .split(/\s*(?:›|>|\/|»)\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) {
+    const cat = cats.find((c) => norm(c.name) === norm(parts[0]));
+    if (cat) return { categoryId: cat.id };
+    const sub = subjects.find((x) => norm(x.name) === norm(parts[0]));
+    const deck = sub ? categoriesOf(sub)[0] : undefined;
+    return sub && deck ? { categoryId: deck, subjectId: sub.id } : null;
+  }
+  const cat = cats.find((c) => norm(c.name) === norm(parts[0]));
+  if (!cat) return null;
+  const sub = subjects.find((x) => norm(x.name) === norm(parts[1]) && categoriesOf(x).includes(cat.id));
+  return sub ? { categoryId: cat.id, subjectId: sub.id } : null;
+}
+
 /** Turns read cards into drafts, matching deck and subject names to the bank. */
 export function toCardDrafts(
   parsed: ParsedCard[],
@@ -174,9 +218,18 @@ export function toCardDrafts(
       const s = subjects.find((x) => x.id === defaults.subjectId);
       if (s && categoryId && categoriesOf(s).includes(categoryId)) subjectId = s.id;
     }
+    const also: CardPlace[] = [];
+    const alsoMissing: string[] = [];
+    for (const text of p.also) {
+      const place = matchPlace(text, nodes);
+      if (place) also.push(place);
+      else alsoMissing.push(text);
+    }
     return {
       id: newId(),
       prompt: p.prompt,
+      ...(also.length ? { also } : {}),
+      ...(alsoMissing.length ? { alsoMissing } : {}),
       answer: p.answer,
       kind: kindFrom(p.kind) ?? (isNumberAnswer(p.answer) ? "constant" : "definition"),
       categoryId,
@@ -247,6 +300,7 @@ export async function acceptCardDraft(d: CardDraft): Promise<void> {
   await saveCard({
     categoryId: d.categoryId,
     subjectId: d.subjectId,
+    also: d.also,
     kind: d.kind,
     prompt: d.prompt,
     answer: d.answer,

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { CardKind, MemoryCard, TreeNode } from "@/lib/db";
+import type { CardKind, CardPlace, MemoryCard, TreeNode } from "@/lib/db";
 import { useTagSuggestions } from "@/lib/hooks";
 import { confirmAction } from "@/lib/ui/dialog";
 import { categoriesOf } from "@/lib/bank/tree";
@@ -15,6 +15,7 @@ import ImageTextarea from "./ImageTextarea";
 import ToolbarGroup from "./ToolbarGroup";
 import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
+import AlsoIn from "./AlsoIn";
 import RichText from "@/components/ui/RichText";
 import InfoTip from "@/components/ui/InfoTip";
 
@@ -44,6 +45,7 @@ export default function CardEditor({ initial, defaultDeck, defaultSubject, nodes
   const [subjectId, setSubjectId] = useState(
     () => (initial ? cardSubject(initial, new Map(nodes.map((n) => [n.id, n]))) : defaultSubject) ?? "",
   );
+  const [also, setAlso] = useState<CardPlace[]>(initial?.also ?? []);
   const [kind, setKind] = useState<CardKind>(initial?.kind ?? "constant");
   const [prompt, setPrompt] = useState(initial?.prompt ?? "");
   const [answer, setAnswer] = useState(initial?.answer ?? "");
@@ -112,9 +114,10 @@ export default function CardEditor({ initial, defaultDeck, defaultSubject, nodes
     if (problem) return;
     setSaving(true);
     try {
-      await saveCard({ id: initial?.id, categoryId: deck, subjectId, kind, prompt, answer, wrong, tags });
+      await saveCard({ id: initial?.id, categoryId: deck, subjectId, also, kind, prompt, answer, wrong, tags });
       if (another) {
-        // The next card usually shares the deck, subject, kind and tags.
+        // The next card usually shares the deck, subject, kind and tags. Sharing is fact by fact, so it clears.
+        setAlso([]);
         setPrompt("");
         setAnswer("");
         setWrong(Array(WRONG_CHOICES).fill(""));
@@ -179,6 +182,14 @@ export default function CardEditor({ initial, defaultDeck, defaultSubject, nodes
             </select>
           </div>
         </div>
+
+        <AlsoIn
+          value={also}
+          onChange={setAlso}
+          home={{ categoryId: deck, subjectId: subjectId || undefined }}
+          nodes={nodes}
+          idPrefix="card"
+        />
 
         <fieldset>
           <legend className="mb-1 text-sm font-medium">Kind</legend>

@@ -22,10 +22,9 @@ export default function MixSetup() {
   const categories = nodes.filter((n) => n.kind === "category").sort((a, b) => a.order - b.order);
   const chosen = picked ?? saved ?? [];
   const sums = categories.map((c) => ({ node: c, s: summarize(data, c.id, nowMs) }));
-  const inMix = sums.filter((x) => chosen.includes(x.node.id));
-  const total = inMix.reduce((n, x) => n + x.s.total, 0);
-  const due = inMix.reduce((n, x) => n + x.s.due, 0);
-  const fresh = inMix.reduce((n, x) => n + x.s.fresh, 0);
+  // Counted together, so a card shared between the chosen decks counts once.
+  const together = summarize(data, chosen, nowMs);
+  const { total, due, fresh } = together;
   const toggle = (id: string) => setPicked(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
 
   return (

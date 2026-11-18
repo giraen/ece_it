@@ -4,6 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, type CardEvent, type MemoryCard, type Sureness } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { loadExam } from "./exam";
+import { cardDecks, inDeck } from "./cards";
 import {
   EMPTY_STATE,
   cardStates,
@@ -47,7 +48,8 @@ function unlockedToday(deck: MemoryCard[], events: CardEvent[], nowMs: number): 
 }
 
 export interface DeckSummary {
-  categoryId: string;
+  /** The decks counted: one, or the ones in the mixed deck. */
+  categoryIds: string[];
   total: number;
   /** Answered before and due now. */
   due: number;
@@ -64,21 +66,37 @@ export interface DeckSummary {
   extra: number;
 }
 
-/** A deck's counts for the Activity page. Nothing is written. */
-export function summarize(data: MemoryData, categoryId: string, nowMs: number): DeckSummary {
-  const deck = data.cards.filter((c) => c.categoryId === categoryId);
-  const plan = planUnlocks(deck, data.states, data.exam, nowMs, unlockedToday(deck, data.events, nowMs));
-  const s = { due: 0, fresh: plan.cards.length, learned: 0, remembering: 0, open: 0 };
-  for (const c of deck) {
+/**
+ * The counts for a deck, or for several together, for the Activity page. A card shared between decks counts in each
+ * deck, and once when they are counted together. Nothing is written.
+ */
+export function summarize(data: MemoryData, deckIds: string | string[], nowMs: number): DeckSummary {
+  const ids = typeof deckIds === "string" ? [deckIds] : deckIds;
+  const cards = data.cards.filter((c) => ids.some((id) => inDeck(c, id)));
+  // The cards each deck would open now. A shared card one deck opens is not opened again by another.
+  const opening = new Set<string>();
+  let extra = 0;
+  let perDay: number | null = null;
+  for (const id of ids) {
+    const deck = data.cards.filter((c) => inDeck(c, id));
+    const plan = planUnlocks(deck, data.states, data.exam, nowMs, unlockedToday(deck, data.events, nowMs));
+    const before = opening.size;
+    for (const c of plan.cards) opening.add(c.id);
+    extra += Math.min(plan.extra, opening.size - before);
+    if (plan.perDay !== null) perDay = (perDay ?? 0) + plan.perDay;
+  }
+  const s = { due: 0, fresh: opening.size, learned: 0, remembering: 0, open: 0, locked: -opening.size };
+  for (const c of cards) {
     const st = data.states.get(c.id);
     const stage = stageOf(st);
-    if (stage !== "locked") s.open++;
+    if (stage === "locked") s.locked++;
+    else s.open++;
     if (stage === "new") s.fresh++;
-    else if (isDue(st, nowMs)) s.due++;
+    else if (stage !== "locked" && isDue(st, nowMs)) s.due++;
     if (stage === "learned") s.learned++;
     if (stage === "remembering") s.remembering++;
   }
-  return { categoryId, total: deck.length, ...s, locked: plan.locked, perDay: plan.perDay, extra: plan.extra };
+  return { categoryIds: ids, total: cards.length, ...s, perDay, extra };
 }
 
 function logUnlocks(cards: MemoryCard[], t: number): CardEvent[] {
@@ -106,7 +124,7 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
   const data = await loadMemory();
   if (incognito) {
     const open = data.cards.filter(
-      (c) => categoryIds.includes(c.categoryId) && stageOf(data.states.get(c.id)) !== "locked",
+      (c) => categoryIds.some((id) => inDeck(c, id)) && stageOf(data.states.get(c.id)) !== "locked",
     );
     const dueAt = (c: MemoryCard) => data.states.get(c.id)?.dueAt ?? 0;
     open.sort((a, b) => dueAt(a) - dueAt(b) || a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
@@ -115,25 +133,30 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
   let opened = 0;
   let extra = 0;
   const unlocks: CardEvent[] = [];
+  let states = data.states;
   for (const id of categoryIds) {
-    const deck = data.cards.filter((c) => c.categoryId === id);
-    const plan = planUnlocks(deck, data.states, data.exam, t, unlockedToday(deck, data.events, t));
+    const deck = data.cards.filter((c) => inDeck(c, id));
+    const events = [...data.events, ...unlocks];
+    // A shared card the deck before opened counts here as opened today.
+    const plan = planUnlocks(deck, states, data.exam, t, unlockedToday(deck, events, t));
     unlocks.push(...logUnlocks(plan.cards, t));
     opened += plan.cards.length;
     extra += plan.extra;
+    if (plan.cards.length) states = cardStates([...data.events, ...unlocks]);
   }
   if (unlocks.length) await db.cardEvents.bulkPut(unlocks);
-  const states = cardStates([...data.events, ...unlocks]);
 
-  const inDecks = data.cards.filter((c) => categoryIds.includes(c.categoryId));
+  const inDecks = data.cards.filter((c) => categoryIds.some((id) => inDeck(c, id)));
   const seen = inDecks
     .filter((c) => stageOf(states.get(c.id)) !== "new" && isDue(states.get(c.id), t))
     .sort((a, b) => (states.get(a.id)!.dueAt ?? 0) - (states.get(b.id)!.dueAt ?? 0));
   const fresh = inDecks
     .filter((c) => stageOf(states.get(c.id)) === "new")
     .sort((a, b) => a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
-  // Mixed decks take turns, so one deck's new cards do not all come in a row.
-  const byDeck = categoryIds.map((id) => fresh.filter((c) => c.categoryId === id));
+  // Mixed decks take turns, so one deck's new cards do not all come in a row. A shared card goes with its own deck when
+  // that deck is in the mix, or else with the first deck of the mix it is in.
+  const deckOf = (c: MemoryCard) => cardDecks(c).find((d) => categoryIds.includes(d));
+  const byDeck = categoryIds.map((id) => fresh.filter((c) => deckOf(c) === id));
   const interleaved: MemoryCard[] = [];
   for (let i = 0; byDeck.some((d) => i < d.length); i++) for (const d of byDeck) if (d[i]) interleaved.push(d[i]);
   return { queue: [...seen, ...interleaved].map((c) => c.id), opened, extra };
@@ -181,7 +204,8 @@ export async function answerCard(
 
   let opened: MemoryCard[] = [];
   if (after.reachedRemembering && !before.reachedRemembering) {
-    const deck = data.cards.filter((c) => c.categoryId === card.categoryId);
+    // The new card opens in the deck this card was made in.
+    const deck = data.cards.filter((c) => inDeck(c, card.categoryId));
     // Only the card this answer earned: the exam pace is settled when a review starts.
     opened = planUnlocks(deck, states, null, t, 0).cards.slice(0, 1);
   }

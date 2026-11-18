@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CardKind, MemoryCard, TreeNode } from "@/lib/db";
-import { CARD_KINDS, KIND_LABEL, cardSubject } from "@/lib/memory/cards";
+import { CARD_KINDS, KIND_LABEL, cardDecks, cardPlaces, cardSubject, inDeck, inSubject } from "@/lib/memory/cards";
 import { categoriesOf } from "@/lib/bank/tree";
 import { usePagination } from "@/lib/ui/usePagination";
 import { CATEGORY_STYLE, categoryKey } from "@/components/ui/CategoryChip";
@@ -31,19 +31,21 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const node = selected?.kind === "topic" && selected.parentId ? (byId.get(selected.parentId) ?? null) : selected;
 
-  // A card counts toward its deck and its subject.
+  // A card counts toward every deck and subject it is in, once each.
   const counts = new Map<string, number>();
-  const bump = (id: string | undefined) => id && counts.set(id, (counts.get(id) ?? 0) + 1);
+  const bump = (id: string | undefined) => {
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  };
   for (const c of cards) {
-    bump(c.categoryId);
-    bump(cardSubject(c, byId));
+    cardDecks(c).forEach(bump);
+    new Set(cardPlaces(c, byId).map((p) => p.subjectId)).forEach(bump);
   }
 
   const inNode = !node
     ? cards
     : node.kind === "category"
-      ? cards.filter((c) => c.categoryId === node.id)
-      : cards.filter((c) => cardSubject(c, byId) === node.id);
+      ? cards.filter((c) => inDeck(c, node.id))
+      : cards.filter((c) => inSubject(c, node.id, byId));
   const q = search.trim().toLowerCase();
   const shown = inNode
     .filter((c) => !kind || c.kind === kind)
@@ -51,6 +53,8 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
     .sort((a, b) => a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
   const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(shown);
   const name = (id: string | undefined) => (id ? (byId.get(id)?.name ?? "") : "");
+  const placeName = (p: { categoryId: string; subjectId?: string }) =>
+    p.subjectId ? `${name(p.categoryId)} › ${name(p.subjectId)}` : name(p.categoryId);
 
   // A new card starts where you are: the deck picked, or the subject picked and its first deck.
   const deck = node?.kind === "category" ? node.id : node?.kind === "subject" ? categoriesOf(node)[0] : undefined;
@@ -128,6 +132,8 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
                 {pageItems.map((c) => {
                   const key = categoryKey(name(c.categoryId));
                   const subject = name(cardSubject(c, byId));
+                  const places = cardPlaces(c, byId);
+                  const shared = places.length > 1;
                   return (
                     <tr
                       key={c.id}
@@ -148,10 +154,18 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
                           )}
                           <RichText text={c.prompt} />
                         </Link>
-                        {(subject || (c.tags?.length ?? 0) > 0) && (
+                        {(subject || shared || (c.tags?.length ?? 0) > 0) && (
                           <div className="mt-1 flex flex-wrap items-center gap-1 pl-4">
-                            {subject && node?.kind !== "subject" && (
-                              <span className="text-xs text-muted">{subject}</span>
+                            {shared ? (
+                              <span
+                                className="text-xs text-muted"
+                                title="One card, shared: reviewed once, counted in each"
+                              >
+                                Shared: {places.map(placeName).join(" · ")}
+                              </span>
+                            ) : (
+                              subject &&
+                              node?.kind !== "subject" && <span className="text-xs text-muted">{subject}</span>
                             )}
                             {(c.tags ?? []).map((t) => (
                               <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">

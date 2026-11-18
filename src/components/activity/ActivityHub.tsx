@@ -28,18 +28,24 @@ export default function ActivityHub() {
   const categories = nodes.filter((n) => n.kind === "category").sort((a, b) => a.order - b.order);
   const decks = categories.map((c) => ({ node: c, s: summarize(data, c.id, nowMs) }));
   const mixed = decks.filter((d) => mix?.includes(d.node.id));
-  const mixSum = {
-    due: mixed.reduce((n, d) => n + d.s.due, 0),
-    fresh: mixed.reduce((n, d) => n + d.s.fresh, 0),
-    open: mixed.reduce((n, d) => n + d.s.open, 0),
-  };
+  // Counted together, so a card shared between decks counts once.
+  const mixSum = summarize(
+    data,
+    mixed.map((d) => d.node.id),
+    nowMs,
+  );
+  const everything = summarize(
+    data,
+    categories.map((c) => c.id),
+    nowMs,
+  );
   // Incognito, any unlocked card can be practised, due or not.
   const canReview = (s: { due: number; fresh: number; open: number }) => (incognito ? s.open : s.due + s.fresh) > 0;
   const deckText = (s: DeckSummary) => (incognito ? `${s.open} to practise` : dueText(s));
-  const totalDue = decks.reduce((n, d) => n + d.s.due + d.s.fresh, 0);
+  const totalDue = everything.due + everything.fresh;
   const noCards = data.cards.length === 0;
-  const pace = data.exam && decks.some((d) => d.s.perDay !== null);
-  const catchingUp = decks.reduce((n, d) => n + d.s.extra, 0);
+  const pace = data.exam && everything.perDay !== null;
+  const catchingUp = everything.extra;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">

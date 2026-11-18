@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type CardKind, type MemoryCard, type TreeNode } from "@/lib/db";
+import { db, type CardKind, type CardPlace, type MemoryCard, type TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { isNumberAnswer } from "./answer";
 import { normalizeTags } from "@/lib/bank/questions";
@@ -23,6 +23,39 @@ export function cardSubject(card: MemoryCard, byId: Map<string, TreeNode>): stri
   const topic = card.topicId ? byId.get(card.topicId) : undefined;
   return topic?.parentId ?? undefined;
 }
+
+/**
+ * Every deck and subject a card is filed in: where it was made first, then the others it is shared to. Each place is
+ * listed once.
+ */
+export function cardPlaces(card: MemoryCard, byId: Map<string, TreeNode>): CardPlace[] {
+  return cleanPlaces([{ categoryId: card.categoryId, subjectId: cardSubject(card, byId) }, ...(card.also ?? [])]);
+}
+
+/** Places without repeats or blanks, in order. */
+export function cleanPlaces(list: CardPlace[]): CardPlace[] {
+  const out: CardPlace[] = [];
+  const seen = new Set<string>();
+  for (const p of list) {
+    if (!p.categoryId) continue;
+    const key = `${p.categoryId}/${p.subjectId ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p.subjectId ? { categoryId: p.categoryId, subjectId: p.subjectId } : { categoryId: p.categoryId });
+  }
+  return out;
+}
+
+/** The decks a card counts in. */
+export function cardDecks(card: MemoryCard): string[] {
+  return [...new Set([card.categoryId, ...(card.also ?? []).map((p) => p.categoryId)])];
+}
+
+export const inDeck = (card: MemoryCard, deckId: string): boolean =>
+  card.categoryId === deckId || (card.also ?? []).some((p) => p.categoryId === deckId);
+
+export const inSubject = (card: MemoryCard, subjectId: string, byId: Map<string, TreeNode>): boolean =>
+  cardSubject(card, byId) === subjectId || (card.also ?? []).some((p) => p.subjectId === subjectId);
 
 export const KIND_LABEL = Object.fromEntries(CARD_KINDS.map((k) => [k.id, k.label])) as Record<CardKind, string>;
 
@@ -51,6 +84,16 @@ export function cardProblem(c: Pick<MemoryCard, "prompt" | "answer" | "wrong" | 
   return null;
 }
 
+/** A card's other places, without the place it was made in or repeats. Undefined when there are none. */
+function sharedPlaces(input: Pick<MemoryCard, "categoryId" | "subjectId" | "also">): CardPlace[] | undefined {
+  const homeSubject = input.subjectId || undefined;
+  // Its own deck, alone or with its own subject, is already where it is.
+  const others = cleanPlaces(input.also ?? []).filter(
+    (p) => !(p.categoryId === input.categoryId && (!p.subjectId || p.subjectId === homeSubject)),
+  );
+  return others.length ? others : undefined;
+}
+
 export type CardInput = Omit<MemoryCard, "id" | "order" | "createdAt" | "updatedAt" | "deletedAt"> & { id?: string };
 
 /**
@@ -66,6 +109,7 @@ export async function saveCard(input: CardInput): Promise<MemoryCard> {
     tags: input.tags?.length ? normalizeTags(input.tags) : undefined,
     subjectId: input.subjectId || undefined,
     topicId: undefined,
+    also: sharedPlaces(input),
     wrong: isNumberAnswer(input.answer) ? [] : input.wrong.map((w) => w.trim()).filter(Boolean),
   };
   return db.transaction("rw", db.cards, async () => {

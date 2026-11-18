@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { CardEvent, Sureness } from "@/lib/db";
 import { useNodes, useNow } from "@/lib/hooks";
 import { useMemory } from "@/lib/memory/review";
-import { CARD_KINDS } from "@/lib/memory/cards";
+import { CARD_KINDS, inDeck } from "@/lib/memory/cards";
 import { DAY, TOP_BOX, isDue, planUnlocks, stageOf, startOfDay, type Stage } from "@/lib/memory/schedule";
 import { SURENESS_LABEL, SURENESS_ORDER } from "@/lib/quiz/scoring";
 import RichText from "@/components/ui/RichText";
@@ -57,7 +57,8 @@ export default function RecallPanel() {
   }
 
   const categories = nodes.filter((n) => n.kind === "category").sort((a, b) => a.order - b.order);
-  const cards = deck ? data.cards.filter((c) => c.categoryId === deck) : data.cards;
+  // A card shared between decks counts in each of them.
+  const cards = deck ? data.cards.filter((c) => inDeck(c, deck)) : data.cards;
   const ids = new Set(cards.map((c) => c.id));
   const kindOf = new Map(cards.map((c) => [c.id, c.kind]));
   const answers = data.events.filter((e) => e.type === "answer" && !e.deletedAt && ids.has(e.cardId));
@@ -76,14 +77,15 @@ export default function RecallPanel() {
     stageCount[stage]++;
     if (s && s.box > 0 && !s.learned) boxes[s.box - 1]++;
   }
-  // Cards that would open at the next review count as new, not locked.
+  // Cards that would open at the next review count as new, not locked. A shared card counts once.
+  const opening = new Set<string>();
   for (const cat of categories) {
     if (deck && cat.id !== deck) continue;
-    const deckCards = data.cards.filter((c) => c.categoryId === cat.id);
-    const opening = planUnlocks(deckCards, data.states, data.exam, nowMs, 0).cards.length;
-    stageCount.locked -= opening;
-    stageCount.new += opening;
+    const deckCards = data.cards.filter((c) => inDeck(c, cat.id));
+    for (const c of planUnlocks(deckCards, data.states, data.exam, nowMs, 0).cards) opening.add(c.id);
   }
+  stageCount.locked -= opening.size;
+  stageCount.new += opening.size;
   const biggestBox = Math.max(1, ...boxes);
 
   // Due over the next 7 days.

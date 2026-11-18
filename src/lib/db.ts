@@ -307,6 +307,12 @@ export type CardKind = "constant" | "conversion" | "formula" | "principle" | "de
  * A memory card: a prompt and the answer to recall, such as "Speed of light in a vacuum" and "2.998 × 10^8 m/s".
  * It belongs to the bank, so it is written on the main device only.
  */
+/** A deck, and optionally a subject in it, that a memory card is filed in. */
+export interface CardPlace {
+  categoryId: string;
+  subjectId?: string;
+}
+
 export interface MemoryCard {
   id: string;
   /** The category deck it is in: GEAS, ESAT, ELEX or MATH. */
@@ -315,6 +321,12 @@ export interface MemoryCard {
   subjectId?: string;
   /** Older cards were filed under a topic. Read through `cardSubject`, which uses the topic's subject. */
   topicId?: string;
+  /**
+   * Other decks and subjects the card is also filed in, such as the electron's charge in both GEAS › Physics and
+   * ELEX › Electromagnetics. It is still one card with one schedule; it counts in every deck it is in. Read the decks
+   * and subjects through `cardPlaces`.
+   */
+  also?: CardPlace[];
   kind: CardKind;
   /** Markdown with LaTeX, like a question stem. */
   prompt: string;
@@ -364,6 +376,10 @@ export interface CardDraft {
   subjectId?: string;
   /** A subject named in the text that the deck does not have yet, which can be created. */
   newSubject?: string;
+  /** The other decks and subjects it will also be filed in. */
+  also?: CardPlace[];
+  /** Other places named in the text that are not in the bank, as written. They are left out when the card is added. */
+  alsoMissing?: string[];
   wrong: string[];
   tags: string[];
   createdAt: number;

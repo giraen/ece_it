@@ -28,6 +28,7 @@ import InfoTip from "@/components/ui/InfoTip";
 import LoadingScreen from "@/components/layout/LoadingScreen";
 import RichText from "@/components/ui/RichText";
 import SuggestWrong from "@/components/editor/SuggestWrong";
+import AlsoIn from "@/components/editor/AlsoIn";
 import TagInput from "@/components/editor/TagInput";
 
 const BADGE: Record<DraftStatus, string> = {
@@ -179,6 +180,32 @@ function DraftRow({
           </button>
         </p>
       )}
+
+      <AlsoIn
+        compact
+        value={d.also ?? []}
+        onChange={(next) => set({ also: next.length ? next : undefined })}
+        home={{ categoryId: d.categoryId ?? "", subjectId: d.subjectId }}
+        nodes={nodes}
+        idPrefix={`draft-${d.id}`}
+      />
+      {(d.alsoMissing ?? []).map((text) => (
+        <p key={text} className="flex flex-wrap items-center gap-2 text-xs text-muted">
+          <span>
+            Also named &ldquo;{text}&rdquo;, which is not in your bank, so it is left out. Share it above if it means
+            one of yours.
+          </span>
+          <button
+            className="underline"
+            onClick={() => {
+              const rest = (d.alsoMissing ?? []).filter((x) => x !== text);
+              set({ alsoMissing: rest.length ? rest : undefined });
+            }}
+          >
+            Dismiss
+          </button>
+        </p>
+      ))}
 
       {number ? (
         <p className="text-xs text-muted">A number: its wrong choices are made in each review.</p>

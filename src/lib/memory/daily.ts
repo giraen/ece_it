@@ -38,3 +38,30 @@ export function answeredToday(events: CardEvent[], nowMs: number): number {
   const from = startOfDay(nowMs);
   return events.filter((e) => e.type === "answer" && !e.deletedAt && e.at >= from).length;
 }
+
+/**
+ * How many cards each deck opens with, before any are earned. After that, each card that reaches box 3 opens one
+ * more. Raising it opens more cards at the next review; lowering it never locks a card again.
+ */
+const START_KEY = "memoryStartCards";
+export const START_DEFAULT = 10;
+export const START_MIN = 1;
+export const START_MAX = 100;
+
+const clampStart = (n: number) => Math.min(START_MAX, Math.max(START_MIN, Math.round(n)));
+
+export async function loadStartCards(): Promise<number> {
+  const row = await db.settings.get(START_KEY);
+  const n = row && !row.deletedAt ? Number(row.value) : NaN;
+  return Number.isFinite(n) ? clampStart(n) : START_DEFAULT;
+}
+
+export function useStartCards(): number | undefined {
+  return useLiveQuery(() => loadStartCards(), []);
+}
+
+export async function saveStartCards(n: number): Promise<number> {
+  const value = Number.isFinite(n) ? clampStart(n) : START_DEFAULT;
+  await db.settings.put({ id: START_KEY, value, updatedAt: now() });
+  return value;
+}

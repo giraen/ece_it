@@ -82,7 +82,7 @@ export default function RecallPanel() {
   for (const cat of categories) {
     if (deck && cat.id !== deck) continue;
     const deckCards = data.cards.filter((c) => inDeck(c, cat.id));
-    for (const c of planUnlocks(deckCards, data.states, data.exam, nowMs, 0).cards) opening.add(c.id);
+    for (const c of planUnlocks(deckCards, data.states, data.exam, nowMs, 0, data.start).cards) opening.add(c.id);
   }
   stageCount.locked -= opening.size;
   stageCount.new += opening.size;

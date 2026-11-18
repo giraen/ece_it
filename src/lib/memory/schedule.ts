@@ -21,7 +21,7 @@ export const TOP_BOX = BOX_DAYS.length;
 export const LEARNED_DAYS = 90;
 /** From this box on a card counts as remembering, and reaching it unlocks a new card. */
 export const REMEMBERING_BOX = 3;
-/** How many cards a deck starts with. */
+/** How many cards a deck starts with, unless changed in Settings (see `loadStartCards`). */
 export const FIRST_UNLOCKED = 10;
 
 export type Stage = "locked" | "new" | "learning" | "remembering" | "learned";
@@ -164,7 +164,8 @@ export interface UnlockPlan {
 }
 
 /**
- * Which cards of one deck to unlock now. A deck starts with 10; each card that has reached box 3 opens one more.
+ * Which cards of one deck to unlock now. A deck starts with `start` cards (10 unless changed in Settings); each
+ * card that has reached box 3 opens one more.
  * With an exam set, enough extra cards open each day for every card to have appeared three weeks before it.
  * `unlockedToday` is how many of this deck's cards were unlocked since midnight, so the pace is not counted twice.
  */
@@ -174,12 +175,14 @@ export function planUnlocks(
   exam: ExamPlan | null,
   nowMs: number,
   unlockedToday: number,
+  /** How many cards a deck opens with before any are earned. */
+  start: number = FIRST_UNLOCKED,
 ): UnlockPlan {
   const ordered = [...deck].sort((a, b) => a.order - b.order || a.createdAt - b.createdAt);
   const locked = ordered.filter((c) => !states.get(c.id)?.unlocked);
   const unlocked = ordered.length - locked.length;
   const earned = ordered.filter((c) => states.get(c.id)?.reachedRemembering).length;
-  const natural = Math.max(0, FIRST_UNLOCKED + earned - unlocked);
+  const natural = Math.max(0, start + earned - unlocked);
 
   let extra = 0;
   let perDay: number | null = null;

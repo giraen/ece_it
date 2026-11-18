@@ -43,16 +43,17 @@ function boxLabel(s: CardState | undefined) {
   return `Box ${s.box} of ${TOP_BOX}`;
 }
 
-/** What one answer did, in words. */
-function Outcome({ r, nowMs }: { r: AnswerResult; nowMs: number }) {
+/** What one answer did, in words: a short title, its colour, a line, and the box the card is in now. */
+function outcome(r: AnswerResult, nowMs: number): { title: string; tone: string; line: React.ReactNode; box: number } {
   const { before, after } = r;
   if (r.recorded && r.early && r.correct) {
-    return (
-      <div className="card space-y-2.5 p-4">
-        <p className="font-semibold text-good">Correct</p>
-        <Boxes box={before.box} />
-        <p className="text-sm">
-          It was not due yet, so it stays <strong>{before.learned ? "learned" : `in box ${before.box}`}</strong>
+    return {
+      title: "Correct",
+      tone: "text-good",
+      box: before.box,
+      line: (
+        <>
+          Not due yet, so it stays <strong>{before.learned ? "learned" : `in box ${before.box}`}</strong>
           {before.dueAt ? (
             <>
               {" "}
@@ -60,80 +61,177 @@ function Outcome({ r, nowMs }: { r: AnswerResult; nowMs: number }) {
             </>
           ) : null}
           .
-        </p>
-      </div>
-    );
+        </>
+      ),
+    };
   }
   if (!r.recorded) {
-    return (
-      <div className="card space-y-2.5 p-4">
-        <p className={`font-semibold ${r.correct ? "text-good" : "text-danger"}`}>
-          {r.correct ? "Correct" : "Not this time"}
-        </p>
-        <Boxes box={before.box} />
-        <p className="text-sm">
+    return {
+      title: r.correct ? "Correct" : "Not this time",
+      tone: r.correct ? "text-good" : "text-danger",
+      box: before.box,
+      line: (
+        <>
           Incognito, so nothing changes: it stays{" "}
           <strong>{before.learned ? "learned" : before.box ? `in box ${before.box}` : "new"}</strong>.
-        </p>
-      </div>
-    );
+        </>
+      ),
+    };
   }
   const when = after.dueAt ? whenText(after.dueAt, nowMs) : "";
   const last = before.answers ? `Box ${before.box}` : "New";
-  let title: string;
-  let line: React.ReactNode;
-  let tone = "text-good";
   if (!r.correct) {
-    title = "Not this time";
-    tone = "text-danger";
-    line = (
-      <>
-        Back to <strong>box 1</strong>. It comes again <strong>{when}</strong>.
-      </>
-    );
-  } else if (after.learned && !before.learned) {
-    title = "Learned";
-    line = (
-      <>
-        You remembered it at the 60-day review. It comes back every 90 days, next <strong>{when}</strong>.
-      </>
-    );
-  } else if (after.learned) {
-    title = "Still learned";
-    line = (
-      <>
-        Next <strong>{when}</strong>.
-      </>
-    );
-  } else if (r.sureness === "sure") {
-    title = "Correct, and you were sure";
-    line = (
-      <>
-        {last} → <strong>Box {after.box}</strong>
-        {after.box === REMEMBERING_BOX && (
-          <>
-            , now <strong>Remembering</strong>
-          </>
-        )}
-        . Back <strong>{when}</strong>.
-      </>
-    );
-  } else {
-    title = "Correct, but not sure";
-    tone = "text-priority";
-    line = (
+    return {
+      title: "Not this time",
+      tone: "text-danger",
+      box: after.box,
+      line: (
+        <>
+          Back to <strong>box 1</strong>. It comes again <strong>{when}</strong>.
+        </>
+      ),
+    };
+  }
+  if (after.learned && !before.learned) {
+    return {
+      title: "Learned",
+      tone: "text-good",
+      box: after.box,
+      line: (
+        <>
+          Remembered at the 60-day review. It comes back every 90 days, next <strong>{when}</strong>.
+        </>
+      ),
+    };
+  }
+  if (after.learned) {
+    return {
+      title: "Still learned",
+      tone: "text-good",
+      box: after.box,
+      line: (
+        <>
+          Next <strong>{when}</strong>.
+        </>
+      ),
+    };
+  }
+  if (r.sureness === "sure") {
+    return {
+      title: "Correct, and you were sure",
+      tone: "text-good",
+      box: after.box,
+      line: (
+        <>
+          {last} → <strong>Box {after.box}</strong>
+          {after.box === REMEMBERING_BOX && (
+            <>
+              , now <strong>Remembering</strong>
+            </>
+          )}
+          . Back <strong>{when}</strong>.
+        </>
+      ),
+    };
+  }
+  return {
+    title: "Correct, but not sure",
+    tone: "text-priority",
+    box: after.box,
+    line: (
       <>
         {before.box ? "Stays in" : "Starts in"} <strong>box {after.box}</strong>
         {before.box ? " and comes back sooner" : ""}: <strong>{when}</strong>.
       </>
-    );
-  }
+    ),
+  };
+}
+
+/** One answered card, kept for the results at the end. */
+interface Answered {
+  card: MemoryCard;
+  picked: string;
+  answer: string;
+  r: AnswerResult;
+}
+
+/** The same keys as in a quiz. */
+const SURENESS_KEYS: Record<string, Sureness> = { s: "sure", w: "wise_guess", n: "not_sure", j: "just_guessed" };
+const KEY_FOR: Record<Sureness, string> = { sure: "S", wise_guess: "W", not_sure: "N", just_guessed: "J" };
+const MEANING: Record<Sureness, string> = {
+  sure: "I am certain.",
+  wise_guess: "I narrowed it down and picked the best one.",
+  not_sure: "I lean one way but I am not confident.",
+  just_guessed: "I had no idea.",
+};
+
+/** Every card of the review, with what you picked and what it did, like a quiz's results. */
+function ReviewResults({ log, nowMs }: { log: Answered[]; nowMs: number }) {
+  const [missedOnly, setMissedOnly] = useState(false);
+  const missed = log.filter((l) => !l.r.correct).length;
+  const shown = log.map((l, i) => ({ l, n: i + 1 })).filter(({ l }) => !missedOnly || !l.r.correct);
   return (
-    <div className="card space-y-2.5 p-4">
-      <p className={`font-semibold ${tone}`}>{title}</p>
-      <Boxes box={after.box} mark={r.correct && r.sureness === "sure" ? after.box : undefined} />
-      <p className="text-sm">{line}</p>
-    </div>
+    <section aria-labelledby="review-cards" className="space-y-2.5">
+      <div className="flex items-center gap-2">
+        <h2 id="review-cards" className="eyebrow">
+          Every card
+        </h2>
+        <div className="ml-auto flex gap-1.5" role="group" aria-label="Show">
+          {[
+            { on: !missedOnly, label: `All ${log.length}`, set: false },
+            { on: missedOnly, label: `Missed ${missed}`, set: true },
+          ].map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              aria-pressed={f.on}
+              onClick={() => setMissedOnly(f.set)}
+              className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                f.on ? "border-accent bg-accent-soft text-accent" : "border-line text-muted"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <p className="card p-4 text-sm text-muted">Nothing missed.</p>
+      ) : (
+        <ol className="space-y-2">
+          {shown.map(({ l, n }) => {
+            const o = outcome(l.r, nowMs);
+            return (
+              <li key={`${n}-${l.card.id}`} className="card space-y-2 p-3.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="num text-muted">{n}</span>
+                  <span className={`font-semibold ${o.tone}`}>{o.title}</span>
+                  <span className="text-muted">· {SURENESS_LABEL[l.r.sureness]}</span>
+                  {l.r.early && <span className="rounded-full border border-line px-2 py-0.5 text-muted">Early</span>}
+                </div>
+                <RichText text={l.card.prompt} className="font-medium" />
+                <div
+                  className={`flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-sm ${
+                    l.r.correct ? "border-good bg-good/10" : "border-danger bg-danger/10"
+                  }`}
+                >
+                  <span className="shrink-0 text-xs text-muted">{l.r.correct ? "Your answer" : "You picked"}</span>
+                  <RichText text={l.picked} className="min-w-0 flex-1" />
+                </div>
+                {!l.r.correct && (
+                  <div className="flex items-start gap-2 rounded-md border border-good bg-good/10 px-2.5 py-1.5 text-sm">
+                    <span className="shrink-0 text-xs text-muted">The answer</span>
+                    <RichText text={l.answer} className="min-w-0 flex-1" />
+                  </div>
+                )}
+                <Boxes box={o.box} />
+                <p className="text-sm">{o.line}</p>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -155,7 +253,9 @@ export default function ReviewRunner({ deck, more = false }: Props) {
   const [choices, setChoices] = useState<ReviewChoice[]>([]);
   const [picked, setPicked] = useState<number | null>(null);
   const [sureness, setSureness] = useState<Sureness | null>(null);
-  const [result, setResult] = useState<AnswerResult | null>(null);
+  const [log, setLog] = useState<Answered[]>([]);
+  // Said once on the next card, when an answer opened a new one.
+  const [notice, setNotice] = useState<string | null>(null);
   const [score, setScore] = useState({ right: 0, wrong: 0, opened: 0 });
   const [busy, setBusy] = useState(false);
   // Read once as the review starts, so flipping the switch midway changes nothing.
@@ -190,47 +290,56 @@ export default function ReviewRunner({ deck, more = false }: Props) {
   const card: MemoryCard | undefined = session ? cardById.get(session.queue[index]) : undefined;
   const done = !!session && index >= session.queue.length;
 
-  async function check() {
-    if (!card || picked === null || !sureness || busy) return;
+  /** Saves the answer and goes straight to the next card, as a quiz does. What it did is shown at the end. */
+  async function submit() {
+    if (!card || !session || picked === null || !sureness || busy) return;
     setBusy(true);
     try {
       const choice = choices[picked];
-      const early = !!session?.early?.includes(card.id);
+      const early = !!session.early?.includes(card.id);
       const r = await answerCard(card, choice.correct, sureness, choice.text, incognito, early);
-      setResult(r);
+      const answer = choices.find((c) => c.correct)?.text ?? card.answer;
+      setLog((l) => [...l, { card, picked: choice.text, answer, r }]);
       setScore((s) => ({
         right: s.right + (choice.correct ? 1 : 0),
         wrong: s.wrong + (choice.correct ? 0 : 1),
         opened: s.opened + r.opened.length,
       }));
-      if (r.opened.length) {
-        setSession((s) => (s ? { ...s, queue: [...s.queue, ...r.opened.map((c) => c.id)] } : s));
-      }
+      const queue = r.opened.length ? [...session.queue, ...r.opened.map((c) => c.id)] : session.queue;
+      if (r.opened.length) setSession({ ...session, queue });
+      setNotice(
+        r.opened.length ? "That card is now Remembering, so 1 new card is unlocked. It joins at the end." : null,
+      );
+      const i = index + 1;
+      // A card opened just now is not in the loaded list yet, so it is read from the database.
+      const nextCard = cardById.get(queue[i]) ?? (queue[i] ? await db.cards.get(queue[i]) : undefined);
+      setIndex(i);
+      setPicked(null);
+      setSureness(null);
+      if (nextCard) setChoices(reviewChoices(nextCard));
     } finally {
       setBusy(false);
     }
   }
 
-  function next() {
-    if (!session) return;
-    const i = index + 1;
-    const nextCard = cardById.get(session.queue[i]);
-    setIndex(i);
-    setPicked(null);
-    setSureness(null);
-    setResult(null);
-    if (nextCard) setChoices(reviewChoices(nextCard));
-  }
-
-  // 1 to 4 pick a choice; Enter checks, then goes on.
+  // The quiz keys: A to D pick a choice (1 to 4 also work), S, W, N or J say how sure, and Enter submits.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
-      if (!result && /^[1-4]$/.test(e.key) && Number(e.key) <= choices.length) setPicked(Number(e.key) - 1);
-      else if (e.key === "Enter") {
+      const key = e.key.toLowerCase();
+      const letter = LETTERS.toLowerCase().indexOf(key);
+      const digit = /^[1-4]$/.test(key) ? Number(key) - 1 : -1;
+      const pick = key.length === 1 && letter >= 0 ? letter : digit;
+      if (pick >= 0 && pick < choices.length) {
         e.preventDefault();
-        if (result) next();
-        else void check();
+        setPicked(pick);
+      } else if (key in SURENESS_KEYS && picked !== null) {
+        e.preventDefault();
+        setSureness(SURENESS_KEYS[key]);
+      } else if (e.key === "Enter" && picked !== null && sureness) {
+        e.preventDefault();
+        void submit();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -320,6 +429,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
             </p>
           )}
         </div>
+        {log.length > 0 && <ReviewResults log={log} nowMs={nowMs} />}
         <Link href="/activity" className="btn btn-primary min-h-12">
           Back to Activity
         </Link>
@@ -344,9 +454,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
         <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">
           {KIND_LABEL[card.kind]}
         </span>
-        <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">
-          {boxLabel(result ? result.before : state)}
-        </span>
+        <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">{boxLabel(state)}</span>
         {!incognito && session.early?.includes(card.id) && (
           <span
             className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted"
@@ -357,84 +465,74 @@ export default function ReviewRunner({ deck, more = false }: Props) {
         )}
       </div>
 
+      {notice && (
+        <p role="status" className="rounded-lg bg-accent-soft p-2.5 text-sm text-accent">
+          {notice}
+        </p>
+      )}
       <RichText text={card.prompt} className="text-xl leading-snug font-semibold" />
 
       <div role="radiogroup" aria-label="Choices" className="flex flex-col gap-2.5">
         {choices.map((c, i) => {
           const on = picked === i;
-          let look = on ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-paper";
-          let note: string | null = null;
-          if (result) {
-            if (c.correct) {
-              look = "border-good bg-good/10";
-              note = on ? "Your answer" : "The answer";
-            } else if (on) {
-              look = "border-danger bg-danger/10";
-              note = "Your answer";
-            } else look = "border-line opacity-60";
-          }
+          const look = on ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-paper";
           return (
             <button
               key={i}
               role="radio"
               aria-checked={on}
-              disabled={!!result}
               onClick={() => setPicked(i)}
               className={`flex min-h-14 items-center gap-3 rounded-lg border-[1.5px] px-3.5 py-2 text-left text-base ${look}`}
             >
               <span
                 className={`flex size-7 shrink-0 items-center justify-center rounded-md text-xs ${
-                  on && !result ? "bg-accent font-semibold text-white" : "border border-line text-muted"
+                  on ? "bg-accent font-semibold text-white" : "border border-line text-muted"
                 }`}
               >
                 {LETTERS[i]}
               </span>
               <RichText text={c.text} className="min-w-0 flex-1" />
-              {note && <span className="shrink-0 text-xs text-muted">{note}</span>}
             </button>
           );
         })}
       </div>
 
-      {result ? (
-        <>
-          <Outcome r={result} nowMs={nowMs} />
-          {result.opened.length > 0 && (
-            <p role="status" className="rounded-lg bg-accent p-3 text-sm text-white">
-              Now Remembering, so <strong>1 new card</strong> is unlocked. It joins this review at the end.
-            </p>
-          )}
-          <button className="btn btn-primary mt-auto min-h-12" onClick={next}>
-            {index + 1 < session.queue.length ? "Next card" : "Finish"}
-          </button>
-        </>
-      ) : (
-        <div className="mt-auto space-y-2.5">
-          <p className="text-sm text-muted">How sure are you?</p>
-          <div role="radiogroup" aria-label="How sure" className="grid grid-cols-2 gap-2">
-            {SURENESS_ORDER.map((s) => (
-              <button
-                key={s}
-                role="radio"
-                aria-checked={sureness === s}
-                onClick={() => setSureness(s)}
-                className={`min-h-11 rounded-md border-[1.5px] text-sm ${
-                  sureness === s ? "border-accent bg-accent-soft font-semibold" : "border-line bg-surface"
-                }`}
-              >
-                {SURENESS_LABEL[s]}
-              </button>
-            ))}
-          </div>
-          <button
-            className="btn btn-primary min-h-12 w-full"
-            disabled={picked === null || !sureness || busy}
-            onClick={() => void check()}
-          >
-            {picked === null ? "Pick an answer" : !sureness ? "Say how sure you are" : "Check"}
-          </button>
+      <div className="mt-auto space-y-2.5">
+        <p className="text-sm text-muted">How sure are you?</p>
+        <div role="radiogroup" aria-label="How sure" className="grid grid-cols-2 gap-2">
+          {SURENESS_ORDER.map((s) => (
+            <button
+              key={s}
+              role="radio"
+              aria-checked={sureness === s}
+              disabled={picked === null}
+              title={MEANING[s]}
+              onClick={() => setSureness(s)}
+              className={`min-h-11 rounded-md border-[1.5px] text-sm disabled:opacity-50 ${
+                sureness === s
+                  ? "border-priority bg-priority-soft font-semibold text-priority"
+                  : "border-line bg-surface"
+              }`}
+            >
+              {SURENESS_LABEL[s]}
+              <span className="ml-1 text-xs opacity-60 max-lg:hidden">{KEY_FOR[s]}</span>
+            </button>
+          ))}
         </div>
-      )}
+        {picked === null && (
+          <p className="text-xs text-muted">
+            Pick a choice first.<span className="max-lg:hidden"> The keys A to D also pick.</span>
+          </p>
+        )}
+        <button
+          className="btn btn-primary min-h-12 w-full"
+          disabled={picked === null || !sureness || busy}
+          onClick={() => void submit()}
+        >
+          {index + 1 < total ? "Submit" : "Submit and finish"}
+          <span className="ml-1 text-xs opacity-70 max-lg:hidden">Enter</span>
+        </button>
+      </div>
     </div>
   );
 }

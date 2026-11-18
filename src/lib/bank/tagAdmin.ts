@@ -12,17 +12,29 @@ export interface TagStat {
   spellings: string[];
   questions: number;
   notes: number;
+  /** Memory cards. They share the same tags as questions and notes. */
+  cards: number;
   topics: number;
 }
 
 const keyOf = (t: string) => t.trim().toLowerCase();
 
-/** Counts every tag across questions and notes. Only questions can have a tag in a topic, so topics are counted from them. */
-export function tagStats(questions: { topicId: string; tags: string[] }[], notes: { tags: string[] }[]): TagStat[] {
-  const map = new Map<string, { spell: Map<string, number>; questions: number; notes: number; topics: Set<string> }>();
+/**
+ * Counts every tag across questions, notes, and memory cards. Only questions can have a tag in a topic, so topics are
+ * counted from them.
+ */
+export function tagStats(
+  questions: { topicId: string; tags: string[] }[],
+  notes: { tags: string[] }[],
+  cards: { tags?: string[] }[] = [],
+): TagStat[] {
+  const map = new Map<
+    string,
+    { spell: Map<string, number>; questions: number; notes: number; cards: number; topics: Set<string> }
+  >();
   const get = (k: string) => {
     let e = map.get(k);
-    if (!e) map.set(k, (e = { spell: new Map(), questions: 0, notes: 0, topics: new Set() }));
+    if (!e) map.set(k, (e = { spell: new Map(), questions: 0, notes: 0, cards: 0, topics: new Set() }));
     return e;
   };
   for (const q of questions) {
@@ -40,29 +52,44 @@ export function tagStats(questions: { topicId: string; tags: string[] }[], notes
       e.notes += 1;
     }
   }
+  for (const c of cards) {
+    for (const t of new Set((c.tags ?? []).map((x) => x.trim()).filter(Boolean))) {
+      const e = get(keyOf(t));
+      e.spell.set(t, (e.spell.get(t) ?? 0) + 1);
+      e.cards += 1;
+    }
+  }
   return Array.from(map.entries()).map(([key, e]) => {
     const spellings = Array.from(e.spell.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([s]) => s);
-    return { key, label: spellings[0], spellings, questions: e.questions, notes: e.notes, topics: e.topics.size };
+    return {
+      key,
+      label: spellings[0],
+      spellings,
+      questions: e.questions,
+      notes: e.notes,
+      cards: e.cards,
+      topics: e.topics.size,
+    };
   });
 }
 
 /** What a record's tags were before a change, so the change can be undone. */
 export interface TagSnapshot {
-  table: "questions" | "concepts" | "drafts";
+  table: "questions" | "concepts" | "drafts" | "cards" | "cardDrafts";
   id: string;
   tags: string[] | undefined;
 }
 
 type Change = (tags: string[]) => string[];
 
-/** Applies a change to the tags of every question, note, and waiting question that has the tag. */
+/** Applies a change to the tags of every question, note, memory card, and waiting question or card that has the tag. */
 async function rewrite(key: string, change: Change): Promise<TagSnapshot[]> {
   const stamp = now();
   const before: TagSnapshot[] = [];
   const has = (tags: string[] | undefined) => !!tags && tags.some((t) => keyOf(t) === key);
-  await db.transaction("rw", [db.questions, db.concepts, db.drafts], async () => {
+  await db.transaction("rw", [db.questions, db.concepts, db.drafts, db.cards, db.cardDrafts], async () => {
     for (const q of await db.questions.filter((x) => !x.deletedAt && has(x.tags)).toArray()) {
       before.push({ table: "questions", id: q.id, tags: q.tags });
       await db.questions.update(q.id, { tags: change(q.tags), updatedAt: stamp });
@@ -74,6 +101,14 @@ async function rewrite(key: string, change: Change): Promise<TagSnapshot[]> {
     for (const d of await db.drafts.filter((x) => !x.deletedAt && x.status === "pending" && has(x.tags)).toArray()) {
       before.push({ table: "drafts", id: d.id, tags: d.tags });
       await db.drafts.update(d.id, { tags: change(d.tags ?? []), updatedAt: stamp });
+    }
+    for (const c of await db.cards.filter((x) => !x.deletedAt && has(x.tags)).toArray()) {
+      before.push({ table: "cards", id: c.id, tags: c.tags });
+      await db.cards.update(c.id, { tags: change(c.tags ?? []), updatedAt: stamp });
+    }
+    for (const d of await db.cardDrafts.filter((x) => has(x.tags)).toArray()) {
+      before.push({ table: "cardDrafts", id: d.id, tags: d.tags });
+      await db.cardDrafts.update(d.id, { tags: change(d.tags), updatedAt: stamp });
     }
   });
   return before;
@@ -94,10 +129,12 @@ export function deleteTagEverywhere(key: string): Promise<TagSnapshot[]> {
 /** Puts the tags back as they were. */
 export async function restoreTags(before: TagSnapshot[]): Promise<void> {
   const stamp = now();
-  await db.transaction("rw", [db.questions, db.concepts, db.drafts], async () => {
+  await db.transaction("rw", [db.questions, db.concepts, db.drafts, db.cards, db.cardDrafts], async () => {
     for (const b of before) {
       if (b.table === "questions") await db.questions.update(b.id, { tags: b.tags ?? [], updatedAt: stamp });
       else if (b.table === "concepts") await db.concepts.update(b.id, { tags: b.tags ?? [], updatedAt: stamp });
+      else if (b.table === "cards") await db.cards.update(b.id, { tags: b.tags, updatedAt: stamp });
+      else if (b.table === "cardDrafts") await db.cardDrafts.update(b.id, { tags: b.tags ?? [], updatedAt: stamp });
       else await db.drafts.update(b.id, { tags: b.tags, updatedAt: stamp });
     }
   });

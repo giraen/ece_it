@@ -13,11 +13,12 @@ const card =
 export default function LibraryLinks() {
   const sources = useSources();
   const tags = useLiveQuery(async () => {
-    const [questions, notes] = await Promise.all([
+    const [questions, notes, cards] = await Promise.all([
       db.questions.filter((q) => !q.deletedAt).toArray(),
       db.concepts.filter((c) => !c.deletedAt).toArray(),
+      db.cards.filter((c) => !c.deletedAt).toArray(),
     ]);
-    return tagStats(questions, notes).length;
+    return tagStats(questions, notes, cards).length;
   }, []);
   const count = (n: number | undefined, word: string) => (n === undefined ? " " : `${n} ${word}${n === 1 ? "" : "s"}`);
 

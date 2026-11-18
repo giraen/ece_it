@@ -23,17 +23,18 @@ const SORTS: { id: Sort; label: string }[] = [
 /** Tags are shown this many at a time, so a very large list stays quick. */
 const STEP = 40;
 
-const used = (t: TagStat) => t.questions + t.notes;
+const used = (t: TagStat) => t.questions + t.notes + t.cards;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Every tag in the bank: rename one everywhere, merge two, or take one off everything. */
 export default function TagManager() {
   const stats = useLiveQuery(async () => {
-    const [questions, notes] = await Promise.all([
+    const [questions, notes, cards] = await Promise.all([
       db.questions.filter((q) => !q.deletedAt).toArray(),
       db.concepts.filter((c) => !c.deletedAt).toArray(),
+      db.cards.filter((c) => !c.deletedAt).toArray(),
     ]);
-    return tagStats(questions, notes);
+    return tagStats(questions, notes, cards);
   }, []);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<Sort>("name");
@@ -141,7 +142,9 @@ export default function TagManager() {
 
       {list.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-4 text-sm text-muted">
-          {stats.length === 0 ? "No tags yet. A tag appears here once a question has it." : "No tag matches."}
+          {stats.length === 0
+            ? "No tags yet. A tag appears here once a question, note or memory card has it."
+            : "No tag matches."}
         </p>
       ) : (
         <ul className="divide-y divide-line card text-sm">
@@ -150,8 +153,13 @@ export default function TagManager() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-accent-soft px-2 py-0.5 text-accent">{t.label}</span>
                 <span className="min-w-0 flex-1 text-xs text-muted">
-                  {plural(t.questions, "question")}
-                  {t.notes > 0 && `, ${plural(t.notes, "note")}`}
+                  {[
+                    (t.questions > 0 || (!t.notes && !t.cards)) && plural(t.questions, "question"),
+                    t.notes > 0 && plural(t.notes, "note"),
+                    t.cards > 0 && plural(t.cards, "memory card"),
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
                   {t.topics > 0 && ` · ${plural(t.topics, "topic")}`}
                 </span>
                 <button
@@ -207,7 +215,7 @@ export default function TagManager() {
               {deleting === t.key && (
                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-paper p-3">
                   <p className="mr-2">
-                    Take “{t.label}” off {plural(used(t), "question or note")}? The questions stay.
+                    Take “{t.label}” off {plural(used(t), "item")}? The questions, notes and cards stay.
                   </p>
                   <button type="button" className="btn btn-danger py-1" onClick={() => void remove(t)}>
                     Delete tag

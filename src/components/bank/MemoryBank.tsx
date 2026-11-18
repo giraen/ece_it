@@ -69,7 +69,8 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
   const shown = inNode
     .filter((c) => !kind || c.kind === kind)
     .filter((c) => !q || `${c.prompt} ${c.answer} ${(c.tags ?? []).join(" ")}`.toLowerCase().includes(q))
-    .sort((a, b) => a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
+    // Newest created first, as in the question list. Editing a card does not move it.
+    .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
   const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(shown);
   // Only selected cards still in view count, as in the question list.
   const chosen = picked.filter((id) => shown.some((c) => c.id === id));

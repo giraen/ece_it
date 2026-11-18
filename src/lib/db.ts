@@ -359,6 +359,11 @@ export interface CardEvent {
   sureness?: Sureness;
   /** The text of the choice picked, for an answer. */
   picked?: string;
+  /**
+   * Answered before it was due, to fill up the daily review. Right, it changes nothing: the card keeps its box and day.
+   * Wrong, it goes back to box 1 as usual.
+   */
+  early?: boolean;
   updatedAt: number;
   deletedAt?: number;
 }

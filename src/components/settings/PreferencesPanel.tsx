@@ -10,7 +10,62 @@ import { useReadOnly } from "@/lib/sync/syncState";
 import { saveExam, useExam } from "@/lib/memory/exam";
 import { examPlan } from "@/lib/memory/schedule";
 import { formatDate } from "@/lib/format";
+import { DAILY_MAX, DAILY_MIN, saveDailySize, useDailySize } from "@/lib/memory/daily";
 import { IncognitoNote, IncognitoSwitch } from "@/components/ui/Incognito";
+
+/** How many memory cards the daily review asks for. Saved when you leave the box or press Enter. */
+function DailyGoal({ readOnly }: { readOnly: boolean }) {
+  const size = useDailySize();
+  const [text, setText] = useState<string | null>(null);
+  const shown = text ?? (size === undefined ? "" : String(size));
+  const n = Number(shown);
+  const valid = shown !== "" && Number.isInteger(n) && n >= DAILY_MIN && n <= DAILY_MAX;
+  const save = async () => {
+    if (text === null) return;
+    if (valid) await saveDailySize(n);
+    setText(null);
+  };
+  return (
+    <div id="daily" className="space-y-2">
+      <div className="flex items-center gap-1">
+        <label htmlFor="daily-size" className="text-sm font-medium">
+          Daily review
+        </label>
+        <InfoTip>
+          The daily review on Activity mixes every deck. Everything due comes first; when that is fewer than your goal,
+          cards due soon fill it up. Answering those early never moves them up a box, but a miss sends one back to box
+          1. Cards answered in any review today count toward the goal.
+        </InfoTip>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="daily-size"
+          type="number"
+          inputMode="numeric"
+          min={DAILY_MIN}
+          max={DAILY_MAX}
+          className="input w-24"
+          disabled={readOnly}
+          aria-invalid={!valid}
+          aria-describedby="daily-help"
+          value={shown}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => void save()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void save();
+          }}
+        />
+        <span className="text-sm text-muted">cards a day</span>
+      </div>
+      <p id="daily-help" className={`text-sm ${valid ? "text-muted" : "text-danger"}`}>
+        {valid
+          ? `At least ${DAILY_MIN}, at most ${DAILY_MAX}.`
+          : `Give a whole number from ${DAILY_MIN} to ${DAILY_MAX}. Leaving it keeps ${size ?? DAILY_MIN}.`}
+        {readOnly && " Set on your main device."}
+      </p>
+    </div>
+  );
+}
 
 export default function PreferencesPanel() {
   const bar = useMasteryBar();
@@ -75,6 +130,8 @@ export default function PreferencesPanel() {
           </p>
         )}
       </div>
+
+      <DailyGoal readOnly={readOnly} />
 
       <div className="space-y-2">
         <div className="flex items-center gap-1">

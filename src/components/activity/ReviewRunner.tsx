@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { db, type MemoryCard, type Sureness, type TreeNode } from "@/lib/db";
 import { useNodes, useNow } from "@/lib/hooks";
-import { answerCard, startSession, useMemory, type AnswerResult, type Session } from "@/lib/memory/review";
+import { answerCard, startDaily, startSession, useMemory, type AnswerResult, type Session } from "@/lib/memory/review";
+import { loadDailySize } from "@/lib/memory/daily";
 import { reviewChoices, type ReviewChoice } from "@/lib/memory/choices";
 import { KIND_LABEL } from "@/lib/memory/cards";
 import { loadMix } from "@/lib/memory/mix";
@@ -45,6 +46,24 @@ function boxLabel(s: CardState | undefined) {
 /** What one answer did, in words. */
 function Outcome({ r, nowMs }: { r: AnswerResult; nowMs: number }) {
   const { before, after } = r;
+  if (r.recorded && r.early && r.correct) {
+    return (
+      <div className="card space-y-2.5 p-4">
+        <p className="font-semibold text-good">Correct</p>
+        <Boxes box={before.box} />
+        <p className="text-sm">
+          It was not due yet, so it stays <strong>{before.learned ? "learned" : `in box ${before.box}`}</strong>
+          {before.dueAt ? (
+            <>
+              {" "}
+              and still comes back <strong>{whenText(before.dueAt, nowMs)}</strong>
+            </>
+          ) : null}
+          .
+        </p>
+      </div>
+    );
+  }
   if (!r.recorded) {
     return (
       <div className="card space-y-2.5 p-4">
@@ -119,12 +138,14 @@ function Outcome({ r, nowMs }: { r: AnswerResult; nowMs: number }) {
 }
 
 interface Props {
-  /** A category id, or "mixed" for the mixed deck. */
+  /** A category id, "mixed" for the mixed deck, or "daily" for the daily review. */
   deck: string;
+  /** For the daily review: another whole round, after today's goal is met. */
+  more?: boolean;
 }
 
 /** A memory review: one card at a time, multiple choice, with how sure you are. */
-export default function ReviewRunner({ deck }: Props) {
+export default function ReviewRunner({ deck, more = false }: Props) {
   const nodes = useNodes();
   const data = useMemory();
   const nowMs = useNow();
@@ -148,19 +169,23 @@ export default function ReviewRunner({ deck }: Props) {
     if (started.current || !ready) return;
     started.current = true;
     void (async () => {
-      const decks = deck === "mixed" ? (loadMix() ?? []) : [deck];
-      if (!decks.length) {
-        setProblem("Choose the categories for your mixed deck first.");
-        return;
-      }
       const off = loadIncognito();
+      let s: Session;
+      if (deck === "daily") s = await startDaily(await loadDailySize(), off, more);
+      else {
+        const decks = deck === "mixed" ? (loadMix() ?? []) : [deck];
+        if (!decks.length) {
+          setProblem("Choose the categories for your mixed deck first.");
+          return;
+        }
+        s = await startSession(decks, off);
+      }
       setIncognito(off);
-      const s = await startSession(decks, off);
       const card = s.queue.length ? await db.cards.get(s.queue[0]) : undefined;
       if (card) setChoices(reviewChoices(card));
       setSession(s);
     })();
-  }, [ready, deck]);
+  }, [ready, deck, more]);
 
   const card: MemoryCard | undefined = session ? cardById.get(session.queue[index]) : undefined;
   const done = !!session && index >= session.queue.length;
@@ -170,7 +195,8 @@ export default function ReviewRunner({ deck }: Props) {
     setBusy(true);
     try {
       const choice = choices[picked];
-      const r = await answerCard(card, choice.correct, sureness, choice.text, incognito);
+      const early = !!session?.early?.includes(card.id);
+      const r = await answerCard(card, choice.correct, sureness, choice.text, incognito, early);
       setResult(r);
       setScore((s) => ({
         right: s.right + (choice.correct ? 1 : 0),
@@ -224,7 +250,8 @@ export default function ReviewRunner({ deck }: Props) {
   if (!nodes || !data || !session) return <LoadingScreen />;
 
   const catOf = (id: string): TreeNode | undefined => nodes.find((n) => n.id === id);
-  const title = deck === "mixed" ? "Mixed deck" : (catOf(deck)?.name ?? "Memory");
+  const title = deck === "daily" ? "Daily review" : deck === "mixed" ? "Mixed deck" : (catOf(deck)?.name ?? "Memory");
+  const earlyCount = session.early?.length ?? 0;
   const total = session.queue.length;
 
   const header = (
@@ -264,9 +291,13 @@ export default function ReviewRunner({ deck }: Props) {
           <h1 className="text-lg font-semibold">{total === 0 ? "Nothing to review" : "Review done"}</h1>
           {total === 0 ? (
             <p className="text-sm text-muted">
-              {incognito
-                ? `No card in ${title} is unlocked yet, so there is nothing to practise.`
-                : `Nothing in ${title} is due today. Come back tomorrow.`}
+              {deck === "daily"
+                ? incognito
+                  ? "No card is unlocked yet, so there is nothing to practise."
+                  : "Nothing is due, and every unlocked card has come up today. Come back tomorrow."
+                : incognito
+                  ? `No card in ${title} is unlocked yet, so there is nothing to practise.`
+                  : `Nothing in ${title} is due today. Come back tomorrow.`}
             </p>
           ) : (
             <p className="text-sm">
@@ -275,6 +306,12 @@ export default function ReviewRunner({ deck }: Props) {
               {incognito && " Incognito, so no card moved."}
               {score.opened > 0 &&
                 ` Remembering ${score.opened === 1 ? "one card" : `${score.opened} cards`} opened ${score.opened === 1 ? "a new one" : "new ones"}.`}
+            </p>
+          )}
+          {earlyCount > 0 && total > 0 && (
+            <p className="text-sm text-muted">
+              {earlyCount === 1 ? "One card" : `${earlyCount} cards`} not due yet filled up the daily goal. Answering a
+              card early never moves it up a box.
             </p>
           )}
           {session.extra > 0 && (
@@ -310,6 +347,14 @@ export default function ReviewRunner({ deck }: Props) {
         <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">
           {boxLabel(result ? result.before : state)}
         </span>
+        {!incognito && session.early?.includes(card.id) && (
+          <span
+            className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted"
+            title="Not due yet: it is here to fill up the daily goal"
+          >
+            Early
+          </span>
+        )}
       </div>
 
       <RichText text={card.prompt} className="text-xl leading-snug font-semibold" />

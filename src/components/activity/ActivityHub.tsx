@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useNodes, useNow } from "@/lib/hooks";
-import { useMemory, summarize, type DeckSummary } from "@/lib/memory/review";
+import { earlyCards, useMemory, summarize, type DeckSummary } from "@/lib/memory/review";
 import { useMix } from "@/lib/memory/mix";
+import { answeredToday, useDailySize } from "@/lib/memory/daily";
 import { formatDate } from "@/lib/format";
 import { CATEGORY_STYLE, categoryKey } from "@/components/ui/CategoryChip";
 import LoadingScreen from "@/components/layout/LoadingScreen";
@@ -23,7 +24,8 @@ export default function ActivityHub() {
   const mix = useMix();
   const nowMs = useNow();
   const incognito = useIncognito();
-  if (!nodes || !data) return <LoadingScreen />;
+  const dailySize = useDailySize();
+  if (!nodes || !data || dailySize === undefined) return <LoadingScreen />;
 
   const categories = nodes.filter((n) => n.kind === "category").sort((a, b) => a.order - b.order);
   const decks = categories.map((c) => ({ node: c, s: summarize(data, c.id, nowMs) }));
@@ -46,6 +48,13 @@ export default function ActivityHub() {
   const noCards = data.cards.length === 0;
   const pace = data.exam && everything.perDay !== null;
   const catchingUp = everything.extra;
+  const answered = answeredToday(data.events, nowMs);
+  const goalMet = answered >= dailySize;
+  // Met, and nothing left due: the day is done, though another round is there for the keen.
+  const dayDone = goalMet && totalDue === 0;
+  // What the daily review could still bring today: everything due, then cards not yet answered today.
+  const canFill = earlyCards(data, nowMs).length;
+  const dailyReady = incognito ? everything.open > 0 : totalDue > 0 || canFill > 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
@@ -79,6 +88,80 @@ export default function ActivityHub() {
           </p>
         ) : (
           <>
+            <div className="card space-y-3 p-4" aria-labelledby="daily-title">
+              <div className="flex items-baseline gap-2">
+                <h3 id="daily-title" className="font-semibold">
+                  Daily review
+                </h3>
+                <span className="text-sm text-muted">every deck</span>
+                <Link href="/settings#daily" className="ml-auto text-sm text-muted underline">
+                  {dailySize} a day
+                </Link>
+              </div>
+              {incognito ? (
+                <p className="text-sm text-muted">
+                  Practise {dailySize} unlocked cards from every deck, due ones first.
+                </p>
+              ) : (
+                <>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-track"
+                    role="progressbar"
+                    aria-label="Today's goal"
+                    aria-valuemin={0}
+                    aria-valuemax={dailySize}
+                    aria-valuenow={Math.min(answered, dailySize)}
+                  >
+                    <div
+                      className={`h-full ${goalMet ? "bg-good" : "bg-accent"}`}
+                      style={{ width: `${Math.min(100, (answered / dailySize) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-sm">
+                    {dayDone ? (
+                      <span className="font-medium text-good">Done for today: {answered} cards answered.</span>
+                    ) : goalMet ? (
+                      <>
+                        Goal met with <span className="num font-semibold">{answered}</span> cards;{" "}
+                        <span className="num font-semibold">{totalDue}</span> still due.
+                      </>
+                    ) : (
+                      <>
+                        <span className="num font-semibold">{answered}</span> of{" "}
+                        <span className="num">{dailySize}</span> today
+                        {totalDue > 0 && (
+                          <span className="text-muted">
+                            {" "}
+                            · everything due ({totalDue}) comes first, then cards due soon
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
+                </>
+              )}
+              {!incognito && !dayDone && !dailyReady && answered > 0 && (
+                <p className="text-sm text-muted">
+                  Every unlocked card has come up today, so nothing is left to fill the goal. More cards unlock as you
+                  remember these.
+                </p>
+              )}
+              {dailyReady && (
+                <Link
+                  href={dayDone && !incognito ? "/activity/review?deck=daily&more=1" : "/activity/review?deck=daily"}
+                  className={`btn ${dayDone && !incognito ? "" : "btn-primary"} w-full min-h-11 sm:w-auto`}
+                >
+                  {incognito
+                    ? "Practise"
+                    : dayDone
+                      ? "Another round"
+                      : answered > 0
+                        ? "Keep going"
+                        : "Start daily review"}
+                </Link>
+              )}
+            </div>
+
             <div className="rounded-lg bg-accent p-4 text-white">
               <div className="flex items-center gap-2">
                 <span className="font-semibold">Mixed deck</span>

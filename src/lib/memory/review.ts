@@ -5,6 +5,7 @@ import { db, type CardEvent, type MemoryCard, type Sureness } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { loadExam } from "./exam";
 import { cardDecks, inDeck } from "./cards";
+import { answeredToday } from "./daily";
 import {
   EMPTY_STATE,
   cardStates,
@@ -110,6 +111,8 @@ export interface Session {
   opened: number;
   /** Of those, how many opened early to keep pace with the exam. */
   extra: number;
+  /** Cards not due yet, added to fill up the daily review. */
+  early?: string[];
 }
 
 /**
@@ -162,6 +165,52 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
   return { queue: [...seen, ...interleaved].map((c) => c.id), opened, extra };
 }
 
+/**
+ * Cards that can fill up the daily review: unlocked and seen before, not due, and not answered yet today, so one day
+ * never asks the same card twice. Soonest due first.
+ */
+export function earlyCards(data: MemoryData, nowMs: number, skip: Set<string> = new Set()): MemoryCard[] {
+  const from = startOfDay(nowMs);
+  const today = new Set(
+    data.events.filter((e) => e.type === "answer" && !e.deletedAt && e.at >= from).map((e) => e.cardId),
+  );
+  return data.cards
+    .filter((c) => !skip.has(c.id) && !today.has(c.id))
+    .filter((c) => {
+      const st = data.states.get(c.id);
+      const stage = stageOf(st);
+      return stage !== "locked" && stage !== "new" && !isDue(st, nowMs);
+    })
+    .sort((a, b) => (data.states.get(a.id)?.dueAt ?? 0) - (data.states.get(b.id)?.dueAt ?? 0));
+}
+
+/**
+ * The daily review, from every deck. It is everything due and every new card earned, like any review; when that is
+ * fewer than the goal still to go today, unlocked cards due soonest fill it up. Those are answered early: a right
+ * answer leaves them as they are, a wrong one sends them back to box 1. `more` asks for a whole goal again, for when
+ * today's is already met.
+ */
+export async function startDaily(size: number, incognito = false, more = false): Promise<Session> {
+  const decks = (await db.nodes.toArray())
+    .filter((n) => n.kind === "category" && !n.deletedAt)
+    .sort((a, b) => a.order - b.order)
+    .map((n) => n.id);
+  const t = now();
+  const before = await loadMemory();
+  const want = incognito || more ? size : Math.max(0, size - answeredToday(before.events, t));
+  const s = await startSession(decks, incognito);
+  // Incognito goes over unlocked cards, due ones first; the goal is how many.
+  if (incognito) return { ...s, queue: s.queue.slice(0, Math.max(want, 1)) };
+  if (s.queue.length >= want) return s;
+
+  const data = await loadMemory();
+  const early = earlyCards(data, t, new Set(s.queue))
+    .filter((c) => decks.some((d) => inDeck(c, d)))
+    .slice(0, want - s.queue.length)
+    .map((c) => c.id);
+  return { ...s, queue: [...s.queue, ...early], early };
+}
+
 export interface AnswerResult {
   correct: boolean;
   sureness: Sureness;
@@ -171,6 +220,8 @@ export interface AnswerResult {
   opened: MemoryCard[];
   /** False when incognito: the card stays as it was. */
   recorded: boolean;
+  /** Answered before it was due, in the daily review. */
+  early: boolean;
 }
 
 /** Saves one answer, and opens a new card in the deck when this one reached box 3 for the first time. */
@@ -180,12 +231,13 @@ export async function answerCard(
   sureness: Sureness,
   picked: string,
   incognito = false,
+  early = false,
 ): Promise<AnswerResult> {
   const t = now();
   const data = await loadMemory();
   if (incognito) {
     const same = data.states.get(card.id) ?? EMPTY_STATE;
-    return { correct, sureness, before: same, after: same, opened: [], recorded: false };
+    return { correct, sureness, before: same, after: same, opened: [], recorded: false, early };
   }
   const event: CardEvent = {
     id: newId(),
@@ -195,6 +247,7 @@ export async function answerCard(
     correct,
     sureness,
     picked,
+    ...(early ? { early: true } : {}),
     updatedAt: t,
   };
   const events = [...data.events, event];
@@ -210,5 +263,5 @@ export async function answerCard(
     opened = planUnlocks(deck, states, null, t, 0).cards.slice(0, 1);
   }
   await db.cardEvents.bulkPut([event, ...logUnlocks(opened, t)]);
-  return { correct, sureness, before, after, opened, recorded: true };
+  return { correct, sureness, before, after, opened, recorded: true, early };
 }

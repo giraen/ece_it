@@ -96,6 +96,8 @@ export function cardStates(events: CardEvent[]): Map<string, CardState> {
   for (const e of sorted) {
     const s = out.get(e.cardId) ?? EMPTY_STATE;
     if (e.type === "unlock") out.set(e.cardId, { ...s, unlocked: true });
+    // Right before its day changes nothing, so reviewing early cannot rush a card through the boxes.
+    else if (e.early && e.correct) out.set(e.cardId, { ...s, answers: s.answers + 1, lastAt: e.at });
     else out.set(e.cardId, applyAnswer(s, e.at, !!e.correct, e.sureness));
   }
   return out;

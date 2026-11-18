@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import type { CardDraft, CardKind, TreeNode } from "@/lib/db";
+import type { CardDraft, CardKind, MemoryCard, TreeNode } from "@/lib/db";
 import { useNodes } from "@/lib/hooks";
 import { categoriesOf } from "@/lib/bank/tree";
 import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
@@ -17,6 +17,7 @@ import {
   createDraftSubject,
   discardCardDrafts,
   draftStatus,
+  findDuplicate,
   moveCardDrafts,
   parseCards,
   removeDraftTag,
@@ -60,6 +61,7 @@ function DraftRow({
   nodes,
   categories,
   tags,
+  twin,
   selected,
   onSelect,
   leaving,
@@ -72,6 +74,8 @@ function DraftRow({
   nodes: TreeNode[];
   categories: TreeNode[];
   tags: string[];
+  /** The card in the bank with the same prompt, when this looks like a repeat. */
+  twin?: MemoryCard;
   selected: boolean;
   onSelect: (on: boolean) => void;
   leaving?: Leaving;
@@ -318,18 +322,25 @@ function DraftRow({
       {status === "needs-wrong" && (
         <p className="text-xs text-muted">Fill in the wrong choices above, or let AI suggest them.</p>
       )}
-      {status === "duplicate" && (
-        <p className="text-xs text-muted">A card with this prompt is already in this deck. Discard it, or edit it.</p>
+      {status === "duplicate" && twin && (
+        <div className="space-y-1 rounded-md border border-priority/40 bg-priority/5 p-2 text-xs">
+          <p className="text-priority">This deck already has a card with the same prompt. Its answer:</p>
+          <RichText text={twin.answer} className="text-sm" />
+          <p className="text-muted">
+            If it is the same fact, discard this one. If it is different, add it anyway, ideally after editing the
+            prompt so the two are easy to tell apart.
+          </p>
+        </div>
       )}
       {!editing && (
         <div className="flex gap-2">
           <button
             className="btn btn-primary py-1"
-            disabled={status !== "ready"}
-            title={status !== "ready" ? "Finish this card first" : undefined}
+            disabled={status !== "ready" && status !== "duplicate"}
+            title={status !== "ready" && status !== "duplicate" ? "Finish this card first" : undefined}
             onClick={onAdd}
           >
-            Add to the memory bank
+            {status === "duplicate" ? "Add anyway" : "Add to the memory bank"}
           </button>
           <button className="btn py-1" onClick={() => setEditing(true)}>
             Edit
@@ -443,7 +454,15 @@ export default function MemoryExtract() {
           for (const r of ready) await acceptCardDraft(r.d);
         },
       );
-      setMessage({ ok: true, text: `Added ${ready.length} card${ready.length === 1 ? "" : "s"} to the bank.` });
+      const left = count("duplicate");
+      setMessage({
+        ok: true,
+        text: `Added ${ready.length} card${ready.length === 1 ? "" : "s"} to the bank.${
+          left
+            ? ` ${left} looked like ${left === 1 ? "a card" : "cards"} already there and ${left === 1 ? "was" : "were"} left for you to check.`
+            : ""
+        }`,
+      });
     } finally {
       setBusy(false);
     }
@@ -477,7 +496,7 @@ export default function MemoryExtract() {
     { id: "ready", label: "Ready", n: count("ready") },
     { id: "needs-wrong", label: "Needs wrong choices", n: count("needs-wrong") },
     { id: "needs-deck", label: "Needs a deck", n: count("needs-deck") },
-    { id: "duplicate", label: "Already in the bank", n: count("duplicate") },
+    { id: "duplicate", label: "Already in the bank?", n: count("duplicate") },
     { id: "problem", label: "Needs text", n: count("problem") },
   ];
 
@@ -637,6 +656,7 @@ export default function MemoryExtract() {
                   nodes={nodes}
                   categories={categories}
                   tags={tagHelp}
+                  twin={status === "duplicate" ? findDuplicate(d, cards) : undefined}
                   selected={chosen.includes(d.id)}
                   onSelect={(on) => setSelected((cur) => (on ? [...cur, d.id] : cur.filter((x) => x !== d.id)))}
                   leaving={leaving[d.id]}

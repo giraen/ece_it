@@ -250,17 +250,36 @@ export const DRAFT_STATUS_LABEL: Record<DraftStatus, string> = {
   ready: "Ready",
   "needs-deck": "Needs a deck",
   "needs-wrong": "Needs wrong choices",
-  duplicate: "Already in the bank",
+  duplicate: "Already in the bank?",
   problem: "Needs a prompt and answer",
 };
 
-/** Whether a draft can be added, and if not, why. `existing` is the cards in the bank. */
+/**
+ * Prompts compared for repeats: spaces and capital letters do not count, but every symbol does, so
+ * "a < b" and "a = b" are different prompts.
+ */
+const promptKey = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[.?!:;,]+$/, "");
+
+/** The card already in the deck with the same prompt, if there is one. */
+export function findDuplicate(d: CardDraft, existing: MemoryCard[]): MemoryCard | undefined {
+  if (!d.categoryId || !d.prompt.trim()) return undefined;
+  const key = promptKey(d.prompt);
+  return existing.find((c) => c.categoryId === d.categoryId && promptKey(c.prompt) === key);
+}
+
+/**
+ * Whether a draft can be added, and if not, why. `existing` is the cards in the bank. A likely repeat is only a
+ * warning: it can still be added one by one, but Add all ready leaves it for you to check.
+ */
 export function draftStatus(d: CardDraft, existing: MemoryCard[]): DraftStatus {
   if (!d.prompt.trim() || !d.answer.trim()) return "problem";
   if (!d.categoryId) return "needs-deck";
-  const same = existing.some((c) => c.categoryId === d.categoryId && norm(c.prompt) === norm(d.prompt));
-  if (same) return "duplicate";
-  return cardProblem({ ...d, categoryId: d.categoryId }) ? "needs-wrong" : "ready";
+  if (cardProblem({ ...d, categoryId: d.categoryId })) return "needs-wrong";
+  return findDuplicate(d, existing) ? "duplicate" : "ready";
 }
 
 // ---------------------------------------------------------------------------------------------

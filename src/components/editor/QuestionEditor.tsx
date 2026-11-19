@@ -29,6 +29,7 @@ import { describeRemark, quizzesWithOldKey, remarkQuizzes } from "@/lib/quiz/rem
 import RichText from "@/components/ui/RichText";
 import SuggestWrong from "./SuggestWrong";
 import TagInput from "./TagInput";
+import { looksSolving } from "@/lib/quiz/cover";
 import TopicPicker from "@/components/bank/TopicPicker";
 import VariantReview from "./VariantReview";
 import InfoTip from "@/components/ui/InfoTip";
@@ -86,6 +87,9 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
   const [reference, setReference] = useState(initial?.reference ?? "");
   const [repeatsText, setRepeatsText] = useState(String(initial?.repeats ?? 1));
   const [allowAi, setAllowAi] = useState(initial?.allowAi ?? false);
+  const [cover, setCover] = useState<"auto" | "always" | "never">(initial?.coverChoices ?? "auto");
+  // What Auto would do with the choices as they are now.
+  const autoCovers = looksSolving(type, choices);
   const [errors, setErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -190,6 +194,8 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
         // Left out when it is 1, so a question that never repeats looks the same as before.
         ...(Number(repeatsText) > 1 ? { repeats: Number(repeatsText) } : {}),
         allowAi,
+        // Left out on Auto, so most questions look the same as before.
+        ...(cover !== "auto" ? { coverChoices: cover } : {}),
         createdAt: initial?.createdAt ?? t,
         updatedAt: t,
       };
@@ -380,7 +386,14 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
               circuits&rdquo;, and show up in your results. Press Enter or a comma to add one.
             </InfoTip>
           </div>
-          <TagInput value={tags} onChange={setTags} suggestions={suggestions} topicId={topicId} limit={8} emptyLimit={3} />
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            suggestions={suggestions}
+            topicId={topicId}
+            limit={8}
+            emptyLimit={3}
+          />
         </div>
 
         <div>
@@ -415,6 +428,32 @@ export default function QuestionEditor({ initial, defaultTopicId, nodes }: Props
             value={repeatsText}
             onChange={(e) => setRepeatsText(e.target.value)}
           />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center gap-1">
+            <label className="text-sm font-medium" htmlFor="question-cover">
+              Cover the choices in quizzes
+            </label>
+            <InfoTip>
+              On a solving problem, the choices are covered until you press Show choices, so you work the answer out
+              first. Auto covers computation questions and questions whose choices are all numbers or formulas. Set
+              Always for a solving problem with word answers, or Never for numbers you only need to recall. Covering can
+              be turned off for every question in Settings › Preferences.
+            </InfoTip>
+          </div>
+          <select
+            id="question-cover"
+            className="input w-auto"
+            value={cover}
+            onChange={(e) => setCover(e.target.value as typeof cover)}
+          >
+            <option value="auto">
+              Auto ({autoCovers ? "covered: looks like a solving problem" : "not covered: does not look like one"})
+            </option>
+            <option value="always">Always cover</option>
+            <option value="never">Never cover</option>
+          </select>
         </div>
 
         <div className="flex items-center gap-1">

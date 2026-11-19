@@ -176,6 +176,11 @@ export interface Question {
   repeats?: number;
   /** Whether AI-reworded versions of this question may be shown in quizzes. Missing means no. */
   allowAi?: boolean;
+  /**
+   * Whether its choices are covered in quizzes until you ask for them. Missing means Auto: covered when it looks like
+   * a solving problem (see `lib/quiz/cover.ts`).
+   */
+  coverChoices?: "always" | "never";
   /** Marked to come up first in quizzes. Missing means it is not a priority. */
   priority?: boolean;
   difficulty?: number;
@@ -245,6 +250,10 @@ export interface AttemptItem {
   activeMs: number;
   /** Time on the question when the first choice was picked. */
   firstSelectMs?: number;
+  /** The choices start covered: a solving problem, with covering on when the quiz started. */
+  cover?: boolean;
+  /** The covered choices have been shown. */
+  revealed?: boolean;
   /** How many times the picked choice was changed. */
   changes: number;
   /** Filled in when the quiz is submitted. */

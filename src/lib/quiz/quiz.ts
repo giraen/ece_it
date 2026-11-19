@@ -1,4 +1,5 @@
 import { composeBlueprintQuiz } from "./blueprint";
+import { coversChoices, loadCoverChoices } from "./cover";
 import { composeQuiz, historyFrom, separateCopies, shuffle, type SourceMix } from "./compose";
 import { db, type AttemptItem, type Question, type QuizAttempt, type TreeNode, type Variant } from "@/lib/db";
 import { formatCountdown } from "@/lib/format";
@@ -28,6 +29,8 @@ function buildItem(
   shown: Shown,
   entry?: { id: string; name: string },
   categoryId?: string,
+  /** Whether covering the choices of solving problems is on. */
+  coverOn = false,
 ): AttemptItem {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const topic = byId.get(q.topicId);
@@ -52,6 +55,7 @@ function buildItem(
     variantId: shown.variantId,
     entryId: entry?.id,
     entryName: entry?.name,
+    ...(coverOn && coversChoices(q, shown.choices) ? { cover: true } : {}),
     targetSec,
     confirmed: false,
     activeMs: 0,
@@ -123,6 +127,7 @@ export async function startAttempt(
     );
   }
   const history = historyFrom(everyAttempt);
+  const coverOn = await loadCoverChoices();
   const counts = serveCounts(everyAttempt);
   const everyQuestion = await db.questions.filter((q) => !q.deletedAt).toArray();
   // Reworded versions are only shown for questions that allow them. The others are kept but not served.
@@ -204,6 +209,7 @@ export async function startAttempt(
         shownFor(p.question, comp, variantsOf.get(p.question.id) ?? [], counts.get(p.question.id), taken),
         p.entry,
         scope.kind === "category" ? scope.id : undefined,
+        coverOn,
       ),
     ),
     createdAt: t,
@@ -274,6 +280,16 @@ export function confirmItem(id: string, index: number, activeMs: number): Promis
 }
 
 /** Records time spent on a question. */
+/** Shows the covered choices of a solving problem. They stay shown if you come back to it. */
+export function revealChoices(id: string, index: number, activeMs: number): Promise<void> {
+  return patchAttempt(id, (a) => {
+    const it = a.items[index];
+    if (!it) return;
+    bumpTime(it, activeMs);
+    it.revealed = true;
+  });
+}
+
 export function saveTime(id: string, index: number, activeMs: number): Promise<void> {
   return patchAttempt(id, (a) => {
     const it = a.items[index];

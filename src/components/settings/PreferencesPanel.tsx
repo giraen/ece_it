@@ -10,6 +10,7 @@ import { useReadOnly } from "@/lib/sync/syncState";
 import { saveExam, useExam } from "@/lib/memory/exam";
 import { examPlan } from "@/lib/memory/schedule";
 import { suggestCounts, useMemory } from "@/lib/memory/review";
+import { saveCoverChoices, useCoverChoices } from "@/lib/quiz/cover";
 import { useNow } from "@/lib/hooks";
 import { formatDate } from "@/lib/format";
 import {
@@ -23,6 +24,31 @@ import {
   useStartCards,
 } from "@/lib/memory/daily";
 import { IncognitoNote, IncognitoSwitch } from "@/components/ui/Incognito";
+
+/** Whether the choices of solving problems start covered in quizzes. */
+function CoverSetting({ readOnly }: { readOnly: boolean }) {
+  const on = useCoverChoices();
+  return (
+    <div className="flex items-center gap-1">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={on ?? true}
+          disabled={readOnly || on === undefined}
+          onChange={(e) => void saveCoverChoices(e.target.checked)}
+        />
+        Cover the choices on solving problems
+      </label>
+      <InfoTip>
+        In quizzes and mock boards, a solving problem starts with its choices covered. Work the answer out, then press
+        Show choices (or Space) and pick. Computation questions and questions whose choices are all numbers or formulas
+        count as solving problems; any question can be set to always or never cover in the editor. Turning this off
+        affects quizzes started after.
+        {readOnly ? " Set on your main device." : ""}
+      </InfoTip>
+    </div>
+  );
+}
 
 /** A whole number setting, saved when you leave the box or press Enter. */
 function NumberSetting({
@@ -279,6 +305,8 @@ export default function PreferencesPanel() {
           {readOnly && " Set on your main device."}
         </p>
       </div>
+
+      <CoverSetting readOnly={readOnly} />
 
       <div className="space-y-2">
         <div className="flex items-center gap-1">

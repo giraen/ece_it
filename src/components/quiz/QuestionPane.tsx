@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { AttemptItem } from "@/lib/db";
 import { formatDuration } from "@/lib/format";
-import { confirmItem, isComplete, saveTime, setSelection, setSureness } from "@/lib/quiz/quiz";
+import { confirmItem, isComplete, revealChoices, saveTime, setSelection, setSureness } from "@/lib/quiz/quiz";
 import { SURENESS_LABEL, SURENESS_ORDER, type Sureness } from "@/lib/quiz/scoring";
 import { useStopwatch } from "@/lib/ui/useStopwatch";
 import CategoryChip from "@/components/ui/CategoryChip";
@@ -77,6 +77,9 @@ export default function QuestionPane({
 
   const selected = item.selectedChoiceId;
   const complete = isComplete(item);
+  // A solving problem starts with its choices covered, until they are shown or one is picked.
+  const covered = !!item.cover && !item.revealed && !selected;
+  const reveal = () => void revealChoices(attemptId, index, getElapsed());
   const choiceById = new Map(item.choices.map((c) => [c.id, c]));
 
   // The last question submits the quiz, every other one moves on to the next.
@@ -89,13 +92,21 @@ export default function QuestionPane({
     onAdvance();
   }
 
-  // Keyboard: A to H picks a choice, S, W, N, or J rates sureness, and Enter confirms.
+  // Keyboard: A to H picks a choice, S, W, N, or J rates sureness, and Enter confirms. Space shows covered choices.
   useEffect(() => {
     if (paused) return;
     function onKey(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (covered) {
+        // While covered, nothing can be picked, so a stray key cannot choose an answer unseen.
+        if (e.key === " " && !(t && t.tagName === "BUTTON")) {
+          e.preventDefault();
+          void revealChoices(attemptId, index, getElapsed());
+        }
+        return;
+      }
       const key = e.key.toLowerCase();
       const letterIdx = LETTERS.toLowerCase().indexOf(key);
       if (key.length === 1 && letterIdx >= 0 && letterIdx < item.choiceOrder.length) {
@@ -115,7 +126,7 @@ export default function QuestionPane({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, attemptId, index, item.choiceOrder, item.confirmed, selected, complete, getElapsed, onAdvance]);
+  }, [paused, covered, attemptId, index, item.choiceOrder, item.confirmed, selected, complete, getElapsed, onAdvance]);
 
   return (
     <div>
@@ -150,42 +161,72 @@ export default function QuestionPane({
             <RichText text={item.stem} className="text-[17px] leading-relaxed font-medium lg:text-[18px]" />
           </div>
 
-          <div role="radiogroup" aria-label="Choices" className="mt-4 space-y-2">
-            {item.choiceOrder.map((cid, i) => {
-              const choice = choiceById.get(cid);
-              if (!choice) return null;
-              const isSelected = selected === cid;
-              return (
-                <div
-                  key={cid}
-                  role="radio"
-                  aria-checked={isSelected}
-                  tabIndex={0}
-                  onClick={() => void setSelection(attemptId, index, cid, getElapsed())}
-                  onKeyDown={(e) => {
-                    if (e.key === " ") {
-                      e.preventDefault();
-                      void setSelection(attemptId, index, cid, getElapsed());
-                    }
-                  }}
-                  className={`flex min-h-14 cursor-pointer items-center gap-3.5 rounded-lg border-[1.5px] px-3.5 py-2.5 transition-colors ${
-                    isSelected ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-muted/40"
-                  }`}
-                >
-                  <span
-                    className={`flex size-8 shrink-0 items-center justify-center rounded-md font-mono text-sm font-semibold ${
-                      isSelected ? "bg-accent text-white" : "bg-paper text-muted"
+          {covered ? (
+            <div className="mt-4 rounded-lg border-[1.5px] border-dashed border-line bg-paper/60 p-4 lg:p-5">
+              {/* Plain bars stand in for the choices: their text is not on the page at all until it is shown. */}
+              <div aria-hidden className="space-y-2 opacity-60 blur-[3px] select-none">
+                {item.choiceOrder.map((cid, i) => (
+                  <div
+                    key={cid}
+                    className="flex min-h-12 items-center gap-3.5 rounded-lg border-[1.5px] border-line bg-surface px-3.5"
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-paper font-mono text-sm text-muted">
+                      {LETTERS[i]}
+                    </span>
+                    <span className="h-3 rounded bg-track" style={{ width: `${30 + ((i * 37) % 40)}%` }} />
+                  </div>
+                ))}
+              </div>
+              <div className="relative z-10 -mt-2 flex flex-col items-center gap-2 pt-4 text-center">
+                <p className="font-semibold">Solve it first</p>
+                <p className="max-w-sm text-sm text-muted">
+                  The choices are covered so you work out the answer yourself, instead of picking the one that looks
+                  right.
+                </p>
+                <button className="btn btn-primary mt-1 min-h-11" onClick={reveal} autoFocus>
+                  Show choices
+                  <span className="ml-1 text-xs opacity-70 max-lg:hidden">Space</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div role="radiogroup" aria-label="Choices" className="mt-4 space-y-2">
+              {item.choiceOrder.map((cid, i) => {
+                const choice = choiceById.get(cid);
+                if (!choice) return null;
+                const isSelected = selected === cid;
+                return (
+                  <div
+                    key={cid}
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    onClick={() => void setSelection(attemptId, index, cid, getElapsed())}
+                    onKeyDown={(e) => {
+                      if (e.key === " ") {
+                        e.preventDefault();
+                        void setSelection(attemptId, index, cid, getElapsed());
+                      }
+                    }}
+                    className={`flex min-h-14 cursor-pointer items-center gap-3.5 rounded-lg border-[1.5px] px-3.5 py-2.5 transition-colors ${
+                      isSelected ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-muted/40"
                     }`}
                   >
-                    {LETTERS[i]}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <RichText text={choice.text} className="text-[16px]" />
+                    <span
+                      className={`flex size-8 shrink-0 items-center justify-center rounded-md font-mono text-sm font-semibold ${
+                        isSelected ? "bg-accent text-white" : "bg-paper text-muted"
+                      }`}
+                    >
+                      {LETTERS[i]}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <RichText text={choice.text} className="text-[16px]" />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-5">
             <p className="eyebrow mb-2">How sure are you?</p>
@@ -208,11 +249,18 @@ export default function QuestionPane({
                 </button>
               ))}
             </div>
-            {!selected && (
-              <p className="mt-1 text-xs text-muted">
-                Pick a choice first.
-                <span className="max-lg:hidden"> The keys A to {LETTERS[item.choiceOrder.length - 1]} also pick.</span>
-              </p>
+            {covered ? (
+              <p className="mt-1 text-xs text-muted">Show the choices to answer.</p>
+            ) : (
+              !selected && (
+                <p className="mt-1 text-xs text-muted">
+                  Pick a choice first.
+                  <span className="max-lg:hidden">
+                    {" "}
+                    The keys A to {LETTERS[item.choiceOrder.length - 1]} also pick.
+                  </span>
+                </p>
+              )
             )}
           </div>
 

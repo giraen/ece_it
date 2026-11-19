@@ -14,6 +14,8 @@ import Pagination from "@/components/ui/Pagination";
 import Reference from "@/components/editor/Reference";
 import RichText from "@/components/ui/RichText";
 import SelectionBar from "./SelectionBar";
+import SourceFilter, { sourceKey } from "./SourceFilter";
+import { useSources } from "@/lib/bank/sources";
 
 /** Pictures become a short marker, so a row stays compact. */
 function listText(stem: string): string {
@@ -43,16 +45,30 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
     router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
   };
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // The source picked lives in the address too (?source=…).
+  const sourceFilter = params.get("source");
+  const setSourceFilter = (key: string | null) => {
+    const next = new URLSearchParams(params.toString());
+    next.delete("source");
+    next.delete("page");
+    if (key) next.set("source", key);
+    const text = next.toString();
+    router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
+  };
+  const sources = useSources() ?? [];
 
   // Everything under the selected node, or the whole bank when nothing is selected.
   const topicIds = new Set(
     (selected ? subtreeOf(nodes, selected.id) : nodes).filter((n) => n.kind === "topic").map((n) => n.id),
   );
   const inScope = questions.filter((q) => topicIds.has(q.topicId));
+  // Each question's source, worked out once. The source list counts what the search and tags leave in view.
+  const keyOf = new Map(inScope.map((q) => [q.id, sourceKey(q.reference, sources)]));
+  const sourced = sourceFilter ? inScope.filter((q) => keyOf.get(q.id) === sourceFilter) : inScope;
 
   // The tags in view, counted without regard to capital letters.
   const tagIndex = new Map<string, { label: string; count: number }>();
-  for (const q of inScope) {
+  for (const q of sourced) {
     for (const t of q.tags) {
       const key = t.toLowerCase();
       const cur = tagIndex.get(key);
@@ -62,23 +78,29 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
   }
   // The tag row is only shown inside a subject or a topic, where the list of tags is short enough to use.
   const showTags = selected?.kind === "subject" || selected?.kind === "topic";
-  const untaggedCount = inScope.filter((q) => q.tags.length === 0).length;
+  const untaggedCount = sourced.filter((q) => q.tags.length === 0).length;
   // Tags that are not in this view are ignored, so changing the selection cannot leave you with an empty list.
   const activeKeys = showTags ? tagFilter.filter((k) => (k === UNTAGGED ? untaggedCount > 0 : tagIndex.has(k))) : [];
   const untaggedOn = activeKeys.includes(UNTAGGED);
   // With tags chosen, each tag shows how many questions you would get by adding it.
-  const narrowed = narrowedCounts(inScope, activeKeys);
+  const narrowed = narrowedCounts(sourced, activeKeys);
 
   const needle = search.trim().toLowerCase();
-  const sorted = inScope
+  const searched = (q: Question) =>
+    !needle ||
+    q.stem.toLowerCase().includes(needle) ||
+    (q.reference ?? "").toLowerCase().includes(needle) ||
+    q.tags.some((t) => t.toLowerCase().includes(needle));
+  // How many questions each source would give, with the tags and search as they are.
+  const sourceCounts = new Map<string, number>();
+  const unsourced = inScope.filter((q) => matchesTags(q.tags, activeKeys) && searched(q));
+  for (const q of unsourced) {
+    const k = keyOf.get(q.id)!;
+    sourceCounts.set(k, (sourceCounts.get(k) ?? 0) + 1);
+  }
+  const sorted = sourced
     .filter((q) => matchesTags(q.tags, activeKeys))
-    .filter(
-      (q) =>
-        !needle ||
-        q.stem.toLowerCase().includes(needle) ||
-        (q.reference ?? "").toLowerCase().includes(needle) ||
-        q.tags.some((t) => t.toLowerCase().includes(needle)),
-    )
+    .filter(searched)
     // Newest created first. Editing a question no longer moves it to the top.
     .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
   // Under a tag such as "solving", the questions that have only that kind of tag come first, so they stand out.
@@ -202,6 +224,18 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
       )}
       {!showTags && tagIndex.size > 0 && (
         <p className="mb-3 text-sm text-muted">Pick a subject or topic to filter by tag.</p>
+      )}
+      {inScope.length > 0 && (
+        <SourceFilter
+          sources={sources}
+          counts={sourceCounts}
+          total={unsourced.length}
+          value={sourceFilter}
+          onChange={(k) => {
+            setSourceFilter(k);
+            reset();
+          }}
+        />
       )}
 
       {visible.length === 0 ? (

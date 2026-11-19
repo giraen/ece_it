@@ -6,10 +6,9 @@ import { db } from "@/lib/db";
 import { useSources } from "@/lib/bank/sources";
 import { tagStats } from "@/lib/bank/tagAdmin";
 
-const card =
-  "block card p-4 hover:bg-paper focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none";
+const card = "block card p-4 hover:bg-paper focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none";
 
-/** Two cards that open the Sources and Tags pages, so those long lists are not in the middle of Settings. */
+/** Cards that open the Sources, Tags and Possible duplicates pages, so those long lists are not in the middle of Settings. */
 export default function LibraryLinks() {
   const sources = useSources();
   const tags = useLiveQuery(async () => {
@@ -23,7 +22,7 @@ export default function LibraryLinks() {
   const count = (n: number | undefined, word: string) => (n === undefined ? " " : `${n} ${word}${n === 1 ? "" : "s"}`);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <Link href="/settings/sources" className={card}>
         <span className="font-medium">Sources</span>
         <span className="mt-0.5 block text-sm text-muted">{count(sources?.length, "source")}</span>
@@ -33,6 +32,11 @@ export default function LibraryLinks() {
         <span className="font-medium">Tags</span>
         <span className="mt-0.5 block text-sm text-muted">{count(tags, "tag")}</span>
         <span className="mt-2 block text-sm text-accent">Manage tags →</span>
+      </Link>
+      <Link href="/settings/duplicates" className={card}>
+        <span className="font-medium">Possible duplicates</span>
+        <span className="mt-0.5 block text-sm text-muted">Questions or cards added twice</span>
+        <span className="mt-2 block text-sm text-accent">Check for duplicates →</span>
       </Link>
     </div>
   );

@@ -8,12 +8,14 @@ interface Props {
   /** What the page is for. It floats from the "i" next to the title, so the page itself stays short. */
   tip: React.ReactNode;
   children: React.ReactNode;
+  /** For pages that show things side by side. */
+  wide?: boolean;
 }
 
 /** The frame of a page that opens from Settings: a way back, the title, and the content. */
-export default function SettingsSubpage({ title, tip, children }: Props) {
+export default function SettingsSubpage({ title, tip, children, wide = false }: Props) {
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className={`${wide ? "max-w-5xl" : "max-w-3xl"} space-y-5`}>
       <div>
         <Link href="/settings" className="text-sm text-muted underline">
           ← Settings

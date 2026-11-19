@@ -332,10 +332,18 @@ export function extractWarnings(d: Pick<DraftQuestion, "stem" | "choices">): str
   return out;
 }
 
-/** The same question text, so a question that is already in the bank can be spotted. */
+/**
+ * The same question text, so a question that is already in the bank can be spotted. Capitals, spacing and a closing
+ * full stop are set aside, but symbols count, so "a < b" and "a = b" are different questions.
+ */
 export function sameStem(a: string, b: string): boolean {
-  const x = norm(a);
-  return x.length > 0 && x === norm(b);
+  const key = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/[.?!:;,]+$/, "");
+  const x = key(a);
+  return x.length > 0 && x === key(b);
 }
 
 /** One topic in the tree, with the names of its category, subject, and topic. A shared subject gives one entry per category. */

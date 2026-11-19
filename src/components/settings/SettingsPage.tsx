@@ -20,7 +20,7 @@ const JUMPS = [
   { id: "sync", label: "Sync" },
   { id: "preferences", label: "Preferences" },
   { id: "mix", label: "Quiz mix" },
-  { id: "library", label: "Sources and tags" },
+  { id: "library", label: "Sources, tags and duplicates" },
   { id: "ai", label: "AI helper" },
   { id: "backup", label: "Backup and sharing" },
   { id: "storage", label: "Storage" },
@@ -90,7 +90,7 @@ export default function SettingsPage() {
       {!readOnly && (
         <section id="library" aria-labelledby="library-title" className="scroll-mt-4 space-y-4">
           <h2 id="library-title" className="text-lg font-semibold">
-            Sources and tags
+            Sources, tags and duplicates
           </h2>
           <LibraryLinks />
         </section>

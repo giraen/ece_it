@@ -4,7 +4,7 @@ import type { CardEvent, MemoryCard, Sureness } from "@/lib/db";
  * Spaced repetition for memory cards.
  *
  * A card climbs six boxes. Each box has its own gap before the card comes back: 1, 3, 7, 14, 30 and 60 days.
- * - Right and sure: up one box. Right at the 60-day box makes the card learned; a learned card comes back every 90 days.
+ * - Right and sure: up one box. Right at the 60-day box makes the card learned; a learned card comes back every 4 weeks.
  * - Right but not sure, or guessing: stays in its box and comes back sooner (half the gap; a pure guess, tomorrow).
  * - Wrong: back to box 1, tomorrow. A learned card that is missed is no longer learned.
  *
@@ -17,8 +17,8 @@ export const DAY = 86_400_000;
 /** The gap, in days, for boxes 1 to 6. */
 export const BOX_DAYS = [1, 3, 7, 14, 30, 60] as const;
 export const TOP_BOX = BOX_DAYS.length;
-/** How often a learned card comes back. */
-export const LEARNED_DAYS = 90;
+/** How often a learned card comes back: every 4 weeks, to keep it fresh. */
+export const LEARNED_DAYS = 28;
 /** From this box on a card counts as remembering, and reaching it unlocks a new card. */
 export const REMEMBERING_BOX = 3;
 /** How many cards a deck starts with, unless changed in Settings (see `loadStartCards`). */

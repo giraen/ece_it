@@ -115,7 +115,7 @@ function outcome(r: AnswerResult, nowMs: number): { title: string; tone: string;
       box: after.box,
       line: (
         <>
-          Remembered at the 60-day review. It comes back every 90 days, next <strong>{when}</strong>.
+          Remembered at the 60-day review. It comes back every 4 weeks, next <strong>{when}</strong>.
         </>
       ),
     };

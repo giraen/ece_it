@@ -16,7 +16,7 @@ const STAGES: { id: Stage; label: string; hint: string; color: string; dot?: str
   { id: "new", label: "New", hint: "unlocked, not answered yet", color: "bg-stage-new" },
   { id: "learning", label: "Learning", hint: "box 1–2", color: "bg-stage-learning" },
   { id: "remembering", label: "Remembering", hint: "box 3–6", color: "bg-stage-remembering" },
-  { id: "learned", label: "Learned", hint: "back every 90 days", color: "bg-stage-learned" },
+  { id: "learned", label: "Learned", hint: "back every 4 weeks", color: "bg-stage-learned" },
   // Locked is the empty part of the bar; its key has an outline so it shows on the card.
   {
     id: "locked",

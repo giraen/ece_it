@@ -20,6 +20,8 @@ export interface AskOptions {
   label: string;
   initial?: string;
   confirmLabel?: string;
+  /** A box that grows onto more lines, so a long name can be read whole. Enter still answers; it is still one line. */
+  multiline?: boolean;
 }
 
 export type Request =

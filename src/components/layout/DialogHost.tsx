@@ -19,7 +19,7 @@ function Window({ request }: { request: Request }) {
   const titleId = useId();
   const textId = useId();
   const box = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   const go = useRef<HTMLButtonElement>(null);
   const [text, setText] = useState(request.kind === "ask" ? (request.options.initial ?? "") : "");
@@ -107,14 +107,32 @@ function Window({ request }: { request: Request }) {
             <label htmlFor={`${titleId}-input`} className="mb-1 block text-sm font-medium">
               {request.options.label}
             </label>
-            <input
-              id={`${titleId}-input`}
-              ref={input}
-              className="input w-full"
-              autoComplete="off"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
+            {request.options.multiline ? (
+              <textarea
+                id={`${titleId}-input`}
+                ref={input}
+                rows={1}
+                className="input max-h-48 min-h-10 w-full resize-none leading-snug [field-sizing:content]"
+                autoComplete="off"
+                value={text}
+                onChange={(e) => setText(e.target.value.replace(/\s*\n+\s*/g, " "))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+              />
+            ) : (
+              <input
+                id={`${titleId}-input`}
+                ref={input}
+                className="input w-full"
+                autoComplete="off"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            )}
           </form>
         )}
         <div className="flex justify-end gap-2">

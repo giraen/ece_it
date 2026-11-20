@@ -14,14 +14,10 @@ import {
   countConceptsUnder,
 } from "@/lib/bank/nodes";
 import { categoriesOf, childrenOf, KIND_LABEL, subtreeOf } from "@/lib/bank/tree";
-import { confirmAction } from "@/lib/ui/dialog";
+import { askText, confirmAction } from "@/lib/ui/dialog";
 
 // `at` identifies one place in the tree. A shared subject appears under several categories, so its id alone is not enough.
-type Editing =
-  | { mode: "add"; at: string; parentId: string }
-  | { mode: "rename"; at: string; id: string }
-  | { mode: "share"; at: string; id: string }
-  | null;
+type Editing = { mode: "add"; at: string; parentId: string } | { mode: "share"; at: string; id: string } | null;
 
 interface Ctx {
   nodes: TreeNode[];
@@ -36,6 +32,7 @@ interface Ctx {
   toggle: (id: string) => void;
   setEditing: (e: Editing) => void;
   addChild: (parentId: string, name: string) => Promise<void>;
+  rename: (node: TreeNode) => Promise<void>;
   remove: (node: TreeNode, parent: TreeNode | null) => Promise<void>;
 }
 
@@ -167,7 +164,6 @@ function Branch({
   const collapsed = ctx.collapsed.has(node.id);
   const childKind = leaf ? null : childKindOf(node.kind);
   const selected = ctx.selectedId === node.id;
-  const renaming = ctx.editing?.mode === "rename" && ctx.editing.at === at;
   const adding = ctx.editing?.mode === "add" && ctx.editing.at === at;
   const sharing = ctx.editing?.mode === "share" && ctx.editing.at === at;
   const count = ctx.counts.get(node.id) ?? 0;
@@ -195,98 +191,87 @@ function Branch({
         ) : (
           <span className="w-5" />
         )}
-        {renaming ? (
-          <InlineInput
-            initial={node.name}
-            placeholder={`${KIND_LABEL[node.kind]} name`}
-            onSubmit={async (name) => {
-              await renameNode(node.id, name);
-              ctx.setEditing(null);
-            }}
-            onCancel={() => ctx.setEditing(null)}
-          />
-        ) : (
-          <>
-            <button
-              className={`min-w-0 flex-1 truncate text-left text-sm ${selected || fixed ? "font-medium" : ""}`}
-              onClick={() => ctx.onSelect(node.id)}
+        <>
+          <button
+            className={`min-w-0 flex-1 truncate text-left text-sm ${selected || fixed ? "font-medium" : ""}`}
+            title={node.name}
+            onClick={() => ctx.onSelect(node.id)}
+          >
+            {node.name}
+          </button>
+          {shared && (
+            <span
+              className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent"
+              title={`In ${categoriesOf(node)
+                .map((id) => ctx.categories.find((c) => c.id === id)?.name)
+                .filter(Boolean)
+                .join(", ")}`}
             >
-              {node.name}
-            </button>
-            {shared && (
-              <span
-                className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent"
-                title={`In ${categoriesOf(node)
-                  .map((id) => ctx.categories.find((c) => c.id === id)?.name)
-                  .filter(Boolean)
-                  .join(", ")}`}
-              >
-                shared
-              </span>
-            )}
-            <span className="text-xs text-muted tabular-nums">{count}</span>
-            <span className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-0.5 rounded-md bg-surface px-0.5 opacity-0 shadow-sm ring-1 ring-line group-focus-within:opacity-100 group-hover:opacity-100">
-              {childKind && (
-                <button
-                  className={small}
-                  aria-label={`Add ${childKind} to ${node.name}`}
-                  title={`Add ${childKind}`}
-                  onClick={() => ctx.setEditing({ mode: "add", at, parentId: node.id })}
-                >
-                  +
-                </button>
-              )}
-              {!fixed && (
-                <>
-                  <button
-                    className={small}
-                    aria-label={`Move ${node.name} up`}
-                    title="Move up"
-                    onClick={() => void moveNode(node.id, -1, parentId)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    className={small}
-                    aria-label={`Move ${node.name} down`}
-                    title="Move down"
-                    onClick={() => void moveNode(node.id, 1, parentId)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    className={small}
-                    aria-label={`Rename ${node.name}`}
-                    title="Rename"
-                    onClick={() => ctx.setEditing({ mode: "rename", at, id: node.id })}
-                  >
-                    ✎
-                  </button>
-                </>
-              )}
-              {node.kind === "subject" && (
-                <button
-                  className={small}
-                  aria-label={`Share ${node.name} with other categories`}
-                  title="Choose categories"
-                  onClick={() => ctx.setEditing({ mode: "share", at, id: node.id })}
-                >
-                  ⇄
-                </button>
-              )}
-              {!fixed && (
-                <button
-                  className={`${small} hover:text-danger`}
-                  aria-label={`Delete ${node.name}`}
-                  title="Delete"
-                  onClick={() => void ctx.remove(node, parent)}
-                >
-                  ✕
-                </button>
-              )}
+              shared
             </span>
-          </>
-        )}
+          )}
+          <span className="text-xs text-muted tabular-nums">{count}</span>
+          <span className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-0.5 rounded-md bg-surface px-0.5 opacity-0 shadow-sm ring-1 ring-line group-focus-within:opacity-100 group-hover:opacity-100">
+            {childKind && (
+              <button
+                className={small}
+                aria-label={`Add ${childKind} to ${node.name}`}
+                title={`Add ${childKind}`}
+                onClick={() => ctx.setEditing({ mode: "add", at, parentId: node.id })}
+              >
+                +
+              </button>
+            )}
+            {!fixed && (
+              <>
+                <button
+                  className={small}
+                  aria-label={`Move ${node.name} up`}
+                  title="Move up"
+                  onClick={() => void moveNode(node.id, -1, parentId)}
+                >
+                  ↑
+                </button>
+                <button
+                  className={small}
+                  aria-label={`Move ${node.name} down`}
+                  title="Move down"
+                  onClick={() => void moveNode(node.id, 1, parentId)}
+                >
+                  ↓
+                </button>
+                <button
+                  className={small}
+                  aria-label={`Rename ${node.name}`}
+                  title="Rename"
+                  onClick={() => void ctx.rename(node)}
+                >
+                  ✎
+                </button>
+              </>
+            )}
+            {node.kind === "subject" && (
+              <button
+                className={small}
+                aria-label={`Share ${node.name} with other categories`}
+                title="Choose categories"
+                onClick={() => ctx.setEditing({ mode: "share", at, id: node.id })}
+              >
+                ⇄
+              </button>
+            )}
+            {!fixed && (
+              <button
+                className={`${small} hover:text-danger`}
+                aria-label={`Delete ${node.name}`}
+                title="Delete"
+                onClick={() => void ctx.remove(node, parent)}
+              >
+                ✕
+              </button>
+            )}
+          </span>
+        </>
       </div>
       {sharing && (
         <div style={{ paddingLeft: depth * 16 + 24 }}>
@@ -402,6 +387,31 @@ export default function TreePanel({
         return next;
       });
       setEditing(null);
+    },
+    // In its own window, so a long name can be read and edited whole. A name that cannot be used asks again, saying why.
+    rename: async (node) => {
+      setEditing(null);
+      const what = KIND_LABEL[node.kind];
+      let initial = node.name;
+      let problem: string | undefined;
+      for (;;) {
+        const name = await askText({
+          title: `Rename the ${what.toLowerCase()}`,
+          message: problem,
+          label: `${what} name`,
+          initial,
+          confirmLabel: "Rename",
+          multiline: true,
+        });
+        if (name === null || name === node.name) return;
+        try {
+          await renameNode(node.id, name);
+          return;
+        } catch (e) {
+          initial = name;
+          problem = e instanceof Error ? e.message : "Could not rename it.";
+        }
+      }
     },
     remove: async (node, parent) => {
       // A shared subject is only taken out of this category. It stays in the others.

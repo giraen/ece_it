@@ -38,6 +38,18 @@ export async function deleteQuestions(ids: string[]): Promise<void> {
   });
 }
 
+/** Moves questions to another topic. Their tags, source and history go with them. */
+export async function moveQuestions(ids: string[], topicId: string): Promise<void> {
+  const stamp = now();
+  await db.transaction("rw", db.questions, async () => {
+    for (const id of ids) {
+      const q = await db.questions.get(id);
+      if (!q || q.deletedAt || q.topicId === topicId) continue;
+      await db.questions.update(id, { topicId, updatedAt: stamp });
+    }
+  });
+}
+
 /** Sets where each question came from. An empty reference removes it. */
 export async function setReferences(items: { id: string; reference?: string }[]): Promise<void> {
   const stamp = now();

@@ -323,6 +323,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
 
       <SelectionBar
         ids={pickedIds}
+        nodes={nodes}
         questions={questions}
         visibleCount={visible.length}
         onSelectAll={() => setPicked(new Set(visible.map((q) => q.id)))}

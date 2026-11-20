@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Question } from "@/lib/db";
+import type { Question, TreeNode } from "@/lib/db";
 import { restoreQuestions, snapshotQuestions } from "@/lib/bank/bulk";
-import { addTag, deleteQuestions, removeTag, setReferences } from "@/lib/bank/questions";
+import { addTag, deleteQuestions, moveQuestions, removeTag, setReferences } from "@/lib/bank/questions";
+import { pathOf } from "@/lib/bank/tree";
 import { joinReference, sourceLabel, splitReference, useSources } from "@/lib/bank/sources";
 import { tagSections, tagUsage } from "@/lib/bank/tagUsage";
 import ReferenceInput from "@/components/editor/ReferenceInput";
+import TopicPicker from "./TopicPicker";
 
 interface Props {
   /** The selected questions that are in view. */
   ids: string[];
+  /** The bank's categories, subjects and topics, to move questions to. */
+  nodes: TreeNode[];
   /** Every question in the bank, so tags stay current. */
   questions: Question[];
   /** How many questions the list is showing, for "Select all". */
@@ -32,11 +36,12 @@ function Kbd({ children }: { children: string }) {
 
 /**
  * The bar that floats at the bottom of the question list while questions are selected.
- * It changes their tags or their source, or deletes them. Each change can be undone from a short message above
+ * It moves them to another topic, changes their tags or their source, or deletes them. Each change can be undone from a short message above
  * the bar.
  */
-export default function SelectionBar({ ids, questions, visibleCount, onSelectAll, onClear }: Props) {
-  const [open, setOpen] = useState<"tags" | "source" | null>(null);
+export default function SelectionBar({ ids, nodes, questions, visibleCount, onSelectAll, onClear }: Props) {
+  const [open, setOpen] = useState<"move" | "tags" | "source" | null>(null);
+  const [moveTo, setMoveTo] = useState<string | null>(null);
   const tagsOpen = open === "tags";
   const [asking, setAsking] = useState(false);
   const [sourceText, setSourceText] = useState("");
@@ -94,8 +99,9 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
   // With nothing selected the panel and the question have nothing to act on, so they are reset right away.
-  if (!shown && (open || asking || draft || sourceText)) {
+  if (!shown && (open || asking || draft || sourceText || moveTo)) {
     setOpen(null);
+    setMoveTo(null);
     setAsking(false);
     setDraft("");
     setSourceText("");
@@ -166,6 +172,15 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
     say(text ? `Set the source on ${plural(n, "question")}` : `Source removed from ${plural(n, "question")}`, () =>
       restoreQuestions(before),
     );
+  }
+
+  async function move() {
+    if (!moveTo) return;
+    const before = await snapshotQuestions(ids);
+    await moveQuestions(ids, moveTo);
+    setOpen(null);
+    setMoveTo(null);
+    say(`Moved ${plural(n, "question")} to ${pathOf(nodes, moveTo)}`, () => restoreQuestions(before));
   }
 
   async function remove() {
@@ -244,6 +259,31 @@ export default function SelectionBar({ ids, questions, visibleCount, onSelectAll
                   </button>
                 )}
                 <span aria-hidden className="mx-1.5 h-5 w-px bg-line" />
+                <div className="relative" data-bar-pop>
+                  <button
+                    aria-expanded={open === "move"}
+                    aria-haspopup="dialog"
+                    className={`${iconBtn} ${open === "move" ? "bg-accent-soft" : ""}`}
+                    onClick={() => setOpen(open === "move" ? null : "move")}
+                  >
+                    Move <span aria-hidden>▾</span>
+                  </button>
+                  {open === "move" && (
+                    <div role="dialog" aria-label="Move the selected questions" className={`${pop} w-[32rem]`}>
+                      <p className="mb-2 text-[11px] tracking-wide text-muted uppercase">
+                        Move the {n === 1 ? "selected question" : `${n} selected`} to
+                      </p>
+                      <TopicPicker nodes={nodes} value={moveTo} onChange={setMoveTo} />
+                      <button className="btn btn-primary mt-3" disabled={!moveTo} onClick={() => void move()}>
+                        Move {n}
+                      </button>
+                      <p className="mt-1.5 text-xs whitespace-normal text-muted">
+                        Their tags, source and quiz history go with them.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="relative" data-bar-pop>
                   <button
                     aria-expanded={tagsOpen}

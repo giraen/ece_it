@@ -162,13 +162,13 @@ export default function QuestionPane({
           </div>
 
           {covered ? (
-            <div className="mt-4 rounded-lg border-[1.5px] border-dashed border-line bg-paper/60 p-4 lg:p-5">
+            <div className="relative mt-4">
               {/* Plain bars stand in for the choices: their text is not on the page at all until it is shown. */}
-              <div aria-hidden className="space-y-2 opacity-60 blur-[3px] select-none">
+              <div aria-hidden className="space-y-2 opacity-50 blur-[2px] select-none">
                 {item.choiceOrder.map((cid, i) => (
                   <div
                     key={cid}
-                    className="flex min-h-12 items-center gap-3.5 rounded-lg border-[1.5px] border-line bg-surface px-3.5"
+                    className="flex min-h-14 items-center gap-3.5 rounded-lg border-[1.5px] border-line bg-surface px-3.5"
                   >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-paper font-mono text-sm text-muted">
                       {LETTERS[i]}
@@ -177,13 +177,10 @@ export default function QuestionPane({
                   </div>
                 ))}
               </div>
-              <div className="relative z-10 -mt-2 flex flex-col items-center gap-2 pt-4 text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-lg border-[1.5px] border-dashed border-line bg-paper/70 p-4 text-center">
                 <p className="font-semibold">Solve it first</p>
-                <p className="max-w-sm text-sm text-muted">
-                  The choices are covered so you work out the answer yourself, instead of picking the one that looks
-                  right.
-                </p>
-                <button className="btn btn-primary mt-1 min-h-11" onClick={reveal} autoFocus>
+                <p className="max-w-xs text-sm text-muted">Work out the answer, then show the choices.</p>
+                <button className="btn btn-primary mt-2 min-h-11" onClick={reveal} autoFocus>
                   Show choices
                   <span className="ml-1 text-xs opacity-70 max-lg:hidden">Space</span>
                 </button>

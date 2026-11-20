@@ -6,8 +6,8 @@ import { now } from "@/lib/ids";
 import { startOfDay } from "./schedule";
 
 /**
- * The daily review: a goal of answering a number of memory cards a day, from every deck. Everything due comes first;
- * when that is less than the goal, cards due soon fill it up. The goal is saved with your settings, so it syncs.
+ * The daily review: a goal of answering a number of memory cards a day, from every deck, as practice on the side of
+ * the deck reviews (see `startDaily`). The goal is saved with your settings, so it syncs.
  */
 const KEY = "dailyCards";
 export const DAILY_DEFAULT = 15;
@@ -33,10 +33,10 @@ export async function saveDailySize(n: number): Promise<number> {
   return value;
 }
 
-/** Cards answered today, in any review. They all count toward the goal. */
+/** Cards answered in today's daily review. Only those count toward the goal; deck reviews are separate. */
 export function answeredToday(events: CardEvent[], nowMs: number): number {
   const from = startOfDay(nowMs);
-  return events.filter((e) => e.type === "answer" && !e.deletedAt && e.at >= from).length;
+  return events.filter((e) => e.type === "answer" && !e.deletedAt && (e.daily || e.early) && e.at >= from).length;
 }
 
 /**

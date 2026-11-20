@@ -39,6 +39,7 @@ function Boxes({ box, mark }: { box: number; mark?: number }) {
 function boxLabel(s: CardState | undefined) {
   const stage = stageOf(s);
   if (stage === "learned") return "Learned";
+  if (stage === "locked") return "Locked";
   if (stage === "new" || !s) return "New";
   return `Box ${s.box} of ${TOP_BOX}`;
 }
@@ -46,21 +47,36 @@ function boxLabel(s: CardState | undefined) {
 /** What one answer did, in words: a short title, its colour, a line, and the box the card is in now. */
 function outcome(r: AnswerResult, nowMs: number): { title: string; tone: string; line: React.ReactNode; box: number } {
   const { before, after } = r;
-  if (r.recorded && r.early && r.correct) {
+  if (r.recorded && r.daily) {
+    if (r.correct)
+      return {
+        title: "Correct",
+        tone: "text-good",
+        box: before.box,
+        line: before.unlocked ? (
+          <>
+            Daily practice, so it stays{" "}
+            <strong>{before.learned ? "learned" : before.box ? `in box ${before.box}` : "new"}</strong>. Only deck
+            reviews move cards up.
+          </>
+        ) : (
+          <>Not unlocked yet. It opens as you remember other cards in its deck.</>
+        ),
+      };
+    if (!before.unlocked)
+      return {
+        title: "Not this time",
+        tone: "text-danger",
+        box: 0,
+        line: <>Not unlocked yet, so it has no box to drop. The miss is noted for when it opens.</>,
+      };
     return {
-      title: "Correct",
-      tone: "text-good",
-      box: before.box,
+      title: "Not this time",
+      tone: "text-danger",
+      box: 1,
       line: (
         <>
-          Not due yet, so it stays <strong>{before.learned ? "learned" : `in box ${before.box}`}</strong>
-          {before.dueAt ? (
-            <>
-              {" "}
-              and still comes back <strong>{whenText(before.dueAt, nowMs)}</strong>
-            </>
-          ) : null}
-          .
+          Back to <strong>box 1</strong>, and due now: it comes up in its deck&apos;s review today.
         </>
       ),
     };
@@ -207,7 +223,9 @@ function ReviewResults({ log, nowMs }: { log: Answered[]; nowMs: number }) {
                   <span className="num text-muted">{n}</span>
                   <span className={`font-semibold ${o.tone}`}>{o.title}</span>
                   <span className="text-muted">· {SURENESS_LABEL[l.r.sureness]}</span>
-                  {l.r.early && <span className="rounded-full border border-line px-2 py-0.5 text-muted">Early</span>}
+                  {l.r.daily && !l.r.before.unlocked && (
+                    <span className="rounded-full border border-line px-2 py-0.5 text-muted">Preview</span>
+                  )}
                 </div>
                 <RichText text={l.card.prompt} className="font-medium" />
                 <div
@@ -296,8 +314,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
     setBusy(true);
     try {
       const choice = choices[picked];
-      const early = !!session.early?.includes(card.id);
-      const r = await answerCard(card, choice.correct, sureness, choice.text, incognito, early);
+      const r = await answerCard(card, choice.correct, sureness, choice.text, incognito, !!session.daily);
       const answer = choices.find((c) => c.correct)?.text ?? card.answer;
       setLog((l) => [...l, { card, picked: choice.text, answer, r }]);
       setScore((s) => ({
@@ -360,7 +377,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
 
   const catOf = (id: string): TreeNode | undefined => nodes.find((n) => n.id === id);
   const title = deck === "daily" ? "Daily review" : deck === "mixed" ? "Mixed deck" : (catOf(deck)?.name ?? "Memory");
-  const earlyCount = session.early?.length ?? 0;
+  const previewCount = session.locked?.length ?? 0;
   const total = session.queue.length;
 
   const header = (
@@ -403,7 +420,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
               {deck === "daily"
                 ? incognito
                   ? "No card is unlocked yet, so there is nothing to practise."
-                  : "Nothing is due, and every unlocked card has come up today. Come back tomorrow."
+                  : "Today's daily goal is met, or every card has come up in it already. Your decks still have their own reviews."
                 : incognito
                   ? `No card in ${title} is unlocked yet, so there is nothing to practise.`
                   : `Nothing in ${title} is due today. Come back tomorrow.`}
@@ -417,10 +434,12 @@ export default function ReviewRunner({ deck, more = false }: Props) {
                 ` Remembering ${score.opened === 1 ? "one card" : `${score.opened} cards`} opened ${score.opened === 1 ? "a new one" : "new ones"}.`}
             </p>
           )}
-          {earlyCount > 0 && total > 0 && (
+          {session.daily && total > 0 && !incognito && (
             <p className="text-sm text-muted">
-              {earlyCount === 1 ? "One card" : `${earlyCount} cards`} not due yet filled up the daily goal. Answering a
-              card early never moves it up a box.
+              Daily practice: right answers leave cards as they were, and a missed card goes back to box 1 for its
+              deck&apos;s review.
+              {previewCount > 0 &&
+                ` ${previewCount === 1 ? "One card was" : `${previewCount} cards were`} still locked, as a preview.`}
             </p>
           )}
           {session.extra > 0 && (
@@ -454,14 +473,15 @@ export default function ReviewRunner({ deck, more = false }: Props) {
         <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">
           {KIND_LABEL[card.kind]}
         </span>
-        <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">{boxLabel(state)}</span>
-        {!incognito && session.early?.includes(card.id) && (
+        {session.locked?.includes(card.id) ? (
           <span
             className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted"
-            title="Not due yet: it is here to fill up the daily goal"
+            title="Still locked: a preview of what is coming in its deck"
           >
-            Early
+            Preview
           </span>
+        ) : (
+          <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">{boxLabel(state)}</span>
         )}
       </div>
 

@@ -116,8 +116,10 @@ export interface Session {
   opened: number;
   /** Of those, how many opened early to keep pace with the exam. */
   extra: number;
-  /** Cards not due yet, added to fill up the daily review. */
-  early?: string[];
+  /** The daily review: practice on the side, where a right answer changes nothing. */
+  daily?: boolean;
+  /** In the daily review, the locked cards brought in as a preview. */
+  locked?: string[];
 }
 
 /**
@@ -170,50 +172,72 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
   return { queue: [...seen, ...interleaved].map((c) => c.id), opened, extra };
 }
 
-/**
- * Cards that can fill up the daily review: unlocked and seen before, not due, and not answered yet today, so one day
- * never asks the same card twice. Soonest due first.
- */
-export function earlyCards(data: MemoryData, nowMs: number, skip: Set<string> = new Set()): MemoryCard[] {
+/** About this share of a daily review is locked cards, as a preview of what is coming. */
+export const DAILY_LOCKED_SHARE = 0.25;
+
+/** Cards already answered in today's daily review: one day never asks the same card twice. */
+function dailyDoneToday(data: MemoryData, nowMs: number): Set<string> {
   const from = startOfDay(nowMs);
-  const today = new Set(
-    data.events.filter((e) => e.type === "answer" && !e.deletedAt && e.at >= from).map((e) => e.cardId),
+  return new Set(
+    data.events
+      .filter((e) => e.type === "answer" && !e.deletedAt && (e.daily || e.early) && e.at >= from)
+      .map((e) => e.cardId),
   );
-  return data.cards
-    .filter((c) => !skip.has(c.id) && !today.has(c.id))
-    .filter((c) => {
-      const st = data.states.get(c.id);
-      const stage = stageOf(st);
-      return stage !== "locked" && stage !== "new" && !isDue(st, nowMs);
-    })
-    .sort((a, b) => (data.states.get(a.id)?.dueAt ?? 0) - (data.states.get(b.id)?.dueAt ?? 0));
+}
+
+const shuffled = <T>(list: T[]): T[] => {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+/** How many cards the daily review could still bring today, from every deck. */
+export function dailyLeft(data: MemoryData, nowMs: number, decks: string[]): number {
+  const done = dailyDoneToday(data, nowMs);
+  return data.cards.filter((c) => !done.has(c.id) && decks.some((d) => inDeck(c, d))).length;
 }
 
 /**
- * The daily review, from every deck. It is everything due and every new card earned, like any review; when that is
- * fewer than the goal still to go today, unlocked cards due soonest fill it up. Those are answered early: a right
- * answer leaves them as they are, a wrong one sends them back to box 1. `more` asks for a whole goal again, for when
- * today's is already met.
+ * The daily review: practice on the side, from every deck. It does not care what is due or unlocked, and a right
+ * answer changes nothing; only a miss counts, sending an unlocked card back to box 1 (see `applyDaily`). About a
+ * quarter are locked cards, as a preview; the rest are unlocked cards, half the weakest (lowest box, most misses) and
+ * half at random. Cards already done in today's daily review are left out. `more` asks for a whole goal again, for
+ * when today's is already met; otherwise it brings what is left of the goal.
  */
 export async function startDaily(size: number, incognito = false, more = false): Promise<Session> {
-  const decks = (await db.nodes.toArray())
-    .filter((n) => n.kind === "category" && !n.deletedAt)
-    .sort((a, b) => a.order - b.order)
-    .map((n) => n.id);
+  const decks = (await db.nodes.toArray()).filter((n) => n.kind === "category" && !n.deletedAt).map((n) => n.id);
   const t = now();
-  const before = await loadMemory();
-  const want = incognito || more ? size : Math.max(0, size - answeredToday(before.events, t));
-  const s = await startSession(decks, incognito);
-  // Incognito goes over unlocked cards, due ones first; the goal is how many.
-  if (incognito) return { ...s, queue: s.queue.slice(0, Math.max(want, 1)) };
-  if (s.queue.length >= want) return s;
-
   const data = await loadMemory();
-  const early = earlyCards(data, t, new Set(s.queue))
-    .filter((c) => decks.some((d) => inDeck(c, d)))
-    .slice(0, want - s.queue.length)
-    .map((c) => c.id);
-  return { ...s, queue: [...s.queue, ...early], early };
+  const done = dailyDoneToday(data, t);
+  const want = incognito || more ? size : Math.max(0, size - answeredToday(data.events, t));
+  const pool = data.cards.filter((c) => !done.has(c.id) && decks.some((d) => inDeck(c, d)));
+  const isLocked = (c: MemoryCard) => stageOf(data.states.get(c.id)) === "locked";
+  const locked = shuffled(pool.filter(isLocked));
+  const open = pool.filter((c) => !isLocked(c));
+
+  // A quarter locked when there are enough; whichever kind runs short, the other makes up the rest.
+  let nLocked = Math.min(locked.length, Math.round(want * DAILY_LOCKED_SHARE));
+  const nOpen = Math.min(open.length, want - nLocked);
+  nLocked = Math.min(locked.length, want - nOpen);
+
+  const st = (c: MemoryCard) => data.states.get(c.id) ?? EMPTY_STATE;
+  const weakest = [...open].sort((a, b) => st(a).box - st(b).box || st(b).misses - st(a).misses || Math.random() - 0.5);
+  const half = Math.ceil(nOpen / 2);
+  const picked = weakest.slice(0, half);
+  const taken = new Set(picked.map((c) => c.id));
+  picked.push(...shuffled(open.filter((c) => !taken.has(c.id))).slice(0, nOpen - half));
+
+  const preview = locked.slice(0, nLocked);
+  return {
+    queue: shuffled([...picked, ...preview]).map((c) => c.id),
+    opened: 0,
+    extra: 0,
+    daily: true,
+    locked: preview.map((c) => c.id),
+  };
 }
 
 export interface AnswerResult {
@@ -225,8 +249,8 @@ export interface AnswerResult {
   opened: MemoryCard[];
   /** False when incognito: the card stays as it was. */
   recorded: boolean;
-  /** Answered before it was due, in the daily review. */
-  early: boolean;
+  /** Answered in the daily review. */
+  daily: boolean;
 }
 
 /** Saves one answer, and opens a new card in the deck when this one reached box 3 for the first time. */
@@ -236,13 +260,13 @@ export async function answerCard(
   sureness: Sureness,
   picked: string,
   incognito = false,
-  early = false,
+  daily = false,
 ): Promise<AnswerResult> {
   const t = now();
   const data = await loadMemory();
   if (incognito) {
     const same = data.states.get(card.id) ?? EMPTY_STATE;
-    return { correct, sureness, before: same, after: same, opened: [], recorded: false, early };
+    return { correct, sureness, before: same, after: same, opened: [], recorded: false, daily };
   }
   const event: CardEvent = {
     id: newId(),
@@ -252,7 +276,7 @@ export async function answerCard(
     correct,
     sureness,
     picked,
-    ...(early ? { early: true } : {}),
+    ...(daily ? { daily: true } : {}),
     updatedAt: t,
   };
   const events = [...data.events, event];
@@ -268,7 +292,7 @@ export async function answerCard(
     opened = planUnlocks(deck, states, null, t, 0, data.start).cards.slice(0, 1);
   }
   await db.cardEvents.bulkPut([event, ...logUnlocks(opened, t)]);
-  return { correct, sureness, before, after, opened, recorded: true, early };
+  return { correct, sureness, before, after, opened, recorded: true, daily };
 }
 
 /** Suggested settings, worked out from the exam date and the cards still to open. */

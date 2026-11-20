@@ -373,6 +373,11 @@ export interface CardEvent {
    * Wrong, it goes back to box 1 as usual.
    */
   early?: boolean;
+  /**
+   * Answered in the daily review, which is practice on the side: right, it changes nothing; wrong, an unlocked card
+   * goes back to box 1 and is due at once. A locked card's miss is only noted. (Older daily answers used `early`.)
+   */
+  daily?: boolean;
   updatedAt: number;
   deletedAt?: number;
 }

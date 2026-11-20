@@ -104,7 +104,8 @@ export default function SourceFilter({ sources, counts, total, value, onChange }
     kind: k.kind,
     title: KIND_NAMES[k.kind].plural,
     list: sources
-      .filter((s) => s.kind === k.kind && matches(label(s)))
+      // Only sources with questions in view, to keep the list short. The one picked stays, to switch back from.
+      .filter((s) => s.kind === k.kind && matches(label(s)) && ((counts.get(s.id) ?? 0) > 0 || s.id === value))
       .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || label(a).localeCompare(label(b))),
   })).filter((g) => g.list.length > 0);
   const typed = counts.get(TYPED_SOURCE) ?? 0;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useNodes, useNow } from "@/lib/hooks";
-import { earlyCards, useMemory, summarize, type DeckSummary } from "@/lib/memory/review";
+import { dailyLeft, useMemory, summarize, type DeckSummary } from "@/lib/memory/review";
 import { useMix } from "@/lib/memory/mix";
 import { answeredToday, useDailySize } from "@/lib/memory/daily";
 import { formatDate } from "@/lib/format";
@@ -50,11 +50,15 @@ export default function ActivityHub() {
   const catchingUp = everything.extra;
   const answered = answeredToday(data.events, nowMs);
   const goalMet = answered >= dailySize;
-  // Met, and nothing left due: the day is done, though another round is there for the keen.
-  const dayDone = goalMet && totalDue === 0;
-  // What the daily review could still bring today: everything due, then cards not yet answered today.
-  const canFill = earlyCards(data, nowMs).length;
-  const dailyReady = incognito ? everything.open > 0 : totalDue > 0 || canFill > 0;
+  // The daily review is practice on the side, so the deck reviews have nothing to do with being done for the day.
+  const dayDone = goalMet;
+  // Cards from any deck, locked or not, that have not come up in today's daily review yet.
+  const dailyReady =
+    dailyLeft(
+      data,
+      nowMs,
+      categories.map((c) => c.id),
+    ) > 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
@@ -100,7 +104,7 @@ export default function ActivityHub() {
               </div>
               {incognito ? (
                 <p className="text-sm text-muted">
-                  Practise {dailySize} unlocked cards from every deck, due ones first.
+                  Practise {dailySize} cards from every deck, with a few locked ones as a preview. Nothing is recorded.
                 </p>
               ) : (
                 <>
@@ -122,19 +126,13 @@ export default function ActivityHub() {
                       <span className="font-medium text-good">Done for today: {answered} cards answered.</span>
                     ) : goalMet ? (
                       <>
-                        Goal met with <span className="num font-semibold">{answered}</span> cards;{" "}
-                        <span className="num font-semibold">{totalDue}</span> still due.
+                        Goal met with <span className="num font-semibold">{answered}</span> cards.
                       </>
                     ) : (
                       <>
                         <span className="num font-semibold">{answered}</span> of{" "}
                         <span className="num">{dailySize}</span> today
-                        {totalDue > 0 && (
-                          <span className="text-muted">
-                            {" "}
-                            · everything due ({totalDue}) comes first, then cards due soon
-                          </span>
-                        )}
+                        <span className="text-muted"> · practice from every deck; only misses count</span>
                       </>
                     )}
                   </p>
@@ -142,8 +140,7 @@ export default function ActivityHub() {
               )}
               {!incognito && !dayDone && !dailyReady && answered > 0 && (
                 <p className="text-sm text-muted">
-                  Every unlocked card has come up today, so nothing is left to fill the goal. More cards unlock as you
-                  remember these.
+                  Every card has come up in today&apos;s daily review already. Your decks still have their own reviews.
                 </p>
               )}
               {dailyReady && (

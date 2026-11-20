@@ -39,6 +39,8 @@ export interface CardState {
   answers: number;
   misses: number;
   lastAt: number | null;
+  /** Times it was missed in the daily review while still locked: a weak one, waiting to unlock. */
+  lockedMisses: number;
 }
 
 export const EMPTY_STATE: CardState = {
@@ -50,6 +52,7 @@ export const EMPTY_STATE: CardState = {
   answers: 0,
   misses: 0,
   lastAt: null,
+  lockedMisses: 0,
 };
 
 /** Midnight at the start of the day `t` falls in, on this device's clock. */
@@ -90,12 +93,24 @@ export function applyAnswer(s: CardState, at: number, correct: boolean, sureness
 }
 
 /** Every card's state, worked out from the log. */
+/**
+ * An answer in the daily review, which is practice on the side: a right answer changes nothing, so only deck reviews
+ * move cards up. A miss sends an unlocked card back to box 1, due at once, so it comes up in its deck's review today.
+ * A locked card has no box; its miss is only noted.
+ */
+export function applyDaily(s: CardState, at: number, correct: boolean): CardState {
+  if (correct) return s;
+  if (!s.unlocked) return { ...s, lockedMisses: s.lockedMisses + 1 };
+  return { ...s, box: 1, learned: false, dueAt: at, answers: s.answers + 1, misses: s.misses + 1, lastAt: at };
+}
+
 export function cardStates(events: CardEvent[]): Map<string, CardState> {
   const out = new Map<string, CardState>();
   const sorted = events.filter((e) => !e.deletedAt).sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
   for (const e of sorted) {
     const s = out.get(e.cardId) ?? EMPTY_STATE;
     if (e.type === "unlock") out.set(e.cardId, { ...s, unlocked: true });
+    else if (e.daily) out.set(e.cardId, applyDaily(s, e.at, !!e.correct));
     // Right before its day changes nothing, so reviewing early cannot rush a card through the boxes.
     else if (e.early && e.correct) out.set(e.cardId, { ...s, answers: s.answers + 1, lastAt: e.at });
     else out.set(e.cardId, applyAnswer(s, e.at, !!e.correct, e.sureness));

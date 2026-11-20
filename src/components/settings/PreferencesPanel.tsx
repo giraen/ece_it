@@ -177,7 +177,7 @@ function MemoryNumbers({ readOnly }: { readOnly: boolean }) {
         id="daily"
         label="Daily review"
         unit="cards a day"
-        tip="The daily review on Activity mixes every deck. Everything due comes first; when that is fewer than your goal, cards due soon fill it up. Answering those early never moves them up a box, but a miss sends one back to box 1. Cards answered in any review today count toward the goal."
+        tip="The daily review on Activity is practice from every deck, apart from the deck reviews. About a quarter are locked cards, as a preview; the rest are your weakest unlocked cards and a random mix. A right answer changes nothing. A miss sends an unlocked card back to box 1, due in its deck today. Only answers in the daily review count toward this goal."
         value={daily}
         min={DAILY_MIN}
         max={DAILY_MAX}

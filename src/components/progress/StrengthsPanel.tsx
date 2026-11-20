@@ -4,15 +4,17 @@ import { useReadOnly } from "@/lib/sync/syncState";
 import { useState } from "react";
 import Link from "next/link";
 import {
+  minAnswersFor,
   rankStandings,
-  standings,
+  standingsOf,
   type Obs,
   type Ranking,
   type Standing,
   type StandingKind,
 } from "@/lib/progress/analytics";
-import { FIXED_CATEGORIES } from "@/lib/bank/categories";
 import { CONFIG } from "@/lib/config";
+import { useNodes } from "@/lib/hooks";
+import WithinPicker, { type Within } from "./WithinPicker";
 import { formatPercent, formatRatio } from "@/lib/format";
 import InfoTip from "@/components/ui/InfoTip";
 
@@ -67,6 +69,17 @@ const CARELESS: ListInfo = {
   note: `Where you were wrong after using less than ${Math.round(CONFIG.stats.fastRatio * 100)}% of the target time. You probably knew it, so read the question again before you answer.`,
 };
 
+/** Each list's title and what it means, for other places that show the same lists. */
+export const LISTS: Record<Ranking, ListInfo> = {
+  weakest: WEAKEST,
+  sure: SURE,
+  misconception: MISCONCEPTIONS,
+  unprepared: UNPREPARED,
+  fastest: FASTEST,
+  slowest: SLOWEST,
+  careless: CARELESS,
+};
+
 const GROUPS: { title: string; lists: ListInfo[] }[] = [
   { title: "Accuracy", lists: [WEAKEST] },
   { title: "Confidence", lists: [SURE, MISCONCEPTIONS, UNPREPARED] },
@@ -74,8 +87,9 @@ const GROUPS: { title: string; lists: ListInfo[] }[] = [
 ];
 
 /** What a row shows on the right, and what it shows under its name. */
-function figures(row: Standing, ranking: Ranking, bar: number): { value: string; tone: string; sub: string } {
-  const asked = `${row.n} asked`;
+export function figures(row: Standing, ranking: Ranking, bar: number): { value: string; tone: string; sub: string } {
+  const asked =
+    row.topics !== undefined ? `${row.n} asked · ${row.topics} topic${row.topics === 1 ? "" : "s"}` : `${row.n} asked`;
   const of = (n: number, what: string) => `${n} of ${row.answered} ${what}`;
   switch (ranking) {
     case "weakest":
@@ -118,22 +132,70 @@ function figures(row: Standing, ranking: Ranking, bar: number): { value: string;
   }
 }
 
+/** What can be ranked inside each kind of place: the levels below it, then tags and questions. */
+const RANKS: Record<Within["kind"], StandingKind[]> = {
+  all: ["category", "subject", "topic", "tag", "question"],
+  category: ["subject", "topic", "tag", "question"],
+  subject: ["topic", "tag", "question"],
+  topic: ["tag", "question"],
+};
+/** What Rank starts on: the level just below, or single questions inside a topic. */
+const FIRST_RANK: Record<Within["kind"], StandingKind> = {
+  all: "category",
+  category: "subject",
+  subject: "topic",
+  topic: "question",
+};
+const RANK_LABEL: Record<StandingKind, string> = {
+  category: "Categories",
+  subject: "Subjects",
+  topic: "Topics",
+  tag: "Tags",
+  question: "Questions",
+};
+const ONE: Record<StandingKind, string> = {
+  category: "category",
+  subject: "subject",
+  topic: "topic",
+  tag: "tag",
+  question: "question",
+};
+
+/** The answers inside a place: a category, subject or topic, by its id. */
+export function inWithin(obs: Obs[], within: Within): Obs[] {
+  if (within.kind === "all") return obs;
+  if (within.kind === "category") return obs.filter((o) => o.categoryId === within.id);
+  if (within.kind === "subject") return obs.filter((o) => o.subjectId === within.id);
+  return obs.filter((o) => o.topicId === within.id);
+}
+
 /**
- * Short lists for one category, in three groups: accuracy (weakest), confidence (always sure, misconceptions,
- * unprepared) and speed (fastest, slowest, careless). They are worked out for tags (the exempt tags are left out) or
- * for single questions.
+ * Short lists in three groups: accuracy (weakest), confidence (always sure, misconceptions, unprepared) and speed
+ * (fastest, slowest, careless). Within picks where to look, from everything down to one topic, and Rank picks what
+ * the lists are made of: the levels below it, tags (the exempt tags are left out), or single questions.
  */
 export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }) {
   const readOnly = useReadOnly();
-  const [category, setCategory] = useState<string | null>(null);
-  const [kind, setKind] = useState<StandingKind>("tag");
+  const nodes = useNodes();
+  const [within, setWithin] = useState<Within>({ kind: "all" });
+  const [picked, setPicked] = useState<StandingKind | null>(null);
 
-  const present = FIXED_CATEGORIES.filter((c) =>
-    obs.some((o) => o.categoryName.trim().toLowerCase() === c.name.toLowerCase()),
-  );
-  const chosen = category !== null && present.some((c) => c.name === category) ? category : null;
-  const rows = standings(obs, kind, chosen);
-  const min = kind === "tag" ? CONFIG.stats.minTagAnswers : CONFIG.stats.minQuestionAnswers;
+  const byId = new Map((nodes ?? []).map((n) => [n.id, n]));
+  // A place that was deleted, or that has no answers any more, falls back to everything.
+  const place: Within = within.kind !== "all" && !byId.get(within.id) ? { kind: "all" } : within;
+  const ranks = RANKS[place.kind];
+  // Rank starts on the level just below the place, and keeps another choice while it still fits.
+  const kind = picked && ranks.includes(picked) ? picked : FIRST_RANK[place.kind];
+  const present = new Set<string>();
+  for (const o of obs) {
+    if (o.categoryId) present.add(o.categoryId);
+    if (o.subjectId) present.add(o.subjectId);
+    if (o.topicId) present.add(o.topicId);
+  }
+  const names = new Map((nodes ?? []).filter((n) => !n.deletedAt).map((n) => [n.id, n.name]));
+  const rows = standingsOf(inWithin(obs, place), kind, names);
+  const min = minAnswersFor(kind);
+  const placeName = place.kind === "all" ? "any category" : (byId.get(place.id)?.name ?? "this place");
 
   const chip = (on: boolean) =>
     `rounded px-2.5 py-1 text-sm ${on ? "bg-accent text-white" : "bg-accent-soft text-accent hover:bg-accent/15"}`;
@@ -143,48 +205,42 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
       <div className="mb-2 flex items-center gap-1">
         <h3 className="font-medium">What you are good and bad at</h3>
         <InfoTip>
-          Pick a category to see its tags, or its single questions. Tags are counted across every topic in the category,
-          and tags that only say what kind of question it is, such as {CONFIG.exemptTags.join(" and ")}, are left out. A
-          tag is listed after {CONFIG.stats.minTagAnswers} answers, and a question after{" "}
-          {CONFIG.stats.minQuestionAnswers}. Every quiz you finished counts, practice quizzes too.
+          Within picks where to look: everything, or one category, subject or topic. Rank picks what to compare inside
+          it: the levels below it, tags, or single questions. Tags that only say what kind of question it is, such as{" "}
+          {CONFIG.exemptTags.join(" and ")}, are left out. A category, subject, topic or tag is listed after{" "}
+          {CONFIG.stats.minTagAnswers} answers, and a question after {CONFIG.stats.minQuestionAnswers}. Every quiz you
+          finished counts, practice quizzes too.
         </InfoTip>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div role="group" aria-label="Category" className="flex flex-wrap gap-1.5">
-          <button aria-pressed={chosen === null} className={chip(chosen === null)} onClick={() => setCategory(null)}>
-            All categories
-          </button>
-          {present.map((c) => (
-            <button
-              key={c.key}
-              aria-pressed={chosen === c.name}
-              className={chip(chosen === c.name)}
-              onClick={() => setCategory(c.name)}
-            >
-              {c.name}
+        {nodes && (
+          <WithinPicker
+            nodes={nodes}
+            present={present}
+            value={place}
+            onChange={(w) => {
+              // A new level starts again on the level just below it.
+              if (w.kind !== place.kind) setPicked(null);
+              setWithin(w);
+            }}
+          />
+        )}
+        <div role="group" aria-label="What to rank" className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-sm text-muted">Rank</span>
+          {ranks.map((k) => (
+            <button key={k} aria-pressed={kind === k} className={chip(kind === k)} onClick={() => setPicked(k)}>
+              {RANK_LABEL[k]}
             </button>
           ))}
-        </div>
-        <div role="group" aria-label="What to rank" className="flex gap-1.5">
-          <button aria-pressed={kind === "tag"} className={chip(kind === "tag")} onClick={() => setKind("tag")}>
-            Tags
-          </button>
-          <button
-            aria-pressed={kind === "question"}
-            className={chip(kind === "question")}
-            onClick={() => setKind("question")}
-          >
-            Questions
-          </button>
         </div>
       </div>
 
       {rows.length === 0 ? (
         <p className="card p-4 text-sm text-muted">
           {kind === "tag"
-            ? `Nothing to show yet. A tag needs at least ${min} answers in ${chosen ?? "any category"}, and quizzes only count tags that are not ${CONFIG.exemptTags.join(" or ")}.`
-            : `Nothing to show yet. A question needs at least ${min} answers in ${chosen ?? "any category"}.`}
+            ? `Nothing to show yet. A tag needs at least ${min} answers in ${placeName}, and quizzes only count tags that are not ${CONFIG.exemptTags.join(" or ")}.`
+            : `Nothing to show yet. A ${ONE[kind]} needs at least ${min} answers in ${placeName}.`}
         </p>
       ) : (
         <div className="space-y-5">
@@ -218,7 +274,7 @@ export default function StrengthsPanel({ obs, bar }: { obs: Obs[]; bar: number }
                                 <div className="min-w-0 flex-1">
                                   <p className={kind === "question" ? "line-clamp-2" : "truncate"}>{row.label}</p>
                                   <p className="text-xs text-muted">
-                                    {row.topicName ? `${row.topicName} · ` : ""}
+                                    {row.topicName && place.kind !== "topic" ? `${row.topicName} · ` : ""}
                                     {f.sub}
                                   </p>
                                 </div>

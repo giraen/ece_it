@@ -13,6 +13,9 @@ import { MAX_MINUTES, itemsProblem, planFor, suggestedMinutes, withCopies } from
 import { targetSecPerItem } from "@/lib/quiz/scoring";
 import { pathOf, subtreeOf } from "@/lib/bank/tree";
 import InfoTip from "@/components/ui/InfoTip";
+import { useMasteryBar } from "@/lib/preferences";
+import { retakeReview } from "@/lib/quiz/retake";
+import RetakePanel, { RetakeStrip } from "./RetakePanel";
 
 interface Props {
   /** A topic or a subject. */
@@ -39,6 +42,10 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
   const plan = planFor(kind, pool.length);
   const info = masteryFor(attempts, node, nowMs);
   const locked = info.lockedUntil !== undefined;
+  // After a failed quiz, while locked and after, until a quiz here passes.
+  const bar = useMasteryBar();
+  const inBank = new Set(questions.map((q) => q.id));
+  const review = retakeReview(attempts, node, bar, (id) => inBank.has(id));
 
   const [itemsText, setItemsText] = useState(String(plan.defaultItems));
   const [minutesText, setMinutesText] = useState<string | null>(null);
@@ -88,146 +95,153 @@ export default function NewQuizForm({ node, nodes, questions, attempts, nowMs }:
   }
 
   return (
-    <div className="max-w-xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">New quiz</h1>
-        <p className="mt-1 font-medium">{pathOf(nodes, node.id)}</p>
-        <p className="text-sm text-muted">
-          {distinct.length !== pool.length && ` (${distinct.length} different, some can appear more than once)`}
-        </p>
-      </div>
+    // With a review to show, the form is a narrow column on the left and the review takes the rest. On a phone the
+    // review comes after the form, and a strip at the top points to it.
+    <div className={review ? "grid items-start gap-6 lg:grid-cols-[22rem_minmax(0,1fr)] lg:gap-8" : "max-w-xl"}>
+      <div className={`space-y-5 ${review ? "lg:sticky lg:top-4" : ""}`}>
+        <div>
+          <h1 className="text-xl font-semibold">New quiz</h1>
+          <p className="mt-1 font-medium">{pathOf(nodes, node.id)}</p>
+          <p className="text-sm text-muted">
+            {distinct.length !== pool.length && ` (${distinct.length} different, some can appear more than once)`}
+          </p>
+        </div>
 
-      {info.lockedUntil !== undefined && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
-          Locked after a failed quiz. You can retake this {kind} in {formatCountdown(info.lockedUntil - nowMs)}. Mastery
-          you already hold is not affected.
-        </p>
-      )}
-      {info.status === "mastered" && info.expiresAt !== undefined && (
-        <p className="rounded-md border border-good/40 bg-good/5 p-3 text-sm text-good">
-          Mastered until {formatDate(info.expiresAt)}. Passing again starts a fresh window.
-        </p>
-      )}
-      {info.status === "expired" && info.expiresAt !== undefined && (
-        <p className="card p-3 text-sm text-muted">Mastery expired on {formatDate(info.expiresAt)}.</p>
-      )}
+        {review && <RetakeStrip review={review} />}
 
-      {pool.length === 0 ? (
-        <p className="rounded-md border border-dashed border-line p-5 text-sm text-muted">
-          There are no questions to quiz on here yet.
-        </p>
-      ) : (
-        <>
-          <div>
-            <label htmlFor="items" className="mb-1 block text-sm font-medium">
-              Number of questions
-            </label>
-            <input
-              id="items"
-              className="input w-32"
-              inputMode="numeric"
-              value={itemsText}
-              onChange={(e) => setItemsText(e.target.value)}
-            />
-            <p className={`mt-1 text-xs ${itemsError ? "text-danger" : "text-muted"}`}>
-              {itemsError ?? `From 1 to ${plan.maxItems}. Mastery needs ${plan.masteryMin} or more.`}
-            </p>
-          </div>
+        {info.lockedUntil !== undefined && (
+          <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+            Locked after a failed quiz. You can retake this {kind} in {formatCountdown(info.lockedUntil - nowMs)}.
+            Mastery you already hold is not affected.
+          </p>
+        )}
+        {info.status === "mastered" && info.expiresAt !== undefined && (
+          <p className="rounded-md border border-good/40 bg-good/5 p-3 text-sm text-good">
+            Mastered until {formatDate(info.expiresAt)}. Passing again starts a fresh window.
+          </p>
+        )}
+        {info.status === "expired" && info.expiresAt !== undefined && (
+          <p className="card p-3 text-sm text-muted">Mastery expired on {formatDate(info.expiresAt)}.</p>
+        )}
 
-          <div>
-            <div className="mb-1 flex items-center gap-1">
-              <label htmlFor="minutes" className="text-sm font-medium">
-                Total time
-              </label>
-              {(plan.fixedMinutes === null || perItemSec > 0) && (
-                <InfoTip>
-                  {plan.fixedMinutes === null &&
-                    "Suggested from the number of questions. Change it to anything you like. "}
-                  {perItemSec > 0 && (
-                    <>
-                      About <strong>{formatDuration(perItemSec * 1000)}</strong> per question. The time is a target
-                      only: the timer counts up and never stops the quiz, and it never changes your score. It is shown
-                      to you afterward as a statistic.
-                    </>
-                  )}
-                </InfoTip>
-              )}
-            </div>
-            {plan.fixedMinutes !== null ? (
-              <p className="text-sm">
-                {plan.fixedMinutes === 60 ? "1 hour" : `${plan.fixedMinutes} minutes`}{" "}
-                <span className="text-muted">(always the same for a {kind} quiz)</span>
-              </p>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="minutes"
-                    className="input w-32"
-                    inputMode="numeric"
-                    value={minutesText ?? String(suggestedMinutes(validItems ? items : plan.defaultItems))}
-                    onChange={(e) => setMinutesText(e.target.value)}
-                  />
-                  <span className="text-sm text-muted">minutes</span>
-                </div>
-                {minutesError && <p className="mt-1 text-xs text-danger">{minutesError}</p>}
-              </>
-            )}
-          </div>
-
-          {mastery.text && !incognito && (
-            <p
-              aria-label="Mastery"
-              className={`rounded-md border p-3 text-sm ${
-                mastery.ok ? "border-good/40 bg-good/5 text-good" : "border-line bg-surface text-muted"
-              }`}
-            >
-              {mastery.text}
-            </p>
-          )}
-        </>
-      )}
-
-      {pool.length > 0 && <IncognitoNote what="quiz" />}
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {pool.length > 0 && !incognito && (
-        <p className="text-xs text-muted">
-          Practice uses the same settings, but nothing counts toward mastery and nothing gets locked. You can practise
-          while this {kind} is locked or already mastered. It still shows in your results and analytics.
-        </p>
-      )}
-
-      <div className="flex gap-2">
-        {incognito ? (
-          <button
-            className="btn btn-primary"
-            disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
-            onClick={() => void start(false)}
-          >
-            {starting ? "Starting…" : "Start incognito"}
-          </button>
+        {pool.length === 0 ? (
+          <p className="rounded-md border border-dashed border-line p-5 text-sm text-muted">
+            There are no questions to quiz on here yet.
+          </p>
         ) : (
           <>
-            <button
-              className="btn btn-primary"
-              disabled={starting || locked || pool.length === 0 || !validItems || minutesError !== null}
-              onClick={() => void start(false)}
-            >
-              {starting ? "Starting…" : "Start quiz"}
-            </button>
-            <button
-              className="btn"
-              disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
-              onClick={() => void start(true)}
-            >
-              Practice
-            </button>
+            <div>
+              <label htmlFor="items" className="mb-1 block text-sm font-medium">
+                Number of questions
+              </label>
+              <input
+                id="items"
+                className="input w-32"
+                inputMode="numeric"
+                value={itemsText}
+                onChange={(e) => setItemsText(e.target.value)}
+              />
+              <p className={`mt-1 text-xs ${itemsError ? "text-danger" : "text-muted"}`}>
+                {itemsError ?? `From 1 to ${plan.maxItems}. Mastery needs ${plan.masteryMin} or more.`}
+              </p>
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center gap-1">
+                <label htmlFor="minutes" className="text-sm font-medium">
+                  Total time
+                </label>
+                {(plan.fixedMinutes === null || perItemSec > 0) && (
+                  <InfoTip>
+                    {plan.fixedMinutes === null &&
+                      "Suggested from the number of questions. Change it to anything you like. "}
+                    {perItemSec > 0 && (
+                      <>
+                        About <strong>{formatDuration(perItemSec * 1000)}</strong> per question. The time is a target
+                        only: the timer counts up and never stops the quiz, and it never changes your score. It is shown
+                        to you afterward as a statistic.
+                      </>
+                    )}
+                  </InfoTip>
+                )}
+              </div>
+              {plan.fixedMinutes !== null ? (
+                <p className="text-sm">
+                  {plan.fixedMinutes === 60 ? "1 hour" : `${plan.fixedMinutes} minutes`}{" "}
+                  <span className="text-muted">(always the same for a {kind} quiz)</span>
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="minutes"
+                      className="input w-32"
+                      inputMode="numeric"
+                      value={minutesText ?? String(suggestedMinutes(validItems ? items : plan.defaultItems))}
+                      onChange={(e) => setMinutesText(e.target.value)}
+                    />
+                    <span className="text-sm text-muted">minutes</span>
+                  </div>
+                  {minutesError && <p className="mt-1 text-xs text-danger">{minutesError}</p>}
+                </>
+              )}
+            </div>
+
+            {mastery.text && !incognito && (
+              <p
+                aria-label="Mastery"
+                className={`rounded-md border p-3 text-sm ${
+                  mastery.ok ? "border-good/40 bg-good/5 text-good" : "border-line bg-surface text-muted"
+                }`}
+              >
+                {mastery.text}
+              </p>
+            )}
           </>
         )}
-        <Link href="/quiz" className="btn">
-          Back
-        </Link>
+
+        {pool.length > 0 && <IncognitoNote what="quiz" />}
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {pool.length > 0 && !incognito && (
+          <p className="text-xs text-muted">
+            Practice uses the same settings, but nothing counts toward mastery and nothing gets locked. You can practise
+            while this {kind} is locked or already mastered. It still shows in your results and analytics.
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          {incognito ? (
+            <button
+              className="btn btn-primary"
+              disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
+              onClick={() => void start(false)}
+            >
+              {starting ? "Starting…" : "Start incognito"}
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn btn-primary"
+                disabled={starting || locked || pool.length === 0 || !validItems || minutesError !== null}
+                onClick={() => void start(false)}
+              >
+                {starting ? "Starting…" : "Start quiz"}
+              </button>
+              <button
+                className="btn"
+                disabled={starting || pool.length === 0 || !validItems || minutesError !== null}
+                onClick={() => void start(true)}
+              >
+                Practice
+              </button>
+            </>
+          )}
+          <Link href="/quiz" className="btn">
+            Back
+          </Link>
+        </div>
       </div>
+      {review && <RetakePanel review={review} node={node} bar={bar} />}
     </div>
   );
 }

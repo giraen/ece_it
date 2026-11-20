@@ -113,7 +113,13 @@ export async function startAttempt(
   practice = false,
   /** Incognito: like practice, and not saved with your quizzes either. See `incognito` on QuizAttempt. */
   incognito = false,
+  /**
+   * Exactly these questions, once each and shuffled, as a practice quiz: used to practise the mistakes and weak spots
+   * of a failed quiz. `items` is ignored, and the quiz never counts toward mastery or locks.
+   */
+  only?: string[],
 ): Promise<string> {
+  if (only) practice = true;
   const nodes = await db.nodes.filter((n) => !n.deletedAt).toArray();
   const scope = nodes.find((n) => n.id === scopeId);
   if (!scope) throw new Error("That item no longer exists.");
@@ -150,9 +156,16 @@ export async function startAttempt(
   let picked: { question: Question; entry?: { id: string; name: string } }[];
   let eligibility: { eligible: boolean; reason?: string };
   let minutes: number;
-  const mode: "standard" | "mock" = scope.kind === "category" ? "mock" : "standard";
+  const mode: "standard" | "mock" = scope.kind === "category" && !only ? "mock" : "standard";
 
-  if (scope.kind === "category") {
+  if (only) {
+    const wanted = new Set(only);
+    const list = shuffle(usable.filter((q) => wanted.has(q.id)));
+    if (list.length === 0) throw new Error("Those questions are no longer in the bank.");
+    picked = list.map((question) => ({ question }));
+    eligibility = { eligible: false, reason: "This was a practice quiz." };
+    minutes = totalMinutes;
+  } else if (scope.kind === "category") {
     const blueprint = await db.blueprints.get(scope.id);
     if (!blueprint || blueprint.deletedAt) throw new Error("Set up a blueprint for this category first.");
     const bq = composeBlueprintQuiz({ nodes, questions: usable, blueprint, history, mix });

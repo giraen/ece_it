@@ -11,7 +11,10 @@ export interface Obs {
   stem: string;
   topicId: string;
   topicName: string;
-  /** The category the question was asked under, as it was named then. */
+  subjectId: string;
+  subjectName: string;
+  /** The category the question was asked under, and its name then. */
+  categoryId: string;
   categoryName: string;
   tags: string[];
   answered: boolean;
@@ -34,6 +37,9 @@ export function observations(attempts: QuizAttempt[]): Obs[] {
         stem: it.stem,
         topicId: it.topicId,
         topicName: it.topicName,
+        subjectId: it.subjectId ?? "",
+        subjectName: it.subjectName ?? "",
+        categoryId: it.categoryId ?? "",
         categoryName: it.categoryName ?? "",
         tags: it.tags,
         answered: it.answered,
@@ -375,9 +381,16 @@ export interface Standing {
   unsure: number;
   /** Wrong answers given much faster than the target time: a slip rather than a gap. */
   fastWrong: number;
+  /** For a category or subject: how many of its topics were asked. */
+  topics?: number;
 }
 
-export type StandingKind = "tag" | "question";
+/** What to rank: whole categories, subjects, topics, tags, or single questions. */
+export type StandingKind = "category" | "subject" | "topic" | "tag" | "question";
+
+/** How many answers something needs before it is listed. */
+export const minAnswersFor = (kind: StandingKind) =>
+  kind === "question" ? CONFIG.stats.minQuestionAnswers : CONFIG.stats.minTagAnswers;
 export type Ranking = "weakest" | "slowest" | "fastest" | "sure" | "misconception" | "unprepared" | "careless";
 
 const plain = (stem: string) => stem.replace(/!\[[^\]]*\]\([^)]*\)/g, "[image]");
@@ -389,16 +402,37 @@ const plain = (stem: string) => stem.replace(/!\[[^\]]*\]\([^)]*\)/g, "[image]")
  */
 export function standings(obs: Obs[], kind: StandingKind, category: string | null): Standing[] {
   const wanted = category?.trim().toLowerCase() ?? null;
+  return standingsOf(wanted === null ? obs : obs.filter((o) => o.categoryName.trim().toLowerCase() === wanted), kind);
+}
+
+/**
+ * The same, for answers already narrowed to a category, subject or topic. `names` gives the current name of a
+ * category, subject or topic by id, so a renamed one is shown by its new name.
+ */
+export function standingsOf(obs: Obs[], kind: StandingKind, names?: Map<string, string>): Standing[] {
   const buckets = new Map<string, { label: string; topicName?: string; items: Obs[] }>();
   const put = (key: string, label: string, topicName: string | undefined, o: Obs) => {
     const b = buckets.get(key);
     if (b) b.items.push(o);
     else buckets.set(key, { label, topicName, items: [o] });
   };
+  const nameOf = (id: string, then: string) => names?.get(id) ?? then;
   for (const o of obs) {
-    if (wanted !== null && o.categoryName.trim().toLowerCase() !== wanted) continue;
     if (kind === "question") {
       put(o.questionId, plain(o.stem), o.topicName, o);
+      continue;
+    }
+    if (kind === "category") {
+      const key = o.categoryId || o.categoryName.trim().toLowerCase();
+      if (key) put(key, nameOf(o.categoryId, o.categoryName), undefined, o);
+      continue;
+    }
+    if (kind === "subject") {
+      if (o.subjectId) put(o.subjectId, nameOf(o.subjectId, o.subjectName), undefined, o);
+      continue;
+    }
+    if (kind === "topic") {
+      if (o.topicId) put(o.topicId, nameOf(o.topicId, o.topicName), undefined, o);
       continue;
     }
     const seen = new Set<string>();
@@ -409,7 +443,7 @@ export function standings(obs: Obs[], kind: StandingKind, category: string | nul
       put(key, t.trim(), undefined, o);
     }
   }
-  const min = kind === "tag" ? CONFIG.stats.minTagAnswers : CONFIG.stats.minQuestionAnswers;
+  const min = minAnswersFor(kind);
   const out: Standing[] = [];
   for (const [key, { label, topicName, items }] of buckets) {
     const answered = items.filter((o) => o.answered);
@@ -429,6 +463,7 @@ export function standings(obs: Obs[], kind: StandingKind, category: string | nul
       sureWrong: sure.filter((o) => !o.correct).length,
       unsure: answered.filter((o) => o.sureness === "not_sure" || o.sureness === "just_guessed").length,
       fastWrong: answered.filter((o) => !o.correct && o.ratio <= CONFIG.stats.fastRatio).length,
+      ...(kind === "category" || kind === "subject" ? { topics: new Set(items.map((o) => o.topicId)).size } : {}),
     });
   }
   return out;

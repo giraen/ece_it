@@ -8,6 +8,9 @@ import { composeBlueprintQuiz } from "@/lib/quiz/blueprint";
 import type { Blueprint, Question, QuizAttempt, TreeNode } from "@/lib/db";
 import { formatCountdown, formatDate, formatDuration } from "@/lib/format";
 import { masteryFor } from "@/lib/progress/mastery";
+import { useMasteryBar } from "@/lib/preferences";
+import { retakeReview } from "@/lib/quiz/retake";
+import RetakePanel, { RetakeStrip } from "./RetakePanel";
 import { startAttempt } from "@/lib/quiz/quiz";
 import { useIncognito } from "@/lib/incognito";
 import { IncognitoNote } from "@/components/ui/Incognito";
@@ -34,6 +37,10 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
   const [starting, setStarting] = useState(false);
 
   const info = masteryFor(attempts, node, nowMs);
+  // After a failed mock, while locked and after, until a mock here passes.
+  const bar = useMasteryBar();
+  const inBank = new Set(questions.map((q) => q.id));
+  const review = retakeReview(attempts, node, bar, (id) => inBank.has(id));
   const locked = info.lockedUntil !== undefined;
 
   if (!blueprint) {
@@ -82,154 +89,158 @@ export default function NewMockForm({ node, nodes, questions, blueprint, attempt
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">Mock board</h1>
-        <p className="mt-1 font-medium">{node.name}</p>
-        <p className="text-sm text-muted">
-          Follows the blueprint: {blueprint.totalItems} item{blueprint.totalItems === 1 ? "" : "s"} across{" "}
-          {blueprint.entries.length} entr{blueprint.entries.length === 1 ? "y" : "ies"}.{" "}
-          {!readOnly && (
-            <Link href={`/blueprint?category=${node.id}`} className="underline">
-              Edit the blueprint
-            </Link>
-          )}
-        </p>
-      </div>
-
-      {info.lockedUntil !== undefined && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
-          Locked after a failed mock. You can retake this category in {formatCountdown(info.lockedUntil - nowMs)}.
-          Mastery you already hold is not affected.
-        </p>
-      )}
-      {info.status === "mastered" && info.expiresAt !== undefined && (
-        <p className="rounded-md border border-good/40 bg-good/5 p-3 text-sm text-good">
-          Mastered until {formatDate(info.expiresAt)}. Passing again starts a fresh window.
-        </p>
-      )}
-      {info.status === "expired" && info.expiresAt !== undefined && (
-        <p className="card p-3 text-sm text-muted">Mastery expired on {formatDate(info.expiresAt)}.</p>
-      )}
-
-      <div className="overflow-x-auto card p-3">
-        <table className="w-full text-sm">
-          <thead className="text-xs text-muted">
-            <tr>
-              <th className="pb-2 text-left font-medium">Entry</th>
-              <th className="px-2 pb-2 text-right font-medium">Items</th>
-              <th className="pb-2 pl-2 text-right font-medium">In the bank</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trial.allocations.map((a) => (
-              <tr key={a.entryId} className="border-t border-line">
-                <td className="py-1.5">{a.label}</td>
-                <td className={`px-2 text-right tabular-nums ${a.picked < a.wanted ? "text-danger" : ""}`}>
-                  {a.picked} of {a.wanted}
-                </td>
-                <td className="pl-2 text-right tabular-nums text-muted">{a.available}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {trial.shortfall && (
-        <p className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
-          The bank has fewer questions than the blueprint asks for, so this mock would have {items} item
-          {items === 1 ? "" : "s"} instead of {blueprint.totalItems}. You can start the shorter mock or add more
-          questions first.
-        </p>
-      )}
-
-      {!incognito && (
-        <p
-          aria-label="Mastery"
-          className={`rounded-md border p-3 text-sm ${
-            trial.eligible ? "border-good/40 bg-good/5 text-good" : "border-line bg-surface text-muted"
-          }`}
-        >
-          {trial.eligible
-            ? "This mock can award mastery if you reach the bar."
-            : `Practice only. ${trial.reason ?? "This mock cannot award mastery."}`}
-        </p>
-      )}
-
-      <div>
-        <label htmlFor="minutes" className="mb-1 block text-sm font-medium">
-          Total time
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            id="minutes"
-            className="input w-32"
-            inputMode="numeric"
-            value={minutesText ?? String(suggestedMinutes(items))}
-            onChange={(e) => setMinutesText(e.target.value)}
-          />
-          <span className="text-sm text-muted">minutes</span>
+    <div className={review ? "grid items-start gap-6 lg:grid-cols-[26rem_minmax(0,1fr)] lg:gap-8" : "max-w-2xl"}>
+      <div className={`space-y-5 ${review ? "lg:sticky lg:top-4" : ""}`}>
+        <div>
+          <h1 className="text-xl font-semibold">Mock board</h1>
+          <p className="mt-1 font-medium">{node.name}</p>
+          <p className="text-sm text-muted">
+            Follows the blueprint: {blueprint.totalItems} item{blueprint.totalItems === 1 ? "" : "s"} across{" "}
+            {blueprint.entries.length} entr{blueprint.entries.length === 1 ? "y" : "ies"}.{" "}
+            {!readOnly && (
+              <Link href={`/blueprint?category=${node.id}`} className="underline">
+                Edit the blueprint
+              </Link>
+            )}
+          </p>
         </div>
-        <p className={`mt-1 text-xs ${minutesError ? "text-danger" : "text-muted"}`}>
-          {minutesError ?? "Suggested from the number of items. Change it to anything you like."}
-        </p>
-      </div>
 
-      {perItemSec > 0 && (
-        <p className="text-sm">
-          About <strong>{formatDuration(perItemSec * 1000)}</strong> per question. As in every quiz, the time is a
-          target and a statistic only.
-        </p>
-      )}
+        {review && <RetakeStrip review={review} />}
+        {info.lockedUntil !== undefined && (
+          <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+            Locked after a failed mock. You can retake this category in {formatCountdown(info.lockedUntil - nowMs)}.
+            Mastery you already hold is not affected.
+          </p>
+        )}
+        {info.status === "mastered" && info.expiresAt !== undefined && (
+          <p className="rounded-md border border-good/40 bg-good/5 p-3 text-sm text-good">
+            Mastered until {formatDate(info.expiresAt)}. Passing again starts a fresh window.
+          </p>
+        )}
+        {info.status === "expired" && info.expiresAt !== undefined && (
+          <p className="card p-3 text-sm text-muted">Mastery expired on {formatDate(info.expiresAt)}.</p>
+        )}
 
-      <ul className="list-disc space-y-1 card py-3 pr-4 pl-8 text-sm">
-        <li>
-          <strong>No pausing and no going back.</strong> Each answer is final once you confirm it.
-        </li>
-        <li>Every question must be answered to move on, and the mock ends after the last one.</li>
-        <li>You can still discard the mock, but then none of it is scored.</li>
-      </ul>
+        <div className="overflow-x-auto card p-3">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="pb-2 text-left font-medium">Entry</th>
+                <th className="px-2 pb-2 text-right font-medium">Items</th>
+                <th className="pb-2 pl-2 text-right font-medium">In the bank</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trial.allocations.map((a) => (
+                <tr key={a.entryId} className="border-t border-line">
+                  <td className="py-1.5">{a.label}</td>
+                  <td className={`px-2 text-right tabular-nums ${a.picked < a.wanted ? "text-danger" : ""}`}>
+                    {a.picked} of {a.wanted}
+                  </td>
+                  <td className="pl-2 text-right tabular-nums text-muted">{a.available}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      {items > 0 && <IncognitoNote what="quiz" />}
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {items > 0 && !incognito && (
-        <p className="text-xs text-muted">
-          Practice is the same mock, but nothing counts toward mastery and nothing gets locked. You can practise while
-          this category is locked or already mastered. It still shows in your results and analytics.
-        </p>
-      )}
+        {trial.shortfall && (
+          <p className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+            The bank has fewer questions than the blueprint asks for, so this mock would have {items} item
+            {items === 1 ? "" : "s"} instead of {blueprint.totalItems}. You can start the shorter mock or add more
+            questions first.
+          </p>
+        )}
 
-      <div className="flex gap-2">
-        {incognito ? (
-          <button
-            className="btn btn-primary"
-            disabled={starting || items === 0 || minutesError !== null}
-            onClick={() => void start(false)}
+        {!incognito && (
+          <p
+            aria-label="Mastery"
+            className={`rounded-md border p-3 text-sm ${
+              trial.eligible ? "border-good/40 bg-good/5 text-good" : "border-line bg-surface text-muted"
+            }`}
           >
-            {starting ? "Starting…" : "Start incognito"}
-          </button>
-        ) : (
-          <>
+            {trial.eligible
+              ? "This mock can award mastery if you reach the bar."
+              : `Practice only. ${trial.reason ?? "This mock cannot award mastery."}`}
+          </p>
+        )}
+
+        <div>
+          <label htmlFor="minutes" className="mb-1 block text-sm font-medium">
+            Total time
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="minutes"
+              className="input w-32"
+              inputMode="numeric"
+              value={minutesText ?? String(suggestedMinutes(items))}
+              onChange={(e) => setMinutesText(e.target.value)}
+            />
+            <span className="text-sm text-muted">minutes</span>
+          </div>
+          <p className={`mt-1 text-xs ${minutesError ? "text-danger" : "text-muted"}`}>
+            {minutesError ?? "Suggested from the number of items. Change it to anything you like."}
+          </p>
+        </div>
+
+        {perItemSec > 0 && (
+          <p className="text-sm">
+            About <strong>{formatDuration(perItemSec * 1000)}</strong> per question. As in every quiz, the time is a
+            target and a statistic only.
+          </p>
+        )}
+
+        <ul className="list-disc space-y-1 card py-3 pr-4 pl-8 text-sm">
+          <li>
+            <strong>No pausing and no going back.</strong> Each answer is final once you confirm it.
+          </li>
+          <li>Every question must be answered to move on, and the mock ends after the last one.</li>
+          <li>You can still discard the mock, but then none of it is scored.</li>
+        </ul>
+
+        {items > 0 && <IncognitoNote what="quiz" />}
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {items > 0 && !incognito && (
+          <p className="text-xs text-muted">
+            Practice is the same mock, but nothing counts toward mastery and nothing gets locked. You can practise while
+            this category is locked or already mastered. It still shows in your results and analytics.
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          {incognito ? (
             <button
               className="btn btn-primary"
-              disabled={starting || locked || items === 0 || minutesError !== null}
+              disabled={starting || items === 0 || minutesError !== null}
               onClick={() => void start(false)}
             >
-              {starting ? "Starting…" : "Start mock"}
+              {starting ? "Starting…" : "Start incognito"}
             </button>
-            <button
-              className="btn"
-              disabled={starting || items === 0 || minutesError !== null}
-              onClick={() => void start(true)}
-            >
-              Practice
-            </button>
-          </>
-        )}
-        <Link href="/quiz" className="btn">
-          Back
-        </Link>
+          ) : (
+            <>
+              <button
+                className="btn btn-primary"
+                disabled={starting || locked || items === 0 || minutesError !== null}
+                onClick={() => void start(false)}
+              >
+                {starting ? "Starting…" : "Start mock"}
+              </button>
+              <button
+                className="btn"
+                disabled={starting || items === 0 || minutesError !== null}
+                onClick={() => void start(true)}
+              >
+                Practice
+              </button>
+            </>
+          )}
+          <Link href="/quiz" className="btn">
+            Back
+          </Link>
+        </div>
       </div>
+      {review && <RetakePanel review={review} node={node} bar={bar} />}
     </div>
   );
 }

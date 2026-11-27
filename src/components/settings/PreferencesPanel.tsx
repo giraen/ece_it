@@ -16,11 +16,15 @@ import { formatDate } from "@/lib/format";
 import {
   DAILY_MAX,
   DAILY_MIN,
+  SPREAD_MAX,
+  SPREAD_MIN,
   START_MAX,
   START_MIN,
   saveDailySize,
+  saveSpreadHours,
   saveStartCards,
   useDailySize,
+  useSpreadHours,
   useStartCards,
 } from "@/lib/memory/daily";
 import { IncognitoNote, IncognitoSwitch } from "@/components/ui/Incognito";
@@ -152,6 +156,7 @@ function NumberSetting({
 function MemoryNumbers({ readOnly }: { readOnly: boolean }) {
   const daily = useDailySize();
   const start = useStartCards();
+  const spread = useSpreadHours();
   const data = useMemory();
   const nowMs = useNow();
   const exam = useExam();
@@ -196,6 +201,17 @@ function MemoryNumbers({ readOnly }: { readOnly: boolean }) {
         save={saveStartCards}
         readOnly={readOnly}
         suggestion={startHint}
+      />
+      <NumberSetting
+        id="variant-spread"
+        label="Spread variants over"
+        unit="hours"
+        tip="A card with variants asks each of them once a round, spread evenly over this many hours from the first: with 4 hours, 2 variants come 4 hours apart and 3 come 2 hours apart. Activity lists the ones waiting, and Take now brings one sooner. The round's share right moves the card: all right, up a box; 75% or more, it stays; 50%, down one; 25%, down two; less, back to box 1."
+        value={spread}
+        min={SPREAD_MIN}
+        max={SPREAD_MAX}
+        save={saveSpreadHours}
+        readOnly={readOnly}
       />
     </>
   );

@@ -17,7 +17,7 @@ const TABS = [
 const MORE = [
   { href: "/settings", label: "Settings", note: "Backup, preferences, AI" },
   { href: "/help", label: "Help", note: "How everything works" },
-  { href: "/bank", label: "Bank", note: "On a computer" },
+  { href: "/bank", label: "Bank", note: "View only" },
   { href: "/extract", label: "Extract", note: "On a computer" },
 ];
 
@@ -27,8 +27,8 @@ const isOn = (path: string, href: string, match: string[]) =>
 /** The tab bar at the bottom of a phone screen, and the sheet that the More tab opens. Hidden on a computer. */
 export default function PhoneNav() {
   const path = usePathname();
-  // The bank and Extract change the bank, so an on-the-go device leaves them out.
-  const more = useReadOnly() ? MORE.filter((m) => m.href !== "/bank" && m.href !== "/extract") : MORE;
+  // Extract changes the bank, so an on-the-go device leaves it out. The bank stays: it can be looked through.
+  const more = useReadOnly() ? MORE.filter((m) => m.href !== "/extract") : MORE;
   // The page the sheet was opened on. Moving to another page closes it.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === path;

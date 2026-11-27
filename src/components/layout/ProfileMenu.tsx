@@ -18,9 +18,9 @@ const ITEMS = [
 /** The profile button and the floating menu that opens under it. */
 export default function ProfileMenu() {
   const path = usePathname();
-  // The bank and Extract change the bank, so an on-the-go device leaves them out.
+  // Extract changes the bank, so an on-the-go device leaves it out. The bank stays, view only.
   const readOnly = useReadOnly();
-  const items = readOnly ? ITEMS.filter((i) => i.href !== "/bank" && i.href !== "/extract") : ITEMS;
+  const items = readOnly ? ITEMS.filter((i) => i.href !== "/extract") : ITEMS;
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);

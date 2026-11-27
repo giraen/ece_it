@@ -41,6 +41,8 @@ interface Props {
   remove: { label: "Delete" | "Discard"; ask: boolean; run: (ids: string[]) => Promise<Undo> };
   /** Moving to a deck and subject. Left out where moving is done elsewhere. */
   move?: { nodes: TreeNode[]; run: (ids: string[], place: CardPlace) => Promise<Undo> };
+  /** Joining the selected cards into one card with variants. `first` is the prompt of the card that is kept. */
+  join?: { first: string; run: () => Promise<Undo> };
   toast: Toast | null;
   say: (message: string, undo: Undo) => void;
   dismiss: () => void;
@@ -67,11 +69,12 @@ export default function CardBar({
   onRemoveTag,
   remove,
   move,
+  join,
   toast,
   say,
   dismiss,
 }: Props) {
-  const [open, setOpen] = useState<"tags" | "move" | null>(null);
+  const [open, setOpen] = useState<"tags" | "move" | "join" | null>(null);
   const [asking, setAsking] = useState(false);
   const [draft, setDraft] = useState("");
   const [active, setActive] = useState(-1);
@@ -177,6 +180,15 @@ export default function CardBar({
     setOpen(null);
     const name = (id: string) => move.nodes.find((x) => x.id === id)?.name ?? "";
     say(`Moved ${plural(n)} to ${subject ? `${name(deck)} › ${name(subject)}` : name(deck)}`, undo);
+  }
+
+  async function joinUp() {
+    if (!join) return;
+    const count = n;
+    const undo = await join.run();
+    setOpen(null);
+    onClear();
+    say(`${count} cards joined into one with ${count} variants`, undo);
   }
 
   const categories = (move?.nodes ?? [])
@@ -307,6 +319,35 @@ export default function CardBar({
                         </div>
                         <button className="btn btn-primary mt-3" disabled={!deck} onClick={() => void moveTo()}>
                           Move {n}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {join && n >= 2 && (
+                  <div className="relative" data-card-pop>
+                    <button
+                      aria-expanded={open === "join"}
+                      aria-haspopup="dialog"
+                      className={`${btn} ${open === "join" ? "bg-accent-soft" : ""}`}
+                      onClick={() => setOpen(open === "join" ? null : "join")}
+                    >
+                      Make variants
+                    </button>
+                    {open === "join" && (
+                      <div role="dialog" aria-label="Make variants" className={`${pop} w-80 text-sm`}>
+                        <p className="mb-1 text-[11px] tracking-wide text-muted uppercase">Join {n} cards into one</p>
+                        <p>
+                          They become variants of the first card you picked, which keeps its place, box and history:
+                        </p>
+                        <p className="my-2 line-clamp-2 rounded-md bg-paper px-2 py-1.5 font-medium">{join.first}</p>
+                        <p className="text-xs text-muted">
+                          The others are removed as cards, so their own progress no longer counts. Their tags join the
+                          first card&apos;s.
+                        </p>
+                        <button className="btn btn-primary mt-3" onClick={() => void joinUp()}>
+                          Make {n} variants
                         </button>
                       </div>
                     )}

@@ -22,8 +22,19 @@ const NAV = [
   { href: "/activity", label: "Activity" },
 ];
 
-/** Pages for writing and organising questions. They need a big screen, so a phone shows a note instead. */
-const COMPUTER_ONLY = ["/bank", "/editor", "/extract", "/blueprint", "/concept", "/settings/sources", "/settings/tags", "/settings/duplicates"];
+/**
+ * Pages for writing and organising questions. They need a big screen, so a phone shows a note instead. The bank itself
+ * opens on a phone, view only (see `useBankViewOnly`).
+ */
+const COMPUTER_ONLY = [
+  "/editor",
+  "/extract",
+  "/blueprint",
+  "/concept",
+  "/settings/sources",
+  "/settings/tags",
+  "/settings/duplicates",
+];
 
 /** A quiz in progress fills the phone screen, with its own buttons at the bottom, so the tab bar is hidden. */
 const FULL_SCREEN = ["/quiz/play", "/activity/review"];

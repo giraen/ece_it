@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { CONFIG } from "@/lib/config";
+import { BOX_DAYS, LEARNED_DAYS, REMEMBERING_BOX, ROUND_LEVELS, SPREAD_DEFAULT_HOURS } from "@/lib/memory/schedule";
+import { DAILY_DEFAULT, START_DEFAULT } from "@/lib/memory/daily";
 import { formatPercent } from "@/lib/format";
 import {
   ChoicesDemo,
@@ -29,6 +31,9 @@ const SECTIONS = [
   { id: "choices", label: "Choices and wrong answers" },
   { id: "sources", label: "References and sources" },
   { id: "concepts", label: "Concepts and AI drafts" },
+  { id: "extract", label: "Extract: pasting from Claude" },
+  { id: "memory", label: "Memory cards" },
+  { id: "activity", label: "Memory reviews" },
   { id: "quiz", label: "Taking a quiz" },
   { id: "practice", label: "Practice quizzes" },
   { id: "mock", label: "Mock boards" },
@@ -132,24 +137,26 @@ export default function HelpPage() {
             <Btn>Help</Btn> page.
           </P>
           <P>
-            On a phone, the tabs at the bottom open <Btn>Home</Btn>, <Btn>Quiz</Btn>, <Btn>Progress</Btn>, and{" "}
-            <Btn>More</Btn>. You can take quizzes and see your progress there. Writing and organising questions (the
-            Bank, Extract, the editor, and blueprints) needs a computer. To have the same bank on both, turn on{" "}
-            <Btn>Sync</Btn> in Settings on your computer, then scan its QR code with your phone. After that a finished
-            quiz, an edit, or a setting on either one reaches the other by itself.
+            On a phone, the tabs at the bottom open <Btn>Home</Btn>, <Btn>Quiz</Btn>, <Btn>Activity</Btn>, and{" "}
+            <Btn>More</Btn>. You can take quizzes, review memory cards and see your progress there, and look through the
+            Bank, which is view only on a phone. Writing and organising questions and cards (Extract, the editor, and
+            blueprints) needs a computer. To have the same bank on both, turn on <Btn>Sync</Btn> in Settings on your
+            computer, then scan its QR code with your phone. After that a finished quiz, an edit, or a setting on either
+            one reaches the other by itself.
           </P>
         </Section>
 
         <Section id="bank" title="The Bank">
           <P>
-            The Bank is where everything you own lives. Questions and Concepts have a tab each. The tree on the left
-            decides where things are filed.
+            The Bank is where everything you own lives. Questions, Concepts and Memory have a tab each. The tree on the
+            left decides where things are filed.
           </P>
           <TreeStill />
           <Points>
             <li>
-              Hover a row to see its buttons: <Btn>+</Btn> adds a subject or topic inside it, <Btn>✎</Btn> renames, the
-              arrows move it up or down, and <Btn>✕</Btn> deletes it. You are asked before anything is deleted.
+              Hover a row to see its buttons: <Btn>+</Btn> adds a subject or topic inside it, <Btn>✎</Btn> renames it in
+              a window wide enough to read a long name, the arrows move it up or down, and <Btn>✕</Btn> deletes it. You
+              are asked before anything is deleted.
             </li>
             <li>
               A subject can sit in more than one category, when two categories cover it. It is marked{" "}
@@ -163,6 +170,28 @@ export default function HelpPage() {
             <li>
               The tag row has <Btn>Untagged</Btn>, which shows the questions that have no tag so they are easy to find.
               Under a tag such as <code>solving</code>, the questions that have only that kind of tag come first.
+            </li>
+            <li>
+              <Btn>Source</Btn> shows the questions from one book or site, the ones with a reference typed by hand, or
+              the ones with none. Only sources that have questions in view are listed.
+            </li>
+            <li>
+              Tick questions to change many at once. The bar at the bottom moves them to another topic, changes their
+              tags or source, or deletes them, and each change can be undone. Bank › Memory has the same bar for cards,
+              with <Btn>Make variants</Btn> as well (see{" "}
+              <a href="#memory" className="underline">
+                Memory cards
+              </a>
+              ).
+            </li>
+            <li>
+              In Settings, <Btn>Tags</Btn> renames or merges a tag everywhere, on questions and cards alike, and{" "}
+              <Btn>Possible duplicates</Btn> lists questions or cards that look alike, with how similar they are, so you
+              can keep one.
+            </li>
+            <li>
+              On a phone, or on an on-the-go device, the Bank is view only: tap a question to see its choices and
+              answer, or a card to see its answer and variants.
             </li>
           </Points>
         </Section>
@@ -335,6 +364,115 @@ export default function HelpPage() {
           </Points>
         </Section>
 
+        <Section id="extract" title="Extract: pasting from Claude">
+          <P>
+            Extract turns a PDF, pictures or notes into questions or memory cards without typing them. Open it from the
+            profile menu and pick <Btn>Questions</Btn> or <Btn>Memory cards</Btn>.
+          </P>
+          <Steps>
+            <li>
+              Press <Btn>Copy instructions for Claude</Btn>. They already list your categories, topics and tags, so
+              Claude files each item where it belongs.
+            </li>
+            <li>Paste them in a chat with Claude, with the file attached. Claude answers with one block of text.</li>
+            <li>
+              Paste that block in step 2 and press <Btn>Read it</Btn>. Nothing is added yet.
+            </li>
+            <li>
+              Check each item, fix what needs it, then add them one by one or with <Btn>Add all ready</Btn>.
+            </li>
+          </Steps>
+          <Points>
+            <li>
+              <strong>Questions</strong> carry a Topic line (a topic not in your bank yet can be created), optional Tags
+              and Ref lines, and an answer key at the end works too. One that looks like a question already in its topic
+              is marked <em>Already in this topic?</em>: Add all leaves it for you, and you can still add it. Symbols
+              count, so “a &lt; b” and “a = b” are different questions.
+            </li>
+            <li>
+              <strong>Memory cards</strong> carry a Kind, a Deck and Subject, three Wrong lines unless the answer is a
+              number, and optional Tags. An <code>Also:</code> line files the same card in another deck or subject too.
+              A <code>Variant of:</code> line, naming another card&apos;s prompt, adds the card as a variant of that one
+              instead of a new card; if that card is still waiting here, Add all ready adds it first.
+            </li>
+            <li>Everything waits on this device until you add or discard it, and discarding can be undone.</li>
+          </Points>
+        </Section>
+
+        <Section id="memory" title="Memory cards">
+          <P>
+            Memory cards are the facts to know by heart: constants, conversions, formulas, principles, definitions,
+            units and ranges. They live in Bank › Memory, filed by category (each category is a deck) and subject, and
+            you review them on <Btn>Activity</Btn>.
+          </P>
+          <Points>
+            <li>
+              A card has a prompt and an answer. A number answer, such as 2.998 × 10⁸ m/s, gets close wrong choices made
+              fresh in each review. Any other answer needs three wrong choices you write (or ask the AI for).
+            </li>
+            <li>
+              <strong>Shared:</strong> one card can be filed in more than one deck or subject, such as the charge of an
+              electron in Physics and in Electromagnetics. It is still one card with one schedule, and counts in each.
+            </li>
+            <li>
+              <strong>Variants</strong> ask the same fact other ways: a value in another unit (amu and kg), a law by its
+              statement, its name, or its formula. Add them in the card editor with <Btn>+ Add a variant</Btn>, or join
+              cards you already have: tick them in Bank › Memory and press <Btn>Make variants</Btn>. The first card you
+              ticked keeps its box and history; the others become its variants, and their own progress no longer counts.
+              Variants share one box. How they are reviewed is under{" "}
+              <a href="#activity" className="underline">
+                Memory reviews
+              </a>
+              .
+            </li>
+          </Points>
+        </Section>
+
+        <Section id="activity" title="Memory reviews">
+          <P>
+            Each deck on <Btn>Activity</Btn> is reviewed on its own, or several together as a <Btn>Mixed deck</Btn>. A
+            review is multiple choice with the same sureness buttons and keys as a quiz, and shows what each answer did
+            at the end.
+          </P>
+          <Points>
+            <li>
+              <strong>Boxes.</strong> A card climbs six boxes and comes back after {BOX_DAYS.join(", ")} days. Right and
+              sure moves it up a box. Right but unsure keeps it and brings it back sooner. Wrong sends it to box 1.
+              Right at the {BOX_DAYS[BOX_DAYS.length - 1]}-day box makes it <em>learned</em>, and a learned card comes
+              back every {Math.round(LEARNED_DAYS / 7)} weeks.
+            </li>
+            <li>
+              <strong>New cards.</strong> A deck opens with {START_DEFAULT} cards (a setting), and each card that
+              reaches box {REMEMBERING_BOX} opens one more. With an exam date set in Settings, extra cards open each day
+              so every card has come up three weeks before it.
+            </li>
+            <li>
+              <strong>Variants come in rounds.</strong> When a card with variants is due, its first variant comes in
+              your next review, and the others are spread evenly over the next {SPREAD_DEFAULT_HOURS} hours (a setting).
+              Activity lists the ones waiting under <em>Later today</em>; <Btn>Take now</Btn> brings one sooner, and{" "}
+              <Btn>Take all now</Btn> brings them all. Each round starts with the variant you missed last, or else the
+              one asked longest ago. When the last variant is answered, the share you got right moves the card:{" "}
+              {ROUND_LEVELS.map((l, i) => (
+                <span key={l.level}>
+                  {i > 0 && "; "}
+                  {l.min === 1 ? "all right" : l.min === 0 ? "less" : `${Math.round(l.min * 100)}% or more`}, {l.does}
+                </span>
+              ))}
+              .
+            </li>
+            <li>
+              <strong>The daily review</strong> is practice from every deck, apart from the deck reviews:{" "}
+              {DAILY_DEFAULT} cards a day unless you change it, about a quarter of them still locked, as a preview. A
+              right answer changes nothing. A miss sends a card back to box 1, due in its deck today; for a card with
+              variants it counts as one variant missed of them all. A card with variants shows one of them at random.
+            </li>
+            <li>
+              <strong>Incognito</strong> (the switch on Activity and Quiz) lets you review or quiz without anything
+              being recorded.
+            </li>
+          </Points>
+        </Section>
+
         <Section id="quiz" title="Taking a quiz">
           <P>
             Open <Btn>Quiz</Btn> and choose a topic, a subject, or a category. A topic or a subject opens the form
@@ -355,6 +493,20 @@ export default function HelpPage() {
             <li>
               A quiz in progress waits on the Quiz page with <Btn>Resume</Btn>. You can discard it, and then none of it
               is scored.
+            </li>
+            <li>
+              <strong>Covered choices.</strong> A solving problem starts with its choices covered, so you work out the
+              answer before you see them. Press <Btn>Show choices</Btn> or <Btn>Space</Btn>. Turn it off in Settings ›
+              Preferences, or set one question to always or never in its editor.
+            </li>
+            <li>
+              <strong>Incognito</strong> (the switch on the Quiz page) takes a quiz that is not recorded: no results,
+              mastery or locks.
+            </li>
+            <li>
+              <strong>Review before you retake.</strong> After a quiz fails, its form shows what you missed, and why
+              (sure but wrong, unprepared, careless, or not answered), next to the weak spots of that place from every
+              quiz. <Btn>Practise these</Btn> starts a practice quiz of them all.
             </li>
           </Points>
           <QuestionStill />
@@ -438,17 +590,18 @@ export default function HelpPage() {
           <ResultsStill />
           <Points>
             <li>
-              The results list every question with your answer, the right one, how sure you were, the time taken, and
-              the reference. You can show only the ones you got wrong, or lost credit on.
+              The results list every question with your answer, the right one, how sure you were, the time taken, its
+              tags, and the reference. You can show only the ones you got wrong, or lost credit on.
             </li>
             <li>
               <strong>Analytics</strong> (profile menu) has three tabs. <strong>Mastery</strong> shows every category,
               subject, and topic with its status and when it runs out. A red <strong>!</strong> on a row means something
               in it has expired, and an amber one means something runs out within 3 days. <strong>Analytics</strong>{" "}
               shows credit over time, your weakest topics, and how well your sureness matched your answers.{" "}
-              <strong>Strengths &amp; weak spots</strong> has short lists for each category, for tags or for single
-              questions: weakest, always sure, misconceptions (sure but wrong), unprepared (not sure or just guessed),
-              fastest, slowest, and careless (fast but wrong).
+              <strong>Strengths &amp; weak spots</strong> has short lists for everything, or <Btn>Within</Btn> one
+              category, subject or topic, ranked by subject, topic, tag or single question to match: weakest, always
+              sure, misconceptions (sure but wrong), unprepared (not sure or just guessed), fastest, slowest, and
+              careless (fast but wrong).
             </li>
             <li>
               <strong>Home</strong> shows what is next to quiz, how many topics are left, what expires soon, and your
@@ -467,8 +620,8 @@ export default function HelpPage() {
             device&apos;s changes. It runs by itself when you open the site, when you finish a quiz, a minute after
             other changes, and when you leave the site; the cloud button in the header syncs at once. Pictures are sent
             once each. Everything is encrypted on your device with the code before it is sent, so only devices that know
-            the code can read it. Your AI keys are not synced. The resets in the Danger zone only empty the device you do
-            them on, and turn sync off there first.
+            the code can read it. Your AI keys are not synced. The resets in the Danger zone only empty the device you
+            do them on, and turn sync off there first.
           </P>
           <P>
             Open <Btn>Settings</Btn> and find <strong>Backup and sharing</strong>.
@@ -519,7 +672,12 @@ export default function HelpPage() {
           <Points>
             <li>
               <strong>In a quiz</strong>: <Btn>A</Btn> to <Btn>H</Btn> pick a choice, <Btn>S</Btn> Sure, <Btn>W</Btn>{" "}
-              Wise guess, <Btn>N</Btn> Not sure, <Btn>J</Btn> Just guessed, <Btn>Enter</Btn> confirm.
+              Wise guess, <Btn>N</Btn> Not sure, <Btn>J</Btn> Just guessed, <Btn>Enter</Btn> confirm, and{" "}
+              <Btn>Space</Btn> shows covered choices.
+            </li>
+            <li>
+              <strong>In a memory review</strong>: the same keys, with <Btn>A</Btn> to <Btn>D</Btn> (or <Btn>1</Btn> to{" "}
+              <Btn>4</Btn>) for the choices.
             </li>
             <li>
               <strong>In a text box</strong>: Ctrl+B bold, Ctrl+I italic. Press Enter in a list to continue it, and Tab

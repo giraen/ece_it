@@ -48,3 +48,11 @@ export function formatDateTime(ms: number): string {
     minute: "2-digit",
   });
 }
+/** A time later on: "4:00 PM" today, "tomorrow 8:00 AM", or "Nov 24, 8:00 AM". */
+export function formatLater(ms: number, nowMs: number): string {
+  const clock = new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const day = (t: number) => new Date(t).toDateString();
+  if (day(ms) === day(nowMs)) return clock;
+  if (day(ms) === day(nowMs + 86_400_000)) return `tomorrow ${clock}`;
+  return formatDateTime(ms);
+}

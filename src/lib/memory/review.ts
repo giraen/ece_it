@@ -4,8 +4,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, type CardEvent, type MemoryCard, type Sureness } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { loadExam } from "./exam";
-import { cardDecks, inDeck } from "./cards";
-import { DAILY_MAX, DAILY_MIN, START_MAX, START_MIN, answeredToday, loadStartCards } from "./daily";
+import { cardDecks, cardVariants, inDeck, variantCount } from "./cards";
+import { DAILY_MAX, DAILY_MIN, START_MAX, START_MIN, answeredToday, loadSpreadHours, loadStartCards } from "./daily";
 import {
   DAY,
   EMPTY_STATE,
@@ -13,11 +13,14 @@ import {
   cardStates,
   examPlan,
   isDue,
+  nextVariant,
   planUnlocks,
+  roundLevel,
   startOfDay,
   stageOf,
   type CardState,
   type ExamPlan,
+  type NextVariant,
 } from "./schedule";
 
 /** Everything a review needs, read once. */
@@ -28,16 +31,50 @@ export interface MemoryData {
   exam: ExamPlan | null;
   /** How many cards each deck opens with. */
   start: number;
+  /** How long a round of variants is spread over, in milliseconds. */
+  spreadMs: number;
 }
 
 export async function loadMemory(): Promise<MemoryData> {
-  const [cards, events, setting, start] = await Promise.all([
+  const [cards, events, setting, start, spread] = await Promise.all([
     db.cards.filter((c) => !c.deletedAt).toArray(),
     db.cardEvents.toArray(),
     loadExam(),
     loadStartCards(),
+    loadSpreadHours(),
   ]);
-  return { cards, events, states: cardStates(events), exam: examPlan(setting.month, setting.date), start };
+  return {
+    cards,
+    events,
+    states: cardStates(events),
+    exam: examPlan(setting.month, setting.date),
+    start,
+    spreadMs: spread * 3_600_000,
+  };
+}
+
+/** The variant a card asks next in a deck review, and from when. */
+export function nextOf(data: Pick<MemoryData, "states" | "spreadMs">, card: MemoryCard): NextVariant {
+  return nextVariant(
+    cardVariants(card).map((v) => v.id),
+    data.states.get(card.id),
+    data.spreadMs,
+  );
+}
+
+/** Due, and its next variant's time has come. A card without variants is ready whenever it is due. */
+export function isReady(data: Pick<MemoryData, "states" | "spreadMs">, card: MemoryCard, nowMs: number): boolean {
+  return isDue(data.states.get(card.id), nowMs) && nextOf(data, card).at <= nowMs;
+}
+
+/** A variant waiting for its time later in a round. */
+export interface Waiting {
+  card: MemoryCard;
+  variantId: string;
+  at: number;
+  /** Which of the round it is, from 1. */
+  n: number;
+  of: number;
 }
 
 /** The same, kept up to date. */
@@ -70,6 +107,8 @@ export interface DeckSummary {
   perDay: number | null;
   /** Of `fresh`, how many open early to keep pace with the exam. */
   extra: number;
+  /** Variants waiting for their time in a round, soonest first. They are not counted in `due`. */
+  later: Waiting[];
 }
 
 /**
@@ -92,17 +131,23 @@ export function summarize(data: MemoryData, deckIds: string | string[], nowMs: n
     if (plan.perDay !== null) perDay = (perDay ?? 0) + plan.perDay;
   }
   const s = { due: 0, fresh: opening.size, learned: 0, remembering: 0, open: 0, locked: -opening.size };
+  const later: Waiting[] = [];
   for (const c of cards) {
     const st = data.states.get(c.id);
     const stage = stageOf(st);
     if (stage === "locked") s.locked++;
     else s.open++;
     if (stage === "new") s.fresh++;
-    else if (stage !== "locked" && isDue(st, nowMs)) s.due++;
+    else if (stage !== "locked" && isDue(st, nowMs)) {
+      const next = nextOf(data, c);
+      if (next.at <= nowMs) s.due++;
+      else later.push({ card: c, variantId: next.variantId, at: next.at, n: next.index + 1, of: next.of });
+    }
     if (stage === "learned") s.learned++;
     if (stage === "remembering") s.remembering++;
   }
-  return { categoryIds: ids, total: cards.length, ...s, perDay, extra };
+  later.sort((a, b) => a.at - b.at);
+  return { categoryIds: ids, total: cards.length, ...s, perDay, extra, later };
 }
 
 function logUnlocks(cards: MemoryCard[], t: number): CardEvent[] {
@@ -120,6 +165,25 @@ export interface Session {
   daily?: boolean;
   /** In the daily review, the locked cards brought in as a preview. */
   locked?: string[];
+  /** For cards with variants: the variant each one asks, by card id. */
+  variants: Record<string, string>;
+}
+
+/** Which variant each card asks: the next of its round in a deck review. */
+function deckVariants(data: MemoryData, ids: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const id of ids) {
+    const card = data.cards.find((c) => c.id === id);
+    if (card && variantCount(card) > 1) out[id] = nextOf(data, card).variantId;
+  }
+  return out;
+}
+
+export interface SessionOptions {
+  /** Waiting variants come too, without waiting for their time. */
+  takeNow?: boolean;
+  /** Only these cards, such as one waiting variant taken now. */
+  only?: string[];
 }
 
 /**
@@ -129,16 +193,28 @@ export interface Session {
  * Incognito, nothing opens and nothing is written: every card already unlocked comes up, the due ones first, then
  * the rest by when they would be due.
  */
-export async function startSession(categoryIds: string[], incognito = false): Promise<Session> {
+export async function startSession(
+  categoryIds: string[],
+  incognito = false,
+  options: SessionOptions = {},
+): Promise<Session> {
   const t = now();
   const data = await loadMemory();
+  const only = options.only?.length ? new Set(options.only) : null;
+  // Taking a waiting variant now: it is due already, only its time in the round is ahead.
+  const ready = (c: MemoryCard) => (options.takeNow || only ? isDue(data.states.get(c.id), t) : isReady(data, c, t));
+  if (only) {
+    const queue = data.cards.filter((c) => only.has(c.id) && ready(c)).map((c) => c.id);
+    return { queue, opened: 0, extra: 0, variants: deckVariants(data, queue) };
+  }
   if (incognito) {
     const open = data.cards.filter(
       (c) => categoryIds.some((id) => inDeck(c, id)) && stageOf(data.states.get(c.id)) !== "locked",
     );
     const dueAt = (c: MemoryCard) => data.states.get(c.id)?.dueAt ?? 0;
     open.sort((a, b) => dueAt(a) - dueAt(b) || a.categoryId.localeCompare(b.categoryId) || a.order - b.order);
-    return { queue: open.map((c) => c.id), opened: 0, extra: 0 };
+    const queue = open.map((c) => c.id);
+    return { queue, opened: 0, extra: 0, variants: deckVariants(data, queue) };
   }
   let opened = 0;
   let extra = 0;
@@ -158,7 +234,7 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
 
   const inDecks = data.cards.filter((c) => categoryIds.some((id) => inDeck(c, id)));
   const seen = inDecks
-    .filter((c) => stageOf(states.get(c.id)) !== "new" && isDue(states.get(c.id), t))
+    .filter((c) => stageOf(states.get(c.id)) !== "new" && ready(c))
     .sort((a, b) => (states.get(a.id)!.dueAt ?? 0) - (states.get(b.id)!.dueAt ?? 0));
   const fresh = inDecks
     .filter((c) => stageOf(states.get(c.id)) === "new")
@@ -169,7 +245,8 @@ export async function startSession(categoryIds: string[], incognito = false): Pr
   const byDeck = categoryIds.map((id) => fresh.filter((c) => deckOf(c) === id));
   const interleaved: MemoryCard[] = [];
   for (let i = 0; byDeck.some((d) => i < d.length); i++) for (const d of byDeck) if (d[i]) interleaved.push(d[i]);
-  return { queue: [...seen, ...interleaved].map((c) => c.id), opened, extra };
+  const queue = [...seen, ...interleaved].map((c) => c.id);
+  return { queue, opened, extra, variants: deckVariants({ ...data, states }, queue) };
 }
 
 /** About this share of a daily review is locked cards, as a preview of what is coming. */
@@ -231,12 +308,16 @@ export async function startDaily(size: number, incognito = false, more = false):
   picked.push(...shuffled(open.filter((c) => !taken.has(c.id))).slice(0, nOpen - half));
 
   const preview = locked.slice(0, nLocked);
+  // A card with variants asks one of them at random: practice, so no round.
+  const variants: Record<string, string> = {};
+  for (const c of [...picked, ...preview]) if (variantCount(c) > 1) variants[c.id] = shuffled(cardVariants(c))[0].id;
   return {
     queue: shuffled([...picked, ...preview]).map((c) => c.id),
     opened: 0,
     extra: 0,
     daily: true,
     locked: preview.map((c) => c.id),
+    variants,
   };
 }
 
@@ -251,11 +332,30 @@ export interface AnswerResult {
   recorded: boolean;
   /** Answered in the daily review. */
   daily: boolean;
+  /** For a card with variants, in a deck review: how its round stands after this answer. */
+  round?: RoundResult;
+  /** For a card with variants: how many it has. */
+  variants?: number;
+}
+
+export interface RoundResult {
+  /** Answered so far in the round, this one included, and right of those. */
+  answered: number;
+  right: number;
+  of: number;
+  /** The round is complete and has moved the card. */
+  settled: boolean;
+  /** For a settled round, how it went. */
+  level?: ReturnType<typeof roundLevel>;
+  /** For a round under way, when the next variant comes. */
+  nextAt?: number;
 }
 
 /** Saves one answer, and opens a new card in the deck when this one reached box 3 for the first time. */
 export async function answerCard(
   card: MemoryCard,
+  /** The variant asked: the card's own id for its first one. */
+  variantId: string,
   correct: boolean,
   sureness: Sureness,
   picked: string,
@@ -277,12 +377,23 @@ export async function answerCard(
     sureness,
     picked,
     ...(daily ? { daily: true } : {}),
+    ...(variantCount(card) > 1 ? { variantId, variants: variantCount(card) } : {}),
     updatedAt: t,
   };
   const events = [...data.events, event];
   const states = cardStates(events);
   const before = data.states.get(card.id) ?? EMPTY_STATE;
   const after = states.get(card.id)!;
+
+  let round: RoundResult | undefined;
+  if (variantCount(card) > 1 && !daily) {
+    const so = [...(before.round?.answers.filter((a) => a.variantId !== variantId) ?? []), { correct }];
+    const right = so.filter((a) => a.correct).length;
+    const of = variantCount(card);
+    round = after.round
+      ? { answered: so.length, right, of, settled: false, nextAt: nextOf({ ...data, states }, card).at }
+      : { answered: so.length, right, of, settled: true, level: roundLevel(right, Math.max(of, so.length)) };
+  }
 
   let opened: MemoryCard[] = [];
   if (after.reachedRemembering && !before.reachedRemembering) {
@@ -292,7 +403,8 @@ export async function answerCard(
     opened = planUnlocks(deck, states, null, t, 0, data.start).cards.slice(0, 1);
   }
   await db.cardEvents.bulkPut([event, ...logUnlocks(opened, t)]);
-  return { correct, sureness, before, after, opened, recorded: true, daily };
+  const variants = variantCount(card) > 1 ? variantCount(card) : undefined;
+  return { correct, sureness, before, after, opened, recorded: true, daily, round, variants };
 }
 
 /** Suggested settings, worked out from the exam date and the cards still to open. */

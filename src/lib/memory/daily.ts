@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type CardEvent } from "@/lib/db";
 import { now } from "@/lib/ids";
-import { startOfDay } from "./schedule";
+import { SPREAD_DEFAULT_HOURS, startOfDay } from "./schedule";
 
 /**
  * The daily review: a goal of answering a number of memory cards a day, from every deck, as practice on the side of
@@ -63,5 +63,31 @@ export function useStartCards(): number | undefined {
 export async function saveStartCards(n: number): Promise<number> {
   const value = Number.isFinite(n) ? clampStart(n) : START_DEFAULT;
   await db.settings.put({ id: START_KEY, value, updatedAt: now() });
+  return value;
+}
+
+/**
+ * How many hours a card's variants are spread over, from the first one of a round: with 4 hours, 2 variants come 4
+ * hours apart and 3 come 2 hours apart. A waiting variant can always be taken sooner from Activity.
+ */
+const SPREAD_KEY = "variantSpreadHours";
+export const SPREAD_MIN = 1;
+export const SPREAD_MAX = 12;
+
+const clampSpread = (n: number) => Math.min(SPREAD_MAX, Math.max(SPREAD_MIN, Math.round(n)));
+
+export async function loadSpreadHours(): Promise<number> {
+  const row = await db.settings.get(SPREAD_KEY);
+  const n = row && !row.deletedAt ? Number(row.value) : NaN;
+  return Number.isFinite(n) ? clampSpread(n) : SPREAD_DEFAULT_HOURS;
+}
+
+export function useSpreadHours(): number | undefined {
+  return useLiveQuery(() => loadSpreadHours(), []);
+}
+
+export async function saveSpreadHours(n: number): Promise<number> {
+  const value = Number.isFinite(n) ? clampSpread(n) : SPREAD_DEFAULT_HOURS;
+  await db.settings.put({ id: SPREAD_KEY, value, updatedAt: now() });
   return value;
 }

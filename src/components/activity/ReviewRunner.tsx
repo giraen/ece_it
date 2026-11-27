@@ -7,7 +7,8 @@ import { useNodes, useNow } from "@/lib/hooks";
 import { answerCard, startDaily, startSession, useMemory, type AnswerResult, type Session } from "@/lib/memory/review";
 import { loadDailySize } from "@/lib/memory/daily";
 import { reviewChoices, type ReviewChoice } from "@/lib/memory/choices";
-import { KIND_LABEL } from "@/lib/memory/cards";
+import { KIND_LABEL, asVariant, variantNumber } from "@/lib/memory/cards";
+import { formatLater } from "@/lib/format";
 import { loadMix } from "@/lib/memory/mix";
 import { REMEMBERING_BOX, TOP_BOX, stageOf, whenText, type CardState } from "@/lib/memory/schedule";
 import { SURENESS_LABEL, SURENESS_ORDER } from "@/lib/quiz/scoring";
@@ -44,9 +45,57 @@ function boxLabel(s: CardState | undefined) {
   return `Box ${s.box} of ${TOP_BOX}`;
 }
 
+const pct = (right: number, of: number) => `${Math.round((right / of) * 100)}%`;
+
 /** What one answer did, in words: a short title, its colour, a line, and the box the card is in now. */
 function outcome(r: AnswerResult, nowMs: number): { title: string; tone: string; line: React.ReactNode; box: number } {
   const { before, after } = r;
+  const round = r.recorded ? r.round : undefined;
+  if (round && !round.settled) {
+    return {
+      title: r.correct ? "Correct" : "Not this time",
+      tone: r.correct ? "text-good" : "text-danger",
+      box: before.box,
+      line: (
+        <>
+          Variant {round.answered} of {round.of} of this round, {round.right} right so far. The card stays{" "}
+          <strong>{before.learned ? "learned" : `in box ${Math.max(1, before.box)}`}</strong> until the round is done;
+          the next variant comes <strong>{round.nextAt ? formatLater(round.nextAt, nowMs) : "later"}</strong>.
+        </>
+      ),
+    };
+  }
+  if (round?.settled && round.level) {
+    const when = after.dueAt ? whenText(after.dueAt, nowMs) : "";
+    const all = round.right >= round.of;
+    const from = before.learned ? "Learned" : `Box ${Math.max(1, before.box)}`;
+    const to = after.learned ? "learned" : `box ${after.box}`;
+    return {
+      title: `Round done: ${round.level.label}`,
+      tone: all ? "text-good" : round.level.level === "shaky" ? "text-priority" : "text-danger",
+      box: after.box,
+      line: (
+        <>
+          {round.right} of {round.of} variants right ({pct(round.right, round.of)}): {from} → <strong>{to}</strong>.
+          Back <strong>{when}</strong>.
+        </>
+      ),
+    };
+  }
+  if (r.recorded && r.daily && r.variants && !r.correct && before.unlocked) {
+    const same = after.box === before.box;
+    return {
+      title: "Not this time",
+      tone: "text-danger",
+      box: after.box,
+      line: (
+        <>
+          One variant of {r.variants} missed, so it {same ? "stays in" : "drops to"} <strong>box {after.box}</strong>,
+          and is due now: its whole round comes up in its deck&apos;s review today.
+        </>
+      ),
+    };
+  }
   if (r.recorded && r.daily) {
     if (r.correct)
       return {
@@ -165,7 +214,10 @@ function outcome(r: AnswerResult, nowMs: number): { title: string; tone: string;
 
 /** One answered card, kept for the results at the end. */
 interface Answered {
+  /** The card as it was asked: the variant's prompt and answer. */
   card: MemoryCard;
+  /** For a card with variants: which one, and of how many. */
+  variant?: { n: number; of: number };
   picked: string;
   answer: string;
   r: AnswerResult;
@@ -226,6 +278,11 @@ function ReviewResults({ log, nowMs }: { log: Answered[]; nowMs: number }) {
                   {l.r.daily && !l.r.before.unlocked && (
                     <span className="rounded-full border border-line px-2 py-0.5 text-muted">Preview</span>
                   )}
+                  {l.variant && (
+                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-accent">
+                      Variant {l.variant.n} of {l.variant.of}
+                    </span>
+                  )}
                 </div>
                 <RichText text={l.card.prompt} className="font-medium" />
                 <div
@@ -258,10 +315,14 @@ interface Props {
   deck: string;
   /** For the daily review: another whole round, after today's goal is met. */
   more?: boolean;
+  /** Variants waiting for their time come now too. */
+  takeNow?: boolean;
+  /** Only these cards, such as one waiting variant taken now. */
+  only?: string[];
 }
 
 /** A memory review: one card at a time, multiple choice, with how sure you are. */
-export default function ReviewRunner({ deck, more = false }: Props) {
+export default function ReviewRunner({ deck, more = false, takeNow = false, only }: Props) {
   const nodes = useNodes();
   const data = useMemory();
   const nowMs = useNow();
@@ -290,33 +351,40 @@ export default function ReviewRunner({ deck, more = false }: Props) {
       const off = loadIncognito();
       let s: Session;
       if (deck === "daily") s = await startDaily(await loadDailySize(), off, more);
+      else if (only?.length) s = await startSession([], off, { only });
       else {
         const decks = deck === "mixed" ? (loadMix() ?? []) : [deck];
         if (!decks.length) {
           setProblem("Choose the categories for your mixed deck first.");
           return;
         }
-        s = await startSession(decks, off);
+        s = await startSession(decks, off, { takeNow, only });
       }
       setIncognito(off);
       const card = s.queue.length ? await db.cards.get(s.queue[0]) : undefined;
-      if (card) setChoices(reviewChoices(card));
+      if (card) setChoices(reviewChoices(asVariant(card, s.variants[card.id])));
       setSession(s);
     })();
-  }, [ready, deck, more]);
+    // `only` is read once, as the review starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, deck, more, takeNow]);
 
   const card: MemoryCard | undefined = session ? cardById.get(session.queue[index]) : undefined;
+  // The card as this review asks it: one of its variants, for a card that has them.
+  const asked = card && session ? asVariant(card, session.variants[card.id]) : undefined;
+  const variant = card && session?.variants[card.id] ? variantNumber(card, session.variants[card.id]) : undefined;
   const done = !!session && index >= session.queue.length;
 
   /** Saves the answer and goes straight to the next card, as a quiz does. What it did is shown at the end. */
   async function submit() {
-    if (!card || !session || picked === null || !sureness || busy) return;
+    if (!card || !asked || !session || picked === null || !sureness || busy) return;
     setBusy(true);
     try {
       const choice = choices[picked];
-      const r = await answerCard(card, choice.correct, sureness, choice.text, incognito, !!session.daily);
-      const answer = choices.find((c) => c.correct)?.text ?? card.answer;
-      setLog((l) => [...l, { card, picked: choice.text, answer, r }]);
+      const variantId = session.variants[card.id] ?? card.id;
+      const r = await answerCard(card, variantId, choice.correct, sureness, choice.text, incognito, !!session.daily);
+      const answer = choices.find((c) => c.correct)?.text ?? asked.answer;
+      setLog((l) => [...l, { card: asked, variant, picked: choice.text, answer, r }]);
       setScore((s) => ({
         right: s.right + (choice.correct ? 1 : 0),
         wrong: s.wrong + (choice.correct ? 0 : 1),
@@ -333,7 +401,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
       setIndex(i);
       setPicked(null);
       setSureness(null);
-      if (nextCard) setChoices(reviewChoices(nextCard));
+      if (nextCard) setChoices(reviewChoices(asVariant(nextCard, session.variants[nextCard.id])));
     } finally {
       setBusy(false);
     }
@@ -376,9 +444,18 @@ export default function ReviewRunner({ deck, more = false }: Props) {
   if (!nodes || !data || !session) return <LoadingScreen />;
 
   const catOf = (id: string): TreeNode | undefined => nodes.find((n) => n.id === id);
-  const title = deck === "daily" ? "Daily review" : deck === "mixed" ? "Mixed deck" : (catOf(deck)?.name ?? "Memory");
+  const title =
+    deck === "daily"
+      ? "Daily review"
+      : deck === "mixed"
+        ? "Mixed deck"
+        : deck === "later"
+          ? "Variants taken now"
+          : (catOf(deck)?.name ?? "Memory");
   const previewCount = session.locked?.length ?? 0;
   const total = session.queue.length;
+  // Rounds left under way: their next variants come later.
+  const waiting = log.filter((l) => l.r.round && !l.r.round.settled && l.r.round.nextAt);
 
   const header = (
     <header className="flex items-center gap-2 py-2">
@@ -442,6 +519,14 @@ export default function ReviewRunner({ deck, more = false }: Props) {
                 ` ${previewCount === 1 ? "One card was" : `${previewCount} cards were`} still locked, as a preview.`}
             </p>
           )}
+          {waiting.length > 0 && (
+            <p className="text-sm text-muted">
+              {waiting.length === 1 ? "One card's" : `${waiting.length} cards'`} next variant{" "}
+              {waiting.length === 1 ? "comes" : "come"} later, from{" "}
+              {formatLater(Math.min(...waiting.map((l) => l.r.round!.nextAt!)), nowMs)}. Activity shows when, and can
+              take {waiting.length === 1 ? "it" : "them"} sooner.
+            </p>
+          )}
           {session.extra > 0 && (
             <p className="text-sm text-muted">
               {session.extra} extra new card{session.extra === 1 ? "" : "s"} came up today to keep pace with the exam.
@@ -456,8 +541,10 @@ export default function ReviewRunner({ deck, more = false }: Props) {
     );
   }
 
-  if (!card) return <LoadingScreen />;
+  if (!card || !asked) return <LoadingScreen />;
   const state = data.states.get(card.id);
+  // The round so far, as dots: answered right, missed, this one, and still to come.
+  const roundSoFar = !session.daily && variant ? (state?.round?.answers ?? []) : [];
   const cat = catOf(card.categoryId);
   const key = categoryKey(cat?.name);
 
@@ -483,6 +570,26 @@ export default function ReviewRunner({ deck, more = false }: Props) {
         ) : (
           <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">{boxLabel(state)}</span>
         )}
+        {variant && (
+          <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs text-accent">
+            Variant {session.daily ? `${variant.n} of ${variant.of}` : `${roundSoFar.length + 1} of ${variant.of}`}
+          </span>
+        )}
+        {variant && !session.daily && (
+          <span className="ml-auto flex items-center gap-1" role="img" aria-label="This round so far">
+            {Array.from({ length: variant.of }, (_, i) => {
+              const a = roundSoFar[i];
+              const look = a
+                ? a.correct
+                  ? "bg-good"
+                  : "bg-danger"
+                : i === roundSoFar.length
+                  ? "border-2 border-accent"
+                  : "bg-track";
+              return <span key={i} className={`size-2.5 rounded-full ${look}`} />;
+            })}
+          </span>
+        )}
       </div>
 
       {notice && (
@@ -490,7 +597,7 @@ export default function ReviewRunner({ deck, more = false }: Props) {
           {notice}
         </p>
       )}
-      <RichText text={card.prompt} className="text-xl leading-snug font-semibold" />
+      <RichText text={asked.prompt} className="text-xl leading-snug font-semibold" />
 
       <div role="radiogroup" aria-label="Choices" className="flex flex-col gap-2.5">
         {choices.map((c, i) => {

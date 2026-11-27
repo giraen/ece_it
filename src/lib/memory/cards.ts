@@ -1,7 +1,7 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type CardKind, type CardPlace, type MemoryCard, type TreeNode } from "@/lib/db";
+import { db, type CardKind, type CardPlace, type CardVariant, type MemoryCard, type TreeNode } from "@/lib/db";
 import { newId, now } from "@/lib/ids";
 import { isNumberAnswer } from "./answer";
 import { normalizeTags } from "@/lib/bank/questions";
@@ -57,6 +57,25 @@ export const inDeck = (card: MemoryCard, deckId: string): boolean =>
 export const inSubject = (card: MemoryCard, subjectId: string, byId: Map<string, TreeNode>): boolean =>
   cardSubject(card, byId) === subjectId || (card.also ?? []).some((p) => p.subjectId === subjectId);
 
+/** A card's variants, its own prompt and answer first (with the card's id). A card without variants has just that one. */
+export function cardVariants(card: MemoryCard): CardVariant[] {
+  return [{ id: card.id, prompt: card.prompt, answer: card.answer, wrong: card.wrong }, ...(card.variants ?? [])];
+}
+
+export const variantCount = (card: MemoryCard): number => 1 + (card.variants?.length ?? 0);
+
+/** The card as one of its variants asks it: that variant's prompt, answer and wrong choices, the rest the card's. */
+export function asVariant(card: MemoryCard, variantId: string | undefined): MemoryCard {
+  const v = variantId && variantId !== card.id ? card.variants?.find((x) => x.id === variantId) : undefined;
+  return v ? { ...card, prompt: v.prompt, answer: v.answer, wrong: v.wrong } : card;
+}
+
+/** Which variant it is, from 1, and of how many. */
+export function variantNumber(card: MemoryCard, variantId: string | undefined): { n: number; of: number } {
+  const ids = cardVariants(card).map((v) => v.id);
+  return { n: Math.max(0, ids.indexOf(variantId ?? card.id)) + 1, of: ids.length };
+}
+
 export const KIND_LABEL = Object.fromEntries(CARD_KINDS.map((k) => [k.id, k.label])) as Record<CardKind, string>;
 
 /** How many wrong choices a review shows next to the answer. */
@@ -67,9 +86,21 @@ export function useCards(): MemoryCard[] | undefined {
   return useLiveQuery(() => db.cards.filter((c) => !c.deletedAt).toArray(), []);
 }
 
-/** Why a card cannot be saved yet, or null when it is ready. */
-export function cardProblem(c: Pick<MemoryCard, "prompt" | "answer" | "wrong" | "categoryId">): string | null {
+/** Why a card cannot be saved yet, or null when it is ready. Each variant is checked the same way. */
+export function cardProblem(
+  c: Pick<MemoryCard, "prompt" | "answer" | "wrong" | "categoryId"> & { variants?: CardVariant[] },
+): string | null {
   if (!c.categoryId) return "Choose a deck.";
+  const own = variantProblem(c);
+  if (own) return own;
+  for (const [i, v] of (c.variants ?? []).entries()) {
+    const p = variantProblem(v);
+    if (p) return `Variant ${i + 2}: ${p.charAt(0).toLowerCase()}${p.slice(1)}`;
+  }
+  return null;
+}
+
+function variantProblem(c: Pick<MemoryCard, "prompt" | "answer" | "wrong">): string | null {
   if (!c.prompt.trim()) return "Write the prompt.";
   if (!c.answer.trim()) return "Write the answer.";
   if (isNumberAnswer(c.answer)) return null;
@@ -111,6 +142,7 @@ export async function saveCard(input: CardInput): Promise<MemoryCard> {
     topicId: undefined,
     also: sharedPlaces(input),
     wrong: isNumberAnswer(input.answer) ? [] : input.wrong.map((w) => w.trim()).filter(Boolean),
+    variants: cleanVariants(input.variants),
   };
   return db.transaction("rw", db.cards, async () => {
     const old = input.id ? await db.cards.get(input.id) : undefined;
@@ -129,6 +161,60 @@ export async function saveCard(input: CardInput): Promise<MemoryCard> {
     const card: MemoryCard = { ...clean, id: newId(), order: last + 1, createdAt: t, updatedAt: t };
     await db.cards.put(card);
     return card;
+  });
+}
+
+/** Variants ready to save: trimmed, a number answer with no written wrong choices, blank ones left out. */
+function cleanVariants(list: CardVariant[] | undefined): CardVariant[] | undefined {
+  const out = (list ?? [])
+    .map((v) => ({
+      id: v.id || newId(),
+      prompt: v.prompt.trim(),
+      answer: v.answer.trim(),
+      wrong: isNumberAnswer(v.answer) ? [] : v.wrong.map((w) => w.trim()).filter(Boolean),
+    }))
+    .filter((v) => v.prompt || v.answer);
+  return out.length ? out : undefined;
+}
+
+/**
+ * Joins cards into one card with variants. The first keeps its place, box and history; the others (and any variants
+ * they had) become its variants, and are deleted as cards, so their own history no longer counts. Their tags join the
+ * first card's. Returns the card kept.
+ */
+export async function makeVariants(ids: string[]): Promise<MemoryCard | undefined> {
+  const t = now();
+  return db.transaction("rw", db.cards, async () => {
+    const list = (await snapshotCards(ids)).filter((c) => !c.deletedAt);
+    const [main, ...rest] = ids.map((id) => list.find((c) => c.id === id)).filter((c): c is MemoryCard => !!c);
+    if (!main || !rest.length) return main;
+    const have = new Set(cardVariants(main).map((v) => v.id));
+    const added = rest.flatMap(cardVariants).filter((v) => !have.has(v.id));
+    const next: MemoryCard = {
+      ...main,
+      variants: [...(main.variants ?? []), ...added],
+      tags: normalizeTags([...(main.tags ?? []), ...rest.flatMap((c) => c.tags ?? [])]),
+      updatedAt: t,
+    };
+    if (!next.tags?.length) delete next.tags;
+    await db.cards.bulkPut([next, ...rest.map((c) => ({ ...c, deletedAt: t, updatedAt: t }))]);
+    return next;
+  });
+}
+
+/** Adds one variant to a card, with any tags it brings. */
+export async function addVariant(
+  cardId: string,
+  v: Pick<CardVariant, "prompt" | "answer" | "wrong">,
+  tags: string[] = [],
+): Promise<void> {
+  const t = now();
+  await db.transaction("rw", db.cards, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card || card.deletedAt) return;
+    const variants = cleanVariants([...(card.variants ?? []), { id: newId(), ...v }]);
+    const allTags = normalizeTags([...(card.tags ?? []), ...tags]);
+    await db.cards.put({ ...card, variants, ...(allTags.length ? { tags: allTags } : {}), updatedAt: t });
   });
 }
 

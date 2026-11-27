@@ -7,7 +7,7 @@ import { normalizeTags } from "@/lib/bank/questions";
 import { categoriesOf } from "@/lib/bank/tree";
 import { createNode } from "@/lib/bank/nodes";
 import { isNumberAnswer } from "./answer";
-import { CARD_KINDS, WRONG_CHOICES, cardProblem, saveCard } from "./cards";
+import { CARD_KINDS, WRONG_CHOICES, addVariant, cardProblem, cardVariants, saveCard } from "./cards";
 
 /**
  * Extract for memory cards: Claude reads your notes or a page and writes every fact worth memorising in a set
@@ -35,7 +35,23 @@ Subject: Electromagnetics
 Wrong: $\\delta = 1/\\sqrt{2\\pi f \\mu \\sigma}$
 Wrong: $\\delta = \\sqrt{\\pi f \\mu \\sigma}$
 Wrong: $\\delta = 1/\\sqrt{\\pi f \\mu / \\sigma}$
-Tags: skin effect`;
+Tags: skin effect
+
+Card: Newton's first law of motion
+Answer: A body stays at rest or in uniform motion unless a net force acts on it.
+Kind: Principle
+Deck: GEAS
+Subject: Physics
+Wrong: A body accelerates in the direction of the net force acting on it.
+Wrong: Every action has an equal and opposite reaction.
+Wrong: A body stays at rest or in uniform motion only while a net force acts on it.
+
+Card: Newton's first law is also called the law of
+Answer: Inertia
+Variant of: Newton's first law of motion
+Wrong: Acceleration
+Wrong: Reaction
+Wrong: Momentum`;
 
 export const CARD_INSTRUCTIONS = `From the attached notes or pages, pull out every fact worth memorising for a board exam: constants, unit conversions, formulas, principles (laws, theorems, rules, effects), definitions, units and their symbols, and standard values and ranges. Write them as memory cards in exactly the format below, so I can paste them into my memory bank. Put the whole result in one code block, with no commentary.
 
@@ -51,6 +67,7 @@ Rules:
 - Wrap every formula and expression with variables in dollar signs, like $V = IR$. Write maths the typed way or in LaTeX: x^2, sqrt(x), \\frac{a}{b}, \\times 10^8.
 - Deck is one of my categories. Subject names the subject inside that deck: copy one of mine exactly when it fits, or recommend a new one. Leave the Subject line out when no one subject fits.
 - When the same fact is needed in another of my subjects too, in this deck or another, add an Also line for each, as Deck › Subject, copying my names exactly. Write the card once; never repeat it for the other subject.
+- When one fact is worth asking more than one way (a value in another unit, such as amu and kg; a law by its statement, its name and its formula), write the main card first, then each other way as its own card with a Variant of line that copies the main card's Card line exactly. A variant needs no Kind, Deck, Subject or Also lines: it shares the main card's. It still needs three Wrong lines unless its answer is a number. Do not make variants that only reword the prompt.
 - Add a Tags line only when a tag would help me find the card later. Reuse a tag from my list when one fits.
 - Leave out worked examples, problems to solve, and anything not worth memorising word for word.`;
 
@@ -78,9 +95,12 @@ export interface ParsedCard {
   tags: string[];
   /** Other places, as written: "ELEX › Electromagnetics". */
   also: string[];
+  /** The prompt of the card this is a variant of, as written. */
+  variantOf: string | null;
 }
 
-const FIELD = /^\s*(Card|Prompt|Q|Answer|A|Kind|Type|Deck|Category|Subject|Wrong|Tags?|Also(?: in)?)\s*:\s*(.*)$/i;
+const FIELD =
+  /^\s*(Card|Prompt|Q|Answer|A|Kind|Type|Deck|Category|Subject|Wrong|Tags?|Also(?: in)?|Variant(?: of)?)\s*:\s*(.*)$/i;
 
 /** Reads text in the card format. Cards are separated by a new Card line or a blank line. */
 export function parseCards(text: string): ParsedCard[] {
@@ -99,6 +119,7 @@ export function parseCards(text: string): ParsedCard[] {
     wrong: [],
     tags: [],
     also: [],
+    variantOf: null,
   });
   let last: "prompt" | "answer" | null = null;
 
@@ -130,6 +151,7 @@ export function parseCards(text: string): ParsedCard[] {
     } else if (key === "kind" || key === "type") cur.kind = value;
     else if (key === "deck" || key === "category") cur.deck = value;
     else if (key === "subject") cur.subject = value;
+    else if (key.startsWith("variant")) cur.variantOf = value || null;
     else if (key === "wrong") {
       if (value) cur.wrong.push(value);
     } else if (key.startsWith("also")) {
@@ -230,6 +252,7 @@ export function toCardDrafts(
       prompt: p.prompt,
       ...(also.length ? { also } : {}),
       ...(alsoMissing.length ? { alsoMissing } : {}),
+      ...(p.variantOf ? { variantOf: p.variantOf } : {}),
       answer: p.answer,
       kind: kindFrom(p.kind) ?? (isNumberAnswer(p.answer) ? "constant" : "definition"),
       categoryId,
@@ -244,7 +267,8 @@ export function toCardDrafts(
   });
 }
 
-export type DraftStatus = "ready" | "needs-deck" | "needs-wrong" | "duplicate" | "problem";
+export type DraftStatus =
+  "ready" | "needs-deck" | "needs-wrong" | "duplicate" | "problem" | "waits-main" | "needs-main";
 
 export const DRAFT_STATUS_LABEL: Record<DraftStatus, string> = {
   ready: "Ready",
@@ -252,6 +276,8 @@ export const DRAFT_STATUS_LABEL: Record<DraftStatus, string> = {
   "needs-wrong": "Needs wrong choices",
   duplicate: "Already in the bank?",
   problem: "Needs a prompt and answer",
+  "waits-main": "Waits for its main card",
+  "needs-main": "Main card not found",
 };
 
 /**
@@ -264,19 +290,44 @@ const promptKey = (s: string) =>
     .replace(/\s+/g, "")
     .replace(/[.?!:;,]+$/, "");
 
-/** The card already in the deck with the same prompt, if there is one. */
+const asks = (c: MemoryCard, key: string) => cardVariants(c).some((v) => promptKey(v.prompt) === key);
+
+/** The card already in the deck with the same prompt, in any of its variants, if there is one. */
 export function findDuplicate(d: CardDraft, existing: MemoryCard[]): MemoryCard | undefined {
-  if (!d.categoryId || !d.prompt.trim()) return undefined;
+  if (!d.prompt.trim()) return undefined;
   const key = promptKey(d.prompt);
-  return existing.find((c) => c.categoryId === d.categoryId && promptKey(c.prompt) === key);
+  // A variant is checked against the card it joins, wherever that is.
+  const main = d.variantOf ? findMain(d, existing) : undefined;
+  if (main) return asks(main, key) ? main : undefined;
+  if (!d.categoryId) return undefined;
+  return existing.find((c) => c.categoryId === d.categoryId && asks(c, key));
+}
+
+/** For a variant: the card in the bank it joins, matched by any of that card's prompts, its own deck first. */
+export function findMain(d: CardDraft, existing: MemoryCard[]): MemoryCard | undefined {
+  if (!d.variantOf?.trim()) return undefined;
+  const key = promptKey(d.variantOf);
+  const hits = existing.filter((c) => asks(c, key));
+  return hits.find((c) => c.categoryId === d.categoryId) ?? hits[0];
 }
 
 /**
- * Whether a draft can be added, and if not, why. `existing` is the cards in the bank. A likely repeat is only a
- * warning: it can still be added one by one, but Add all ready leaves it for you to check.
+ * Whether a draft can be added, and if not, why. `existing` is the cards in the bank, `drafts` every draft waiting. A
+ * likely repeat is only a warning: it can still be added one by one, but Add all ready leaves it for you to check. A
+ * variant waits for its main card when that is still a draft here; Add all ready adds the main card first.
  */
-export function draftStatus(d: CardDraft, existing: MemoryCard[]): DraftStatus {
+export function draftStatus(d: CardDraft, existing: MemoryCard[], drafts: CardDraft[] = []): DraftStatus {
   if (!d.prompt.trim() || !d.answer.trim()) return "problem";
+  if (d.variantOf) {
+    if (cardProblem({ ...d, categoryId: "-" })) return "needs-wrong";
+    if (!findMain(d, existing)) {
+      const key = promptKey(d.variantOf);
+      return drafts.some((x) => x.id !== d.id && !x.variantOf && promptKey(x.prompt) === key)
+        ? "waits-main"
+        : "needs-main";
+    }
+    return findDuplicate(d, existing) ? "duplicate" : "ready";
+  }
   if (!d.categoryId) return "needs-deck";
   if (cardProblem({ ...d, categoryId: d.categoryId })) return "needs-wrong";
   return findDuplicate(d, existing) ? "duplicate" : "ready";
@@ -313,8 +364,15 @@ export async function createDraftSubject(d: CardDraft): Promise<void> {
   await db.cardDrafts.bulkPut(same.map((x) => ({ ...x, subjectId: id, newSubject: undefined, updatedAt: now() })));
 }
 
-/** Adds a draft to the bank as a card, and removes the draft. */
+/** Adds a draft to the bank as a card, or as a variant of the card it names, and removes the draft. */
 export async function acceptCardDraft(d: CardDraft): Promise<void> {
+  if (d.variantOf) {
+    const main = findMain(d, await db.cards.filter((c) => !c.deletedAt).toArray());
+    if (!main) return;
+    await addVariant(main.id, { prompt: d.prompt, answer: d.answer, wrong: d.wrong }, d.tags);
+    await db.cardDrafts.delete(d.id);
+    return;
+  }
   if (!d.categoryId) return;
   await saveCard({
     categoryId: d.categoryId,

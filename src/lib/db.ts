@@ -347,6 +347,12 @@ export interface MemoryCard {
   wrong: string[];
   /** The same tags questions use, such as "skin effect". Optional. */
   tags?: string[];
+  /**
+   * The same fact asked other ways: a value in another unit, a law by its name, its formula. The card's own prompt and
+   * answer are the first variant. Variants share the card's box; a review round asks each of them, spread over the day,
+   * and the round's share of right answers moves the card (see `applyRound`). Read them through `cardVariants`.
+   */
+  variants?: CardVariant[];
   /** Where the card is in the deck's queue of new cards: lower ones are unlocked first. */
   order: number;
   createdAt: number;
@@ -358,6 +364,14 @@ export interface MemoryCard {
  * One thing that happened to a memory card: it was unlocked, or answered in a review. The log only grows, so
  * reviews made on different devices simply add up when they sync. A card's box and due date are worked out from it.
  */
+/** One more way of asking a card's fact. It has its own prompt, answer and wrong choices, and shares the card's box. */
+export interface CardVariant {
+  id: string;
+  prompt: string;
+  answer: string;
+  wrong: string[];
+}
+
 export interface CardEvent {
   id: string;
   cardId: string;
@@ -378,6 +392,10 @@ export interface CardEvent {
    * goes back to box 1 and is due at once. A locked card's miss is only noted. (Older daily answers used `early`.)
    */
   daily?: boolean;
+  /** For a card with variants: the variant asked (the card's own id for its first one). */
+  variantId?: string;
+  /** For a card with variants: how many it had when this was answered, so a round knows when it is complete. */
+  variants?: number;
   updatedAt: number;
   deletedAt?: number;
 }
@@ -399,6 +417,8 @@ export interface CardDraft {
   also?: CardPlace[];
   /** Other places named in the text that are not in the bank, as written. They are left out when the card is added. */
   alsoMissing?: string[];
+  /** The prompt of the card this is a variant of, as written. Added, it joins that card instead of being a new one. */
+  variantOf?: string;
   wrong: string[];
   tags: string[];
   createdAt: number;

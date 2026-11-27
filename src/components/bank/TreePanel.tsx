@@ -25,6 +25,8 @@ interface Ctx {
   counts: Map<string, number>;
   /** Stop at subjects: no topics shown, and none can be added. */
   subjectsOnly: boolean;
+  /** Only to look through: nothing can be added, renamed, moved or deleted. */
+  viewOnly: boolean;
   selectedId: string | null;
   collapsed: Set<string>;
   editing: Editing;
@@ -211,66 +213,68 @@ function Branch({
             </span>
           )}
           <span className="text-xs text-muted tabular-nums">{count}</span>
-          <span className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-0.5 rounded-md bg-surface px-0.5 opacity-0 shadow-sm ring-1 ring-line group-focus-within:opacity-100 group-hover:opacity-100">
-            {childKind && (
-              <button
-                className={small}
-                aria-label={`Add ${childKind} to ${node.name}`}
-                title={`Add ${childKind}`}
-                onClick={() => ctx.setEditing({ mode: "add", at, parentId: node.id })}
-              >
-                +
-              </button>
-            )}
-            {!fixed && (
-              <>
+          {!ctx.viewOnly && (
+            <span className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-0.5 rounded-md bg-surface px-0.5 opacity-0 shadow-sm ring-1 ring-line group-focus-within:opacity-100 group-hover:opacity-100">
+              {childKind && (
                 <button
                   className={small}
-                  aria-label={`Move ${node.name} up`}
-                  title="Move up"
-                  onClick={() => void moveNode(node.id, -1, parentId)}
+                  aria-label={`Add ${childKind} to ${node.name}`}
+                  title={`Add ${childKind}`}
+                  onClick={() => ctx.setEditing({ mode: "add", at, parentId: node.id })}
                 >
-                  ↑
+                  +
                 </button>
+              )}
+              {!fixed && (
+                <>
+                  <button
+                    className={small}
+                    aria-label={`Move ${node.name} up`}
+                    title="Move up"
+                    onClick={() => void moveNode(node.id, -1, parentId)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className={small}
+                    aria-label={`Move ${node.name} down`}
+                    title="Move down"
+                    onClick={() => void moveNode(node.id, 1, parentId)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    className={small}
+                    aria-label={`Rename ${node.name}`}
+                    title="Rename"
+                    onClick={() => void ctx.rename(node)}
+                  >
+                    ✎
+                  </button>
+                </>
+              )}
+              {node.kind === "subject" && (
                 <button
                   className={small}
-                  aria-label={`Move ${node.name} down`}
-                  title="Move down"
-                  onClick={() => void moveNode(node.id, 1, parentId)}
+                  aria-label={`Share ${node.name} with other categories`}
+                  title="Choose categories"
+                  onClick={() => ctx.setEditing({ mode: "share", at, id: node.id })}
                 >
-                  ↓
+                  ⇄
                 </button>
+              )}
+              {!fixed && (
                 <button
-                  className={small}
-                  aria-label={`Rename ${node.name}`}
-                  title="Rename"
-                  onClick={() => void ctx.rename(node)}
+                  className={`${small} hover:text-danger`}
+                  aria-label={`Delete ${node.name}`}
+                  title="Delete"
+                  onClick={() => void ctx.remove(node, parent)}
                 >
-                  ✎
+                  ✕
                 </button>
-              </>
-            )}
-            {node.kind === "subject" && (
-              <button
-                className={small}
-                aria-label={`Share ${node.name} with other categories`}
-                title="Choose categories"
-                onClick={() => ctx.setEditing({ mode: "share", at, id: node.id })}
-              >
-                ⇄
-              </button>
-            )}
-            {!fixed && (
-              <button
-                className={`${small} hover:text-danger`}
-                aria-label={`Delete ${node.name}`}
-                title="Delete"
-                onClick={() => void ctx.remove(node, parent)}
-              >
-                ✕
-              </button>
-            )}
-          </span>
+              )}
+            </span>
+          )}
         </>
       </div>
       {sharing && (
@@ -318,6 +322,8 @@ interface Props {
   subjectsOnly?: boolean;
   /** The label of the "everything" button at the top. */
   allLabel?: string;
+  /** Only to look through, as on a phone. */
+  viewOnly?: boolean;
 }
 
 export default function TreePanel({
@@ -328,6 +334,7 @@ export default function TreePanel({
   onSelect,
   subjectsOnly = false,
   allLabel = "All questions",
+  viewOnly = false,
 }: Props) {
   // Start with everything closed. Only the path down to the selected node stays open, such as when you arrive from a topic link.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -364,6 +371,7 @@ export default function TreePanel({
     categories,
     counts,
     subjectsOnly,
+    viewOnly,
     selectedId,
     collapsed,
     editing,

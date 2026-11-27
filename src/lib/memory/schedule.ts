@@ -8,6 +8,9 @@ import type { CardEvent, MemoryCard, Sureness } from "@/lib/db";
  * - Right but not sure, or guessing: stays in its box and comes back sooner (half the gap; a pure guess, tomorrow).
  * - Wrong: back to box 1, tomorrow. A learned card that is missed is no longer learned.
  *
+ * A card with variants (the same fact asked other ways) is reviewed in rounds: each variant comes up once, spread over
+ * the day, and when the last is answered the share right moves the card (see `applyRound`).
+ *
  * Nothing is stored about a card's box: it is worked out from its events, in time order. So reviews made on two
  * devices simply add up when they sync.
  */
@@ -41,6 +44,20 @@ export interface CardState {
   lastAt: number | null;
   /** Times it was missed in the daily review while still locked: a weak one, waiting to unlock. */
   lockedMisses: number;
+  /** For a card with variants: the round under way, or null between rounds. */
+  round: Round | null;
+  /** For a card with variants: when each variant was last asked, by variant id. */
+  variantSeen: Record<string, number>;
+  /** The variant missed last, which opens the next round. */
+  lastMissed: string | null;
+}
+
+/** A round of a card with variants: the variants answered so far, since the first of them. */
+export interface Round {
+  startedAt: number;
+  /** How many variants the card has. */
+  of: number;
+  answers: { variantId: string; correct: boolean; sureness?: Sureness }[];
 }
 
 export const EMPTY_STATE: CardState = {
@@ -53,6 +70,9 @@ export const EMPTY_STATE: CardState = {
   misses: 0,
   lastAt: null,
   lockedMisses: 0,
+  round: null,
+  variantSeen: {},
+  lastMissed: null,
 };
 
 /** Midnight at the start of the day `t` falls in, on this device's clock. */
@@ -92,6 +112,101 @@ export function applyAnswer(s: CardState, at: number, correct: boolean, sureness
   return { ...next, box, dueAt: after(at, days) };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Cards with variants
+// ---------------------------------------------------------------------------------------------
+
+export type RoundLevel = "remembered" | "shaky" | "slipping" | "mostly" | "forgotten";
+
+/**
+ * How a round went, by its share of right answers, whatever the number of variants: the same levels as a quiz's bars,
+ * 75% to pass and all of it to move up.
+ */
+export const ROUND_LEVELS: { level: RoundLevel; min: number; label: string; does: string }[] = [
+  { level: "remembered", min: 1, label: "Remembered", does: "up one box" },
+  { level: "shaky", min: 0.75, label: "Shaky", does: "stays in its box" },
+  { level: "slipping", min: 0.5, label: "Slipping", does: "down one box" },
+  { level: "mostly", min: 0.25, label: "Mostly forgotten", does: "down two boxes" },
+  { level: "forgotten", min: 0, label: "Forgotten", does: "back to box 1" },
+];
+
+export function roundLevel(right: number, of: number): (typeof ROUND_LEVELS)[number] {
+  const share = of > 0 ? right / of : 0;
+  return ROUND_LEVELS.find((l) => share + 1e-9 >= l.min) ?? ROUND_LEVELS[ROUND_LEVELS.length - 1];
+}
+
+/** The box after a round that was not all right. Never below box 1. */
+function boxAfter(box: number, right: number, of: number): number {
+  const from = Math.max(1, box);
+  const drop = { remembered: 0, shaky: 0, slipping: 1, mostly: 2, forgotten: from }[roundLevel(right, of).level];
+  return Math.max(1, from - drop);
+}
+
+const SURE_ORDER: Sureness[] = ["sure", "wise_guess", "not_sure", "just_guessed"];
+/** The least sure of the round's answers, which decides how far an all-right round moves. */
+const leastSure = (list: (Sureness | undefined)[]): Sureness | undefined =>
+  list.reduce<Sureness | undefined>(
+    (w, x) => (x && (!w || SURE_ORDER.indexOf(x) > SURE_ORDER.indexOf(w)) ? x : w),
+    undefined,
+  );
+
+/**
+ * The end of a round. All right: the card moves as one sure (or unsure) answer would. Otherwise the share right sets
+ * how far it falls (see `ROUND_LEVELS`), it comes back tomorrow, and a learned card is no longer learned.
+ */
+function settleRound(s: CardState, round: Round, at: number): CardState {
+  const right = round.answers.filter((a) => a.correct).length;
+  const of = Math.max(round.of, round.answers.length);
+  const missed = round.answers.find((a) => !a.correct)?.variantId ?? null;
+  const base = { ...s, round: null, lastMissed: missed };
+  if (right >= of) {
+    const moved = applyAnswer(base, at, true, leastSure(round.answers.map((a) => a.sureness)));
+    // The answers were counted one by one already.
+    return { ...moved, answers: s.answers, lastAt: s.lastAt };
+  }
+  return { ...base, box: boxAfter(s.box, right, of), learned: false, dueAt: after(at, BOX_DAYS[0]) };
+}
+
+/** One answer of a round, in a deck review. The round settles once every variant has been answered. */
+function applyVariantAnswer(s: CardState, e: CardEvent): CardState {
+  const variantId = e.variantId ?? e.cardId;
+  const of = Math.max(2, e.variants ?? 2);
+  const round: Round = s.round
+    ? { ...s.round, of, answers: [...s.round.answers.filter((a) => a.variantId !== variantId)] }
+    : { startedAt: e.at, of, answers: [] };
+  round.answers.push({ variantId, correct: !!e.correct, sureness: e.sureness });
+  const next: CardState = {
+    ...s,
+    unlocked: true,
+    answers: s.answers + 1,
+    misses: s.misses + (e.correct ? 0 : 1),
+    lastAt: e.at,
+    variantSeen: { ...s.variantSeen, [variantId]: e.at },
+    round,
+  };
+  return round.answers.length >= of ? settleRound(next, round, e.at) : next;
+}
+
+/**
+ * A daily-review miss on a card with variants: one variant missed of them all, so it falls by that share (a card with
+ * 4 variants stays in its box, one with 2 drops one), and it is due at once, so its whole round comes up today.
+ */
+function applyDailyVariant(s: CardState, e: CardEvent): CardState {
+  if (e.correct) return s;
+  if (!s.unlocked) return { ...s, lockedMisses: s.lockedMisses + 1 };
+  const of = Math.max(2, e.variants ?? 2);
+  return {
+    ...s,
+    box: boxAfter(s.box, of - 1, of),
+    learned: false,
+    dueAt: e.at,
+    answers: s.answers + 1,
+    misses: s.misses + 1,
+    lastAt: e.at,
+    lastMissed: e.variantId ?? e.cardId,
+  };
+}
+
 /** Every card's state, worked out from the log. */
 /**
  * An answer in the daily review, which is practice on the side: a right answer changes nothing, so only deck reviews
@@ -110,6 +225,7 @@ export function cardStates(events: CardEvent[]): Map<string, CardState> {
   for (const e of sorted) {
     const s = out.get(e.cardId) ?? EMPTY_STATE;
     if (e.type === "unlock") out.set(e.cardId, { ...s, unlocked: true });
+    else if ((e.variants ?? 1) > 1) out.set(e.cardId, e.daily ? applyDailyVariant(s, e) : applyVariantAnswer(s, e));
     else if (e.daily) out.set(e.cardId, applyDaily(s, e.at, !!e.correct));
     // Right before its day changes nothing, so reviewing early cannot rush a card through the boxes.
     else if (e.early && e.correct) out.set(e.cardId, { ...s, answers: s.answers + 1, lastAt: e.at });
@@ -129,6 +245,40 @@ export function stageOf(s: CardState | undefined): Stage {
 export function isDue(s: CardState | undefined, nowMs: number): boolean {
   if (!s || !s.unlocked) return false;
   return s.dueAt === null || s.dueAt <= nowMs;
+}
+
+/** How long the variants of a round are spread over, from the first one, unless changed in Settings. */
+export const SPREAD_DEFAULT_HOURS = 4;
+
+export interface NextVariant {
+  variantId: string;
+  /** When it can come up: the card's due time for the first of a round, later ones spread after it. */
+  at: number;
+  /** Which of the round it is, from 0. */
+  index: number;
+  of: number;
+}
+
+/**
+ * The variant a card asks next, and from when. A round opens with the variant missed last, else the one asked longest
+ * ago, so the first one changes from round to round. The rest follow evenly over `spreadMs` from the round's start.
+ */
+export function nextVariant(variantIds: string[], s: CardState | undefined, spreadMs: number): NextVariant {
+  const st = s ?? EMPTY_STATE;
+  const due = st.dueAt ?? 0;
+  if (variantIds.length <= 1) return { variantId: variantIds[0], at: due, index: 0, of: 1 };
+  const done = new Set(st.round?.answers.map((a) => a.variantId) ?? []);
+  let left = variantIds.filter((id) => !done.has(id));
+  if (!left.length) left = variantIds;
+  const seen = (id: string) => st.variantSeen[id] ?? -1;
+  const pick =
+    st.lastMissed && left.includes(st.lastMissed)
+      ? st.lastMissed
+      : [...left].sort((a, b) => seen(a) - seen(b) || variantIds.indexOf(a) - variantIds.indexOf(b))[0];
+  const of = variantIds.length;
+  if (!st.round) return { variantId: pick, at: due, index: 0, of };
+  const index = Math.min(of - 1, done.size);
+  return { variantId: pick, at: st.round.startedAt + (index * spreadMs) / (of - 1), index, of };
 }
 
 /** "tomorrow", "in 7 days", "in 3 months" */

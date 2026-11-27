@@ -26,9 +26,12 @@ interface Props {
   nodes: TreeNode[];
   questions: Question[];
   selected: TreeNode | null;
+  /** Only to look through, as on a phone: no selecting, editing or new questions. A question opens to show its choices. */
+  viewOnly?: boolean;
 }
 
-export default function QuestionList({ nodes, questions, selected }: Props) {
+export default function QuestionList({ nodes, questions, selected, viewOnly = false }: Props) {
+  const [opened, setOpened] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   // The chosen tags live in the address (?tag=series&tag=formulas), so a refresh or a copied link keeps them.
   const router = useRouter();
@@ -155,7 +158,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
           </p>
         </div>
         <input
-          className="input w-56"
+          className={`input ${viewOnly ? "w-full sm:w-56" : "w-56"}`}
           placeholder="Search questions, tags and references"
           aria-label="Search questions, tags and references"
           value={search}
@@ -164,12 +167,16 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
             reset();
           }}
         />
-        <Link href={selected ? `/settings?scope=${selected.id}#backup` : "/settings#backup"} className="btn">
-          Share pack
-        </Link>
-        <Link href={newHref} className="btn btn-primary">
-          New question
-        </Link>
+        {!viewOnly && (
+          <>
+            <Link href={selected ? `/settings?scope=${selected.id}#backup` : "/settings#backup"} className="btn">
+              Share pack
+            </Link>
+            <Link href={newHref} className="btn btn-primary">
+              New question
+            </Link>
+          </>
+        )}
       </div>
 
       {showTags && (tagIndex.size > 0 || untaggedCount > 0) && (
@@ -214,7 +221,7 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
               Clear tags
             </button>
           )}
-          {activeKeys.length === 1 && !untaggedOn && (
+          {activeKeys.length === 1 && !untaggedOn && !viewOnly && (
             <button className="text-sm underline underline-offset-2" onClick={() => void rename()}>
               Rename tag
             </button>
@@ -241,54 +248,93 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
       {visible.length === 0 ? (
         <p className="rounded-md border border-dashed border-line p-6 text-sm text-muted">
           {inScope.length === 0
-            ? "No questions here yet. Choose New question to write the first one."
+            ? viewOnly
+              ? "No questions here yet."
+              : "No questions here yet. Choose New question to write the first one."
             : "No questions match the search or filters."}
         </p>
       ) : (
         <div>
           <Pagination page={page} pages={pages} total={visible.length} pageSize={pageSize} onChange={goTo} />
           <div className="card">
-            <label className="flex items-center gap-3 border-b border-line px-3 py-2 text-sm text-muted">
-              <input
-                type="checkbox"
-                checked={allPicked}
-                onChange={() =>
-                  setPicked((prev) => {
-                    const next = new Set(prev);
-                    for (const q of pageItems) {
-                      if (allPicked) next.delete(q.id);
-                      else next.add(q.id);
-                    }
-                    return next;
-                  })
-                }
-              />
-              Select all on this page
-              {pages > 1 && (
-                <button
-                  type="button"
-                  className="ml-2 underline underline-offset-2"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setPicked(new Set(visible.map((q) => q.id)));
-                  }}
-                >
-                  Select all {visible.length}
-                </button>
-              )}
-            </label>
+            {!viewOnly && (
+              <label className="flex items-center gap-3 border-b border-line px-3 py-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={allPicked}
+                  onChange={() =>
+                    setPicked((prev) => {
+                      const next = new Set(prev);
+                      for (const q of pageItems) {
+                        if (allPicked) next.delete(q.id);
+                        else next.add(q.id);
+                      }
+                      return next;
+                    })
+                  }
+                />
+                Select all on this page
+                {pages > 1 && (
+                  <button
+                    type="button"
+                    className="ml-2 underline underline-offset-2"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPicked(new Set(visible.map((q) => q.id)));
+                    }}
+                  >
+                    Select all {visible.length}
+                  </button>
+                )}
+              </label>
+            )}
             <ul className="divide-y divide-line">
               {pageItems.map((q) => (
                 <li key={q.id} className="flex items-start gap-3 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    aria-label="Select question"
-                    checked={picked.has(q.id)}
-                    onChange={() => toggle(q.id)}
-                  />
+                  {!viewOnly && (
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      aria-label="Select question"
+                      checked={picked.has(q.id)}
+                      onChange={() => toggle(q.id)}
+                    />
+                  )}
                   <div className="min-w-0 flex-1">
-                    <RichText text={listText(q.stem) || "(no text)"} className="line-clamp-2 text-[15px]" />
+                    {viewOnly ? (
+                      <button
+                        type="button"
+                        aria-expanded={opened === q.id}
+                        className="block w-full text-left"
+                        onClick={() => setOpened(opened === q.id ? null : q.id)}
+                      >
+                        <RichText
+                          text={opened === q.id ? q.stem : listText(q.stem) || "(no text)"}
+                          className={`text-[15px] ${opened === q.id ? "" : "line-clamp-2"}`}
+                        />
+                      </button>
+                    ) : (
+                      <RichText text={listText(q.stem) || "(no text)"} className="line-clamp-2 text-[15px]" />
+                    )}
+                    {viewOnly && opened === q.id && (
+                      <ol className="mt-2 space-y-1.5">
+                        {q.choices.map((c, i) => {
+                          const right = c.id === q.correctChoiceId;
+                          return (
+                            <li
+                              key={c.id}
+                              className={`flex gap-2 rounded-md border px-2.5 py-1.5 text-sm ${
+                                right ? "border-good bg-good/10" : "border-line"
+                              }`}
+                            >
+                              <span className="w-4 shrink-0 text-muted">{"ABCDEFGH"[i]}</span>
+                              <RichText text={c.text} className="min-w-0 flex-1" />
+                              {right && <span className="text-xs font-medium text-good">Answer</span>}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {q.type === "computation" && (
                         <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-ink">
@@ -310,9 +356,11 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
                       </div>
                     )}
                   </div>
-                  <Link href={`/editor?id=${q.id}`} className="btn">
-                    Edit
-                  </Link>
+                  {!viewOnly && (
+                    <Link href={`/editor?id=${q.id}`} className="btn">
+                      Edit
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -321,14 +369,16 @@ export default function QuestionList({ nodes, questions, selected }: Props) {
         </div>
       )}
 
-      <SelectionBar
-        ids={pickedIds}
-        nodes={nodes}
-        questions={questions}
-        visibleCount={visible.length}
-        onSelectAll={() => setPicked(new Set(visible.map((q) => q.id)))}
-        onClear={() => setPicked(new Set())}
-      />
+      {!viewOnly && (
+        <SelectionBar
+          ids={pickedIds}
+          nodes={nodes}
+          questions={questions}
+          visibleCount={visible.length}
+          onSelectAll={() => setPicked(new Set(visible.map((q) => q.id)))}
+          onClear={() => setPicked(new Set())}
+        />
+      )}
     </section>
   );
 }

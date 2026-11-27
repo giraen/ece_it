@@ -5,17 +5,21 @@ import { useNodes, useNow } from "@/lib/hooks";
 import { dailyLeft, useMemory, summarize, type DeckSummary } from "@/lib/memory/review";
 import { useMix } from "@/lib/memory/mix";
 import { answeredToday, useDailySize } from "@/lib/memory/daily";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatLater } from "@/lib/format";
+import RichText from "@/components/ui/RichText";
 import { CATEGORY_STYLE, categoryKey } from "@/components/ui/CategoryChip";
 import LoadingScreen from "@/components/layout/LoadingScreen";
 import { useIncognito } from "@/lib/incognito";
 import { IncognitoNote, IncognitoSwitch } from "@/components/ui/Incognito";
 
-/** "9 due · 1 new" */
-function dueText(s: Pick<DeckSummary, "due" | "fresh">) {
-  if (!s.due && !s.fresh) return "Nothing due";
+/** "9 due · 1 new", or "2 later" when only variants waiting for their time are left. */
+function dueText(s: Pick<DeckSummary, "due" | "fresh" | "later">) {
+  if (!s.due && !s.fresh) return s.later.length ? `${s.later.length} later` : "Nothing due";
   return [s.due && `${s.due} due`, s.fresh && `${s.fresh} new`].filter(Boolean).join(" · ");
 }
+
+/** How many waiting variants are listed before "Show all". */
+const LATER_FIRST = 5;
 
 /** Activity: memory reviews now, games later. */
 export default function ActivityHub() {
@@ -236,6 +240,46 @@ export default function ActivityHub() {
                 );
               })}
             </ul>
+            {!incognito && everything.later.length > 0 && (
+              <section aria-labelledby="later-title" className="card p-4">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h3 id="later-title" className="font-semibold">
+                    Later today
+                  </h3>
+                  <span className="text-sm text-muted">variants spread through the day</span>
+                  <Link
+                    href={`/activity/review?deck=later${everything.later.map((w) => `&card=${w.card.id}`).join("")}`}
+                    className="ml-auto text-sm text-accent hover:underline"
+                  >
+                    Take all now
+                  </Link>
+                </div>
+                <ul className="mt-2 divide-y divide-line text-sm">
+                  {everything.later.slice(0, LATER_FIRST).map((w) => (
+                    <li key={w.card.id} className="flex items-center gap-3 py-2">
+                      <span className="num w-24 shrink-0 text-ink">{formatLater(w.at, nowMs)}</span>
+                      <span className="min-w-0 flex-1">
+                        <RichText text={w.card.prompt} className="line-clamp-1" />
+                        <span className="text-xs text-muted">
+                          {categories.find((c) => c.id === w.card.categoryId)?.name} · variant {w.n} of {w.of}
+                        </span>
+                      </span>
+                      <Link
+                        href={`/activity/review?deck=later&card=${w.card.id}`}
+                        className="shrink-0 rounded-md border border-line px-2.5 py-1 text-xs hover:bg-paper"
+                      >
+                        Take now
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                {everything.later.length > LATER_FIRST && (
+                  <p className="mt-1 text-xs text-muted">
+                    And {everything.later.length - LATER_FIRST} more; Take all now brings every one.
+                  </p>
+                )}
+              </section>
+            )}
             <p className="text-xs text-muted">
               The bar is how much of each deck is learned: remembered at the 60-day review.{" "}
               {pace && data.exam

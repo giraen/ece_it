@@ -14,7 +14,10 @@ import {
   deleteCards,
   inDeck,
   inSubject,
+  makeVariants,
   moveCards,
+  cardVariants,
+  variantCount,
   removeCardTag,
   restoreCards,
   snapshotCards,
@@ -26,6 +29,7 @@ import { CATEGORY_STYLE, categoryKey } from "@/components/ui/CategoryChip";
 import Pagination from "@/components/ui/Pagination";
 import RichText from "@/components/ui/RichText";
 import TreePanel from "./TreePanel";
+import TreeBox from "./TreeBox";
 import CardBar, { useUndoToast } from "@/components/memory/CardBar";
 
 interface Props {
@@ -34,14 +38,19 @@ interface Props {
   /** The node picked in the tree. A topic picked on another tab counts as its subject here. */
   selected: TreeNode | null;
   onSelect: (id: string | null) => void;
+  /** Only to look through, as on a phone: a card opens to show its variants, and nothing can be changed. */
+  viewOnly?: boolean;
+  /** A narrow screen: the tree folds above the list. */
+  narrow?: boolean;
 }
 
 /**
  * Bank › Memory: the memory cards, by category and subject. The tree is the one questions use, stopped at subjects,
  * since a topic may have nothing to memorise or a great deal. Cards are written in the editor.
  */
-export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) {
+export default function MemoryBank({ nodes, cards, selected, onSelect, viewOnly = false, narrow = false }: Props) {
   const router = useRouter();
+  const [opened, setOpened] = useState<string | null>(null);
   const [kind, setKind] = useState<CardKind | "">("");
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
@@ -68,7 +77,15 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
   const q = search.trim().toLowerCase();
   const shown = inNode
     .filter((c) => !kind || c.kind === kind)
-    .filter((c) => !q || `${c.prompt} ${c.answer} ${(c.tags ?? []).join(" ")}`.toLowerCase().includes(q))
+    .filter(
+      (c) =>
+        !q ||
+        `${cardVariants(c)
+          .map((v) => `${v.prompt} ${v.answer}`)
+          .join(" ")} ${(c.tags ?? []).join(" ")}`
+          .toLowerCase()
+          .includes(q),
+    )
     // Newest created first, as in the question list. Editing a card does not move it.
     .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
   const { page, pages, setPage, reset, pageItems, pageSize } = usePagination(shown);
@@ -91,20 +108,24 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
     "/editor?mode=card" + (deck ? `&deck=${deck}` : "") + (node?.kind === "subject" ? `&subject=${node.id}` : "");
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-      <div className="scroll-thin sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-        <TreePanel
-          nodes={nodes}
-          counts={counts}
-          selectedId={node?.id ?? null}
-          onSelect={(id) => {
-            onSelect(id);
-            reset();
-          }}
-          subjectsOnly
-          allLabel="All cards"
-        />
-      </div>
+    <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <TreeBox narrow={narrow} current={node ? node.name : "All cards"}>
+        {(close) => (
+          <TreePanel
+            nodes={nodes}
+            counts={counts}
+            selectedId={node?.id ?? null}
+            onSelect={(id) => {
+              onSelect(id);
+              reset();
+              close();
+            }}
+            subjectsOnly
+            allLabel="All cards"
+            viewOnly={viewOnly}
+          />
+        )}
+      </TreeBox>
 
       <section className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -134,9 +155,11 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
               </option>
             ))}
           </select>
-          <Link href={addHref} className="btn btn-primary">
-            Add card
-          </Link>
+          {!viewOnly && (
+            <Link href={addHref} className="btn btn-primary">
+              Add card
+            </Link>
+          )}
         </div>
 
         {shown.length === 0 ? (
@@ -147,6 +170,66 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
                 ? `No cards in ${node?.name ?? "this place"} yet.`
                 : "No cards match."}
           </p>
+        ) : viewOnly ? (
+          <ul className="card divide-y divide-line">
+            {pageItems.map((c) => {
+              const key = categoryKey(name(c.categoryId));
+              const open = opened === c.id;
+              const list = cardVariants(c);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setOpened(open ? null : c.id)}
+                    className="flex w-full items-start gap-2 px-3 py-3 text-left"
+                  >
+                    {key && (
+                      <span
+                        aria-label={name(c.categoryId)}
+                        className={`mt-1.5 size-2 shrink-0 rounded-sm ${CATEGORY_STYLE[key].bar}`}
+                      />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <RichText text={c.prompt} className="text-[15px]" />
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {KIND_LABEL[c.kind]}
+                        {list.length > 1 && ` · ${list.length} variants`}
+                        {cardSubject(c, byId) && node?.kind !== "subject" && ` · ${name(cardSubject(c, byId))}`}
+                      </span>
+                    </span>
+                    <span aria-hidden className="pt-0.5 text-muted">
+                      {open ? "▴" : "▾"}
+                    </span>
+                  </button>
+                  {open && (
+                    <div className="space-y-2 px-3 pb-3 pl-7">
+                      {list.map((v, i) => (
+                        <div key={v.id} className="space-y-1">
+                          {list.length > 1 && (
+                            <p className="text-[11px] tracking-wide text-muted uppercase">Variant {i + 1}</p>
+                          )}
+                          {i > 0 && <RichText text={v.prompt} className="text-sm font-medium" />}
+                          <div className="rounded-md border border-good bg-good/10 px-2.5 py-1.5 text-sm">
+                            <RichText text={v.answer} />
+                          </div>
+                        </div>
+                      ))}
+                      {(c.tags?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {(c.tags ?? []).map((t) => (
+                            <span key={t} className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         ) : (
           <div className="card overflow-x-auto">
             <table className="w-full min-w-[34rem] text-sm">
@@ -209,8 +292,19 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
                           )}
                           <RichText text={c.prompt} />
                         </Link>
-                        {(subject || shared || (c.tags?.length ?? 0) > 0) && (
+                        {(subject || shared || variantCount(c) > 1 || (c.tags?.length ?? 0) > 0) && (
                           <div className="mt-1 flex flex-wrap items-center gap-1 pl-4">
+                            {variantCount(c) > 1 && (
+                              <span
+                                className="rounded-full border border-accent/40 px-1.5 py-0.5 text-xs text-accent"
+                                title={cardVariants(c)
+                                  .slice(1)
+                                  .map((v) => v.prompt)
+                                  .join("\n")}
+                              >
+                                {variantCount(c)} variants
+                              </span>
+                            )}
                             {shared ? (
                               <span
                                 className="text-xs text-muted"
@@ -242,20 +336,30 @@ export default function MemoryBank({ nodes, cards, selected, onSelect }: Props) 
           </div>
         )}
         <Pagination page={page} pages={pages} total={shown.length} pageSize={pageSize} onChange={setPage} />
-        <CardBar
-          chosen={cards.filter((c) => chosen.includes(c.id)).map((c) => ({ id: c.id, tags: c.tags ?? [] }))}
-          suggestions={tagHelp}
-          visibleCount={shown.length}
-          onSelectAll={() => setPicked(shown.map((c) => c.id))}
-          onClear={() => setPicked([])}
-          onAddTags={(ids, tags) => change(ids, () => addCardTags(ids, tags))}
-          onRemoveTag={(ids, tag) => change(ids, () => removeCardTag(ids, tag))}
-          move={{ nodes, run: (ids, place) => change(ids, () => moveCards(ids, place)) }}
-          remove={{ label: "Delete", ask: true, run: (ids) => change(ids, () => deleteCards(ids)) }}
-          toast={toast}
-          say={say}
-          dismiss={dismiss}
-        />
+        {!viewOnly && (
+          <CardBar
+            chosen={cards.filter((c) => chosen.includes(c.id)).map((c) => ({ id: c.id, tags: c.tags ?? [] }))}
+            suggestions={tagHelp}
+            visibleCount={shown.length}
+            onSelectAll={() => setPicked(shown.map((c) => c.id))}
+            onClear={() => setPicked([])}
+            onAddTags={(ids, tags) => change(ids, () => addCardTags(ids, tags))}
+            onRemoveTag={(ids, tag) => change(ids, () => removeCardTag(ids, tag))}
+            move={{ nodes, run: (ids, place) => change(ids, () => moveCards(ids, place)) }}
+            remove={{ label: "Delete", ask: true, run: (ids) => change(ids, () => deleteCards(ids)) }}
+            join={
+              chosen.length >= 2
+                ? {
+                    first: cards.find((c) => c.id === chosen[0])?.prompt ?? "",
+                    run: () => change(chosen, () => makeVariants(chosen).then(() => undefined)),
+                  }
+                : undefined
+            }
+            toast={toast}
+            say={say}
+            dismiss={dismiss}
+          />
+        )}
       </section>
     </div>
   );

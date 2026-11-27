@@ -3,12 +3,21 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { CardKind, CardPlace, MemoryCard, TreeNode } from "@/lib/db";
+import type { CardKind, CardPlace, CardVariant, MemoryCard, TreeNode } from "@/lib/db";
+import { newId } from "@/lib/ids";
 import { useTagSuggestions } from "@/lib/hooks";
 import { confirmAction } from "@/lib/ui/dialog";
 import { categoriesOf } from "@/lib/bank/tree";
 import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
-import { CARD_KINDS, WRONG_CHOICES, cardProblem, cardSubject, deleteCard, saveCard } from "@/lib/memory/cards";
+import {
+  CARD_KINDS,
+  WRONG_CHOICES,
+  cardProblem,
+  cardSubject,
+  cardVariants,
+  deleteCard,
+  saveCard,
+} from "@/lib/memory/cards";
 import { isNumberAnswer } from "@/lib/memory/answer";
 import { reviewChoices } from "@/lib/memory/choices";
 import ImageTextarea from "./ImageTextarea";
@@ -31,6 +40,13 @@ interface Props {
   nodes: TreeNode[];
 }
 
+/** A variant's wrong choices, always three boxes to fill. */
+const withBlanks = (wrong: string[]) => [...wrong, ...Array(WRONG_CHOICES).fill("")].slice(0, WRONG_CHOICES);
+const blankVariant = (): CardVariant => ({ id: newId(), prompt: "", answer: "", wrong: withBlanks([]) });
+
+const VARIANT_TIP =
+  "Variants ask the same fact another way: a value in another unit (amu and kg), a law by its name or its formula. They share one box. A review round asks each variant once, spread over the day, and how many you get right moves the card.";
+
 const MATH_TIP =
   "Maths goes between dollar signs, like $x^2$, the same as in questions. The buttons above the box insert it for you, and you can paste or drop a picture.";
 
@@ -47,11 +63,19 @@ export default function CardEditor({ initial, defaultDeck, defaultSubject, nodes
   );
   const [also, setAlso] = useState<CardPlace[]>(initial?.also ?? []);
   const [kind, setKind] = useState<CardKind>(initial?.kind ?? "constant");
-  const [prompt, setPrompt] = useState(initial?.prompt ?? "");
-  const [answer, setAnswer] = useState(initial?.answer ?? "");
-  const [wrong, setWrong] = useState<string[]>(() =>
-    [...(initial?.wrong ?? []), ...Array(WRONG_CHOICES).fill("")].slice(0, WRONG_CHOICES),
+  // Every variant, the card's own prompt and answer first. The boxes below edit the one chosen.
+  const [variants, setVariants] = useState<CardVariant[]>(() =>
+    initial ? cardVariants(initial).map((v) => ({ ...v, wrong: withBlanks(v.wrong) })) : [blankVariant()],
   );
+  const [at, setAt] = useState(0);
+  const current = variants[Math.min(at, variants.length - 1)];
+  const { prompt, answer, wrong } = current;
+  const change = (patch: Partial<CardVariant>) =>
+    setVariants((vs) => vs.map((v, i) => (i === Math.min(at, vs.length - 1) ? { ...v, ...patch } : v)));
+  const setPrompt = (v: string) => change({ prompt: v });
+  const setAnswer = (v: string) => change({ answer: v });
+  const setWrong = (fn: (ws: string[]) => string[]) =>
+    setVariants((vs) => vs.map((v, i) => (i === Math.min(at, vs.length - 1) ? { ...v, wrong: fn(v.wrong) } : v)));
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [errors, setErrors] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -108,19 +132,20 @@ export default function CardEditor({ initial, defaultDeck, defaultSubject, nodes
   }
 
   async function save(another: boolean) {
-    const problem = cardProblem({ categoryId: deck, prompt, answer, wrong });
+    const [main, ...rest] = variants;
+    const card = { categoryId: deck, prompt: main.prompt, answer: main.answer, wrong: main.wrong, variants: rest };
+    const problem = cardProblem(card);
     setErrors(problem);
     setNotice(null);
     if (problem) return;
     setSaving(true);
     try {
-      await saveCard({ id: initial?.id, categoryId: deck, subjectId, also, kind, prompt, answer, wrong, tags });
+      await saveCard({ id: initial?.id, ...card, subjectId, also, kind, tags });
       if (another) {
         // The next card usually shares the deck, subject, kind and tags. Sharing is fact by fact, so it clears.
         setAlso([]);
-        setPrompt("");
-        setAnswer("");
-        setWrong(Array(WRONG_CHOICES).fill(""));
+        setVariants([blankVariant()]);
+        setAt(0);
         setNotice("Saved. Ready for the next card.");
       } else router.push("/bank?tab=memory");
     } finally {
@@ -213,6 +238,59 @@ export default function CardEditor({ initial, defaultDeck, defaultSubject, nodes
             ))}
           </div>
         </fieldset>
+
+        <div>
+          <div className="mb-1.5 flex items-center gap-1">
+            <span className="text-sm font-medium">Variants</span>
+            <InfoTip>{VARIANT_TIP}</InfoTip>
+          </div>
+          <div role="tablist" aria-label="Variants" className="flex flex-wrap items-center gap-1.5">
+            {variants.map((v, i) => (
+              <button
+                key={v.id}
+                type="button"
+                role="tab"
+                aria-selected={i === at}
+                onClick={() => setAt(i)}
+                title={v.prompt || undefined}
+                className={`rounded-full border px-3 py-1 text-sm ${
+                  i === at ? "border-accent bg-accent-soft font-medium text-accent" : "border-line hover:bg-paper"
+                }`}
+              >
+                {variants.length === 1 ? "The card" : `Variant ${i + 1}`}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="rounded-full border border-dashed border-line px-3 py-1 text-sm text-muted hover:text-ink"
+              onClick={() => {
+                setVariants((vs) => [...vs, blankVariant()]);
+                setAt(variants.length);
+              }}
+            >
+              + Add a variant
+            </button>
+            {at > 0 && (
+              <button
+                type="button"
+                className="ml-auto text-sm text-danger underline"
+                onClick={() => {
+                  setVariants((vs) => vs.filter((_, i) => i !== at));
+                  setAt(at - 1);
+                }}
+              >
+                Remove variant {at + 1}
+              </button>
+            )}
+          </div>
+          {variants.length > 1 && (
+            <p className="mt-1.5 text-xs text-muted">
+              {at === 0
+                ? "The first variant is the one the bank lists."
+                : `Variant ${at + 1} of ${variants.length}: the same fact, asked another way.`}
+            </p>
+          )}
+        </div>
 
         <ToolbarGroup>
           <div className="space-y-4">

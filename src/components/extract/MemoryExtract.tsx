@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import type { CardDraft, CardKind, MemoryCard, TreeNode } from "@/lib/db";
+import { db, type CardDraft, type CardKind, type MemoryCard, type TreeNode } from "@/lib/db";
 import { useNodes } from "@/lib/hooks";
 import { categoriesOf } from "@/lib/bank/tree";
 import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
-import { CARD_KINDS, WRONG_CHOICES, useCardTagSuggestions, useCards } from "@/lib/memory/cards";
+import { CARD_KINDS, WRONG_CHOICES, useCardTagSuggestions, useCards, variantCount } from "@/lib/memory/cards";
 import { isNumberAnswer } from "@/lib/memory/answer";
 import {
   CARD_SAMPLE,
@@ -18,6 +18,7 @@ import {
   discardCardDrafts,
   draftStatus,
   findDuplicate,
+  findMain,
   moveCardDrafts,
   parseCards,
   removeDraftTag,
@@ -48,6 +49,8 @@ const BADGE: Record<DraftStatus, string> = {
   "needs-wrong": "bg-accent-soft text-accent",
   duplicate: "bg-priority/10 text-priority",
   problem: "bg-danger/10 text-danger",
+  "waits-main": "bg-accent-soft text-accent",
+  "needs-main": "bg-priority/10 text-priority",
 };
 
 /** How a card leaves the list: it slides right, then the cards below move up. */
@@ -62,6 +65,7 @@ function DraftRow({
   categories,
   tags,
   twin,
+  main,
   selected,
   onSelect,
   leaving,
@@ -76,6 +80,8 @@ function DraftRow({
   tags: string[];
   /** The card in the bank with the same prompt, when this looks like a repeat. */
   twin?: MemoryCard;
+  /** For a variant: the card in the bank it joins. */
+  main?: MemoryCard;
   selected: boolean;
   onSelect: (on: boolean) => void;
   leaving?: Leaving;
@@ -187,88 +193,118 @@ function DraftRow({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
-        <select
-          className="input py-1.5"
-          aria-label="Deck"
-          value={d.categoryId ?? ""}
-          onChange={(e) => {
-            const id = e.target.value || undefined;
-            const keep = nodes.find((n) => n.id === d.subjectId);
-            set({ categoryId: id, subjectId: keep && id && categoriesOf(keep).includes(id) ? d.subjectId : undefined });
-          }}
-        >
-          <option value="">Choose a deck</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="input py-1.5"
-          aria-label="Subject"
-          value={d.subjectId ?? ""}
-          disabled={!d.categoryId}
-          onChange={(e) => set({ subjectId: e.target.value || undefined, newSubject: undefined })}
-        >
-          <option value="">{d.newSubject ? `New: ${d.newSubject}` : "No subject"}</option>
-          {subjects.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="input py-1.5"
-          aria-label="Kind"
-          value={d.kind}
-          onChange={(e) => set({ kind: e.target.value as CardKind })}
-        >
-          {CARD_KINDS.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {d.newSubject && d.categoryId && !d.subjectId && (
-        <p className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted">
-            Claude recommends a new subject, &ldquo;{d.newSubject}&rdquo;, in{" "}
-            {categories.find((c) => c.id === d.categoryId)?.name}.
-          </span>
-          <button className="btn btn-primary py-1" onClick={() => void createDraftSubject(d)}>
-            Create it
-          </button>
-        </p>
-      )}
+      {d.variantOf ? (
+        <div className="space-y-1.5 rounded-md border border-accent/40 bg-accent-soft/40 p-2 text-xs">
+          <p className="text-muted">Variant of</p>
+          {main ? (
+            <>
+              <RichText text={main.prompt} className="text-sm font-medium" />
+              <p className="text-muted">
+                Added, it joins this card as variant {variantCount(main) + 1}, sharing its deck, subject and box.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm">&ldquo;{d.variantOf}&rdquo;</p>
+          )}
+          {status === "waits-main" && (
+            <p className="text-muted">Its main card is still waiting here. Add it first, or use Add all ready.</p>
+          )}
+          {status === "needs-main" && <p className="text-priority">No card in your bank or here has that prompt.</p>}
+          {!main && (
+            <button className="underline" onClick={() => set({ variantOf: undefined })}>
+              Make it its own card
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            <select
+              className="input py-1.5"
+              aria-label="Deck"
+              value={d.categoryId ?? ""}
+              onChange={(e) => {
+                const id = e.target.value || undefined;
+                const keep = nodes.find((n) => n.id === d.subjectId);
+                set({
+                  categoryId: id,
+                  subjectId: keep && id && categoriesOf(keep).includes(id) ? d.subjectId : undefined,
+                });
+              }}
+            >
+              <option value="">Choose a deck</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input py-1.5"
+              aria-label="Subject"
+              value={d.subjectId ?? ""}
+              disabled={!d.categoryId}
+              onChange={(e) => set({ subjectId: e.target.value || undefined, newSubject: undefined })}
+            >
+              <option value="">{d.newSubject ? `New: ${d.newSubject}` : "No subject"}</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input py-1.5"
+              aria-label="Kind"
+              value={d.kind}
+              onChange={(e) => set({ kind: e.target.value as CardKind })}
+            >
+              {CARD_KINDS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {d.newSubject && d.categoryId && !d.subjectId && (
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted">
+                Claude recommends a new subject, &ldquo;{d.newSubject}&rdquo;, in{" "}
+                {categories.find((c) => c.id === d.categoryId)?.name}.
+              </span>
+              <button className="btn btn-primary py-1" onClick={() => void createDraftSubject(d)}>
+                Create it
+              </button>
+            </p>
+          )}
 
-      <AlsoIn
-        compact
-        value={d.also ?? []}
-        onChange={(next) => set({ also: next.length ? next : undefined })}
-        home={{ categoryId: d.categoryId ?? "", subjectId: d.subjectId }}
-        nodes={nodes}
-        idPrefix={`draft-${d.id}`}
-      />
-      {(d.alsoMissing ?? []).map((text) => (
-        <p key={text} className="flex flex-wrap items-center gap-2 text-xs text-muted">
-          <span>
-            Also named &ldquo;{text}&rdquo;, which is not in your bank, so it is left out. Share it above if it means
-            one of yours.
-          </span>
-          <button
-            className="underline"
-            onClick={() => {
-              const rest = (d.alsoMissing ?? []).filter((x) => x !== text);
-              set({ alsoMissing: rest.length ? rest : undefined });
-            }}
-          >
-            Dismiss
-          </button>
-        </p>
-      ))}
+          <AlsoIn
+            compact
+            value={d.also ?? []}
+            onChange={(next) => set({ also: next.length ? next : undefined })}
+            home={{ categoryId: d.categoryId ?? "", subjectId: d.subjectId }}
+            nodes={nodes}
+            idPrefix={`draft-${d.id}`}
+          />
+          {(d.alsoMissing ?? []).map((text) => (
+            <p key={text} className="flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span>
+                Also named &ldquo;{text}&rdquo;, which is not in your bank, so it is left out. Share it above if it
+                means one of yours.
+              </span>
+              <button
+                className="underline"
+                onClick={() => {
+                  const rest = (d.alsoMissing ?? []).filter((x) => x !== text);
+                  set({ alsoMissing: rest.length ? rest : undefined });
+                }}
+              >
+                Dismiss
+              </button>
+            </p>
+          ))}
+        </>
+      )}
 
       {number ? (
         <p className="text-xs text-muted">A number: its wrong choices are made in each review.</p>
@@ -379,9 +415,11 @@ export default function MemoryExtract() {
   if (!nodes || !cards || !drafts) return <LoadingScreen />;
 
   const instructions = cardInstructions(nodes, tagHelp);
-  const rows = drafts.map((d) => ({ d, status: draftStatus(d, cards) }));
+  const rows = drafts.map((d) => ({ d, status: draftStatus(d, cards, drafts) }));
   const shown = filter === "all" ? rows : rows.filter((r) => r.status === filter);
   const ready = rows.filter((r) => r.status === "ready");
+  // Variants whose main card is among the ready ones: Add all ready adds them right after it.
+  const following = rows.filter((r) => r.status === "waits-main");
   const count = (s: DraftStatus) => rows.filter((r) => r.status === s).length;
   const chosen = selected.filter((id) => drafts.some((d) => d.id === id));
   const creatable = new Set(
@@ -448,16 +486,26 @@ export default function MemoryExtract() {
   async function addAll() {
     setBusy(true);
     try {
+      let added = ready.length;
       await leave(
         ready.map((r) => r.d.id),
         async () => {
           for (const r of ready) await acceptCardDraft(r.d);
+          // Variants waiting for a main card added just now join it.
+          const bank = await db.cards.filter((c) => !c.deletedAt).toArray();
+          for (const r of following) {
+            const fresh = await db.cardDrafts.get(r.d.id);
+            if (fresh && draftStatus(fresh, bank) === "ready") {
+              await acceptCardDraft(fresh);
+              added++;
+            }
+          }
         },
       );
       const left = count("duplicate");
       setMessage({
         ok: true,
-        text: `Added ${ready.length} card${ready.length === 1 ? "" : "s"} to the bank.${
+        text: `Added ${added} card${added === 1 ? "" : "s"} to the bank.${
           left
             ? ` ${left} looked like ${left === 1 ? "a card" : "cards"} already there and ${left === 1 ? "was" : "were"} left for you to check.`
             : ""
@@ -497,6 +545,8 @@ export default function MemoryExtract() {
     { id: "needs-wrong", label: "Needs wrong choices", n: count("needs-wrong") },
     { id: "needs-deck", label: "Needs a deck", n: count("needs-deck") },
     { id: "duplicate", label: "Already in the bank?", n: count("duplicate") },
+    { id: "waits-main", label: "Waits for its main card", n: count("waits-main") },
+    { id: "needs-main", label: "Main card not found", n: count("needs-main") },
     { id: "problem", label: "Needs text", n: count("problem") },
   ];
 
@@ -515,8 +565,8 @@ export default function MemoryExtract() {
           <h2 className="font-medium">1. Get the cards in the format</h2>
           <InfoTip>
             Open a chat with Claude, attach your notes, PDF or pictures, and paste the instructions. Claude writes one
-            card per fact, with near-miss wrong choices for formulas and statements. You can also type cards in the
-            format yourself.
+            card per fact, with near-miss wrong choices for formulas and statements, and variants for a fact worth
+            asking more than one way. You can also type cards in the format yourself.
           </InfoTip>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -534,6 +584,15 @@ export default function MemoryExtract() {
               <li>A number answer needs no Wrong lines. Any other answer needs three.</li>
               <li>Deck and Subject are matched to your bank. A subject you do not have yet can be created below.</li>
               <li>Kind, Subject and Tags are optional.</li>
+              <li>
+                An Also line, such as “Also: ELEX › Electromagnetics”, files the same card in another deck or subject
+                too. It stays one card.
+              </li>
+              <li>
+                A Variant of line, copying another card&apos;s prompt, makes the card a variant of that one: the same
+                fact asked another way. It joins that card, in your bank or waiting here, instead of being a new card.
+              </li>
+              <li>A card that looks like one already in its deck is marked “Already in the bank?”.</li>
             </ul>
           </div>
         </details>
@@ -657,6 +716,7 @@ export default function MemoryExtract() {
                   categories={categories}
                   tags={tagHelp}
                   twin={status === "duplicate" ? findDuplicate(d, cards) : undefined}
+                  main={d.variantOf ? findMain(d, cards) : undefined}
                   selected={chosen.includes(d.id)}
                   onSelect={(on) => setSelected((cur) => (on ? [...cur, d.id] : cur.filter((x) => x !== d.id)))}
                   leaving={leaving[d.id]}

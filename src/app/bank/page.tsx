@@ -7,6 +7,10 @@ import LoadingScreen from "@/components/layout/LoadingScreen";
 import MemoryBank from "@/components/bank/MemoryBank";
 import QuestionList from "@/components/bank/QuestionList";
 import TreePanel from "@/components/bank/TreePanel";
+import TreeBox from "@/components/bank/TreeBox";
+import { pathOf } from "@/lib/bank/tree";
+import { useReadOnly } from "@/lib/sync/syncState";
+import { useBankViewOnly, useNarrow } from "@/lib/ui/viewOnly";
 import { useDrafts } from "@/lib/bank/concepts";
 import { useCards } from "@/lib/memory/cards";
 import { useConcepts, useNodes, useQuestions } from "@/lib/hooks";
@@ -21,10 +25,14 @@ function BankView() {
   const concepts = useConcepts();
   const drafts = useDrafts();
   const cards = useCards();
+  const viewOnly = useBankViewOnly();
+  const narrow = useNarrow();
+  const goDevice = useReadOnly();
   // The address holds the node, the tab, and the page, such as /bank?node=<id>&tab=concepts&page=3, so a refresh keeps your place.
   const selectedId = params.get("node");
   const wanted = params.get("tab");
-  const tab: Tab = wanted === "concepts" || wanted === "memory" ? wanted : "questions";
+  // Concepts are for writing questions, so a view-only bank leaves them out.
+  const tab: Tab = (wanted === "concepts" && !viewOnly) || wanted === "memory" ? wanted : "questions";
 
   if (!nodes || !questions || !concepts || !drafts || !cards) return <LoadingScreen />;
 
@@ -42,10 +50,17 @@ function BankView() {
     { id: "questions", label: `Questions (${questions.length})` },
     { id: "concepts", label: `Concepts (${concepts.length})` },
     { id: "memory", label: `Memory (${cards.length})` },
-  ];
+  ].filter((t) => !viewOnly || t.id !== "concepts") as { id: Tab; label: string }[];
 
   return (
     <div className="space-y-4">
+      {viewOnly && (
+        <p className="rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">
+          {goDevice
+            ? "View only on this device: questions and cards are written and organised on your main device."
+            : "View only on a phone: questions and cards are written and organised on a computer."}
+        </p>
+      )}
       <div role="tablist" aria-label="Bank sections" className="flex gap-1 border-b border-line">
         {tabs.map((t) => (
           <button
@@ -62,15 +77,39 @@ function BankView() {
         ))}
       </div>
       {tab === "memory" ? (
-        <MemoryBank nodes={nodes} cards={cards} selected={selected} onSelect={select} />
+        <MemoryBank
+          nodes={nodes}
+          cards={cards}
+          selected={selected}
+          onSelect={select}
+          viewOnly={viewOnly}
+          narrow={narrow}
+        />
       ) : (
-        <div className="grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
           {/* The tree stays in view while the list scrolls. A long tree scrolls on its own. */}
-          <div className="scroll-thin sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-            <TreePanel nodes={nodes} questions={questions} selectedId={selected?.id ?? null} onSelect={select} />
-          </div>
+          <TreeBox narrow={narrow} current={selected ? pathOf(nodes, selected.id) : "All questions"}>
+            {(close) => (
+              <TreePanel
+                nodes={nodes}
+                questions={questions}
+                selectedId={selected?.id ?? null}
+                onSelect={(id) => {
+                  select(id);
+                  close();
+                }}
+                viewOnly={viewOnly}
+              />
+            )}
+          </TreeBox>
           {tab === "questions" ? (
-            <QuestionList key={selected?.id ?? "all"} nodes={nodes} questions={questions} selected={selected} />
+            <QuestionList
+              key={selected?.id ?? "all"}
+              nodes={nodes}
+              questions={questions}
+              selected={selected}
+              viewOnly={viewOnly}
+            />
           ) : (
             <ConceptList
               key={selected?.id ?? "all"}

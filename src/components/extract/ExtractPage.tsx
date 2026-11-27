@@ -38,7 +38,14 @@ import {
   usePasted,
 } from "@/lib/extract/extractStore";
 import { childrenOf, pathOf } from "@/lib/bank/tree";
-import { joinReference, keepSourceOnly, sourceLabel, splitReference, useSources, type Source } from "@/lib/bank/sources";
+import {
+  joinReference,
+  keepSourceOnly,
+  sourceLabel,
+  splitReference,
+  useSources,
+  type Source,
+} from "@/lib/bank/sources";
 import { motionReduced } from "@/lib/ui/motion";
 import { hasWhere, pageOnly, whereForInput, whereFromInput } from "@/lib/bank/where";
 import { suggestWrongText, type Ask } from "@/lib/ai/wrongChoices";
@@ -604,6 +611,10 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
                 adds one only when the page shows where the question is.
               </li>
               <li>
+                A question that looks like one already in its topic is marked “Already in this topic?”. Add all leaves
+                it for you to check; you can still add it. Symbols count, so “a &lt; b” and “a = b” differ.
+              </li>
+              <li>
                 The Topic line, such as “Topic: ELEX &gt; Circuits &gt; Basics”, puts that question in its own topic.
                 Claude recommends one for each question. If it is not in your bank yet, you can edit it and create it,
                 or pick a topic you have.
@@ -647,8 +658,8 @@ function Inner({ pasted, nodes }: { pasted: DraftQuestion[]; nodes: TreeNode[] }
         <div>
           <p className="text-sm font-medium">Tags for every question (optional)</p>
           <p className="mb-1 text-xs text-muted">
-            Added to every question you read now, together with any Tags line in the text. You can still change the
-            tags of any question below.
+            Added to every question you read now, together with any Tags line in the text. You can still change the tags
+            of any question below.
           </p>
           <TagInput
             value={bulkTags}
